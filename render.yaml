@@ -1,0 +1,32 @@
+# Blueprint do Render pra API do MilLead (free tier).
+# Como usar: Render dashboard -> New -> Blueprint -> selecionar este repo.
+# O plano free "dorme" após ~15min ocioso e acorda no primeiro request
+# (uns segundos de espera) -- aceitável pra uso interno.
+services:
+  - type: web
+    name: millead-api
+    runtime: node
+    plan: free
+    region: virginia # mais perto de sa-east-1 (Supabase/Upstash)
+    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm --filter @millead/database exec prisma generate
+    startCommand: pnpm --filter @millead/api exec tsx src/main/server.ts
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: API_PORT
+        value: "10000" # porta padrão que o Render expõe
+      - key: START_WORKERS
+        value: "true" # workers BullMQ no mesmo processo (1 serviço só)
+      - key: DATABASE_URL
+        sync: false # cole a connection string do Supabase (session pooler)
+      - key: REDIS_URL
+        sync: false # cole a URL rediss:// do Upstash
+      - key: JWT_ACCESS_SECRET
+        generateValue: true # o Render gera um segredo forte
+      - key: CORS_ORIGIN
+        value: https://millead.milweb.com.br
+      - key: APP_PUBLIC_URL
+        sync: false # https://millead-api.onrender.com (a URL deste serviço)
+      # Opcionais (IA, contratos, e-mail, WhatsApp) -- adicionar quando for usar:
+      # ANTHROPIC_API_KEY, SIGNATURE_PROVIDER, ZAPSIGN_*, CONTRACTOR_*, SMTP_*, WHATSAPP_*

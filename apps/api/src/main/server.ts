@@ -12,6 +12,16 @@ const server = app.listen(env.API_PORT, () => {
   logger.info(`MilLead API no ar em http://localhost:${env.API_PORT} (${env.NODE_ENV})`);
 });
 
+// Deploy econômico (ex.: free tier do Render, um serviço só): com
+// START_WORKERS=true os workers BullMQ sobem NO MESMO processo da API.
+// Em dev/produção com mais tráfego, prefira o processo separado
+// (`pnpm dev:worker` / `start:worker`) e deixe esta env desligada.
+if (env.START_WORKERS) {
+  void import("../interfaces/jobs/index.js").then(() => {
+    logger.info("workers BullMQ rodando no processo da API (START_WORKERS=true)");
+  });
+}
+
 async function shutdown(signal: string) {
   logger.info(`${signal} recebido, encerrando com calma...`);
   server.close(async () => {

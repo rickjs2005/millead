@@ -16,6 +16,8 @@ const envSchema = z.object({
   JWT_ACCESS_TTL: z.string().default("15m"),
   JWT_REFRESH_TTL: z.string().default("30d"),
   CORS_ORIGIN: z.string().default("http://localhost:3000"),
+  /** true = workers BullMQ no mesmo processo da API (deploy de 1 serviço só). */
+  START_WORKERS: z.coerce.boolean().default(false),
   // ===== IA (Fase 7) =====
   // Opcional de propósito: sem a chave, o app sobe normalmente e os
   // endpoints de IA respondem 503 com instrução de configuração.
