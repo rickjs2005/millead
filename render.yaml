@@ -8,7 +8,9 @@ services:
     runtime: node
     plan: free
     region: virginia # mais perto de sa-east-1 (Supabase/Upstash)
-    buildCommand: corepack enable && corepack prepare pnpm@10.33.4 --activate && pnpm install --frozen-lockfile && pnpm --filter @millead/database exec prisma generate
+    # O Render já provê o pnpm (via packageManager do package.json) -- não
+    # usar corepack aqui: /usr/bin é read-only e `corepack enable` quebra.
+    buildCommand: pnpm install --frozen-lockfile && pnpm --filter @millead/database exec prisma generate
     startCommand: pnpm --filter @millead/api exec tsx src/main/server.ts
     healthCheckPath: /health
     envVars:
