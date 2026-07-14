@@ -29,7 +29,7 @@ services:
       - key: JWT_ACCESS_SECRET
         generateValue: true # o Render gera um segredo forte
       - key: CORS_ORIGIN
-        value: https://millead.milweb.com.br
+        value: https://millead.milweb.com.br,https://millead.vercel.app
       - key: APP_PUBLIC_URL
         sync: false # https://millead-api.onrender.com (a URL deste serviço)
       # Opcionais (IA, contratos, e-mail, WhatsApp) -- adicionar quando for usar:

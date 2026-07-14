@@ -40,7 +40,8 @@ export function createApp(container: Container): Express {
   app.disable("x-powered-by");
   app.set("trust proxy", true); // necessário pra req.ip funcionar atrás de proxy/load balancer
   app.use(helmet());
-  app.use(cors({ origin: env.CORS_ORIGIN, credentials: true }));
+  // Aceita múltiplas origens separadas por vírgula (domínio final + vercel.app + local).
+  app.use(cors({ origin: env.CORS_ORIGIN.split(",").map((o) => o.trim()), credentials: true }));
   app.use(
     express.json({
       limit: "1mb",
