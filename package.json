@@ -1,0 +1,46 @@
+{
+  "name": "millead",
+  "version": "0.1.0",
+  "private": true,
+  "description": "MilLead — CRM e prospecção de leads para a MilWeb",
+  "packageManager": "pnpm@10.33.4",
+  "engines": {
+    "node": ">=22.12.0",
+    "pnpm": ">=10.0.0"
+  },
+  "scripts": {
+    "dev": "turbo run dev",
+    "dev:api": "turbo run dev --filter=@millead/api",
+    "dev:web": "turbo run dev --filter=@millead/web",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "type-check": "turbo run type-check",
+    "test": "turbo run test",
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\" --ignore-path .gitignore",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md}\" --ignore-path .gitignore",
+    "db:generate": "pnpm --filter @millead/database run generate",
+    "db:migrate": "pnpm --filter @millead/database run migrate",
+    "db:migrate:deploy": "pnpm --filter @millead/database run migrate:deploy",
+    "db:seed": "pnpm --filter @millead/database run seed",
+    "db:studio": "pnpm --filter @millead/database run studio",
+    "docker:up": "docker compose up -d",
+    "docker:down": "docker compose down",
+    "clean": "turbo run clean"
+  },
+  "devDependencies": {
+    "turbo": "^2.9.0",
+    "prettier": "^3.4.2",
+    "typescript": "^5.7.2"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@prisma/client",
+      "@prisma/engines",
+      "esbuild",
+      "msgpackr-extract",
+      "prisma",
+      "sharp",
+      "unrs-resolver"
+    ]
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "extends": "@millead/typescript-config/node.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "outDir": "dist"
+  },
+  "include": ["src", "prisma"],
+  "exclude": ["node_modules", "dist", "src/generated"]
+}

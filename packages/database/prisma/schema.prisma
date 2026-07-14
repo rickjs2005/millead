@@ -1,0 +1,916 @@
+// MilLead — schema de banco de dados (Fase 2)
+//
+// Convenção: TODO modelo que pertence a um tenant carrega `organizationId`
+// diretamente (estratégia multi-tenant "shared schema, coluna
+// discriminadora" -- ver docs/DATABASE.md para a justificativa) --
+// inclusive tabelas "filhas" (ex.: LeadContact, PipelineStage,
+// MeetingAttendee) que também têm um FK pro pai imediato (Lead, Pipeline,
+// Meeting). É proposital/redundante: qualquer repositório que busque por
+// id direto (`findUnique({ where: { id } })`) tem que conseguir validar o
+// tenant SEM precisar montar um join até a raiz -- é a diferença entre
+// "seguro por padrão" e "seguro só se ninguém esquecer o join certo".
+//
+// Nunca confie num organizationId vindo do cliente: ele sempre vem do
+// contexto autenticado (JWT), nunca do corpo da requisição -- a aplicação
+// da regra é responsabilidade da camada de aplicação/repositório, não do
+// schema (o schema só garante que a COLUNA existe pra filtrar por ela).
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ===================================================================
+// IDENTIDADE, ACESSO E MULTI-TENANCY
+// ===================================================================
+
+/// Uma pessoa que faz login no sistema. Pode pertencer a várias
+/// organizações (via Membership) -- ex.: um freelancer que atende mais de
+/// um workspace, ou o próprio dono da MilWeb com um workspace por cliente.
+model User {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  passwordHash String    @map("password_hash")
+  name         String
+  avatarUrl    String?   @map("avatar_url")
+  isActive     Boolean   @default(true) @map("is_active")
+  lastLoginAt  DateTime? @map("last_login_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  memberships      Membership[]
+  refreshTokens    RefreshToken[]
+  auditLogs        AuditLog[]
+  leadNotes        LeadNote[]
+  assignedLeads    Lead[]            @relation("LeadOwner")
+  assignedTasks    Task[]            @relation("TaskAssignee")
+  activities       Activity[]
+  createdMeetings  Meeting[]         @relation("MeetingCreatedBy")
+  meetingAttendees MeetingAttendee[]
+  createdProposals Proposal[]        @relation("ProposalCreatedBy")
+  requestedAudits  Audit[]           @relation("AuditRequestedBy")
+  landingPages     LandingPage[]     @relation("LandingPageCreatedBy")
+
+  @@map("users")
+}
+
+/// Um tenant. Hoje é "a MilWeb" -- se o MilLead virar produto vendido pra
+/// outras agências/freelancers, cada cliente vira uma Organization nova
+/// sem qualquer mudança de schema.
+model Organization {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  memberships      Membership[]
+  roles            Role[]
+  refreshTokens    RefreshToken[]
+  auditLogs        AuditLog[]
+  companies        Company[]
+  companyWebsites  CompanyWebsite[]
+  companySocials   CompanySocial[]
+  leads            Lead[]
+  leadContacts     LeadContact[]
+  leadNotes        LeadNote[]
+  tags             Tag[]
+  pipelines        Pipeline[]
+  pipelineStages   PipelineStage[]
+  tasks            Task[]
+  activities       Activity[]
+  meetings         Meeting[]
+  meetingAttendees MeetingAttendee[]
+  proposals        Proposal[]
+  audits           Audit[]
+  auditReports     AuditReport[]
+  auditScores      AuditScore[]
+  messageTemplates MessageTemplate[]
+  messages         Message[]
+  messageLogs      MessageLog[]
+  landingPages     LandingPage[]
+  subscription     Subscription?
+
+  @@map("organizations")
+}
+
+enum MembershipStatus {
+  INVITED
+  ACTIVE
+  SUSPENDED
+
+  @@map("membership_status")
+}
+
+/// Vínculo N:N entre User e Organization, com um Role atribuído --
+/// é aqui que RBAC encontra multi-tenant (a mesma pessoa pode ter papéis
+/// diferentes em organizações diferentes).
+model Membership {
+  id             String           @id @default(cuid())
+  userId         String           @map("user_id")
+  organizationId String           @map("organization_id")
+  roleId         String           @map("role_id")
+  status         MembershipStatus @default(ACTIVE)
+  invitedAt      DateTime?        @map("invited_at")
+  joinedAt       DateTime?        @map("joined_at")
+  createdAt      DateTime         @default(now()) @map("created_at")
+  updatedAt      DateTime         @updatedAt @map("updated_at")
+
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  role         Role         @relation(fields: [roleId], references: [id], onDelete: Restrict)
+
+  @@unique([userId, organizationId])
+  @@index([organizationId])
+  @@map("memberships")
+}
+
+/// Papel dentro de uma organização (ex.: Owner, Admin, Sales, Viewer).
+/// `isSystem` marca papéis padrão criados no seed, que não podem ser
+/// apagados pela UI (mas podem ser usados como ponto de partida).
+model Role {
+  id             String   @id @default(cuid())
+  organizationId String   @map("organization_id")
+  name           String
+  description    String?
+  isSystem       Boolean  @default(false) @map("is_system")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  organization Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  permissions  RolePermission[]
+  memberships  Membership[]
+
+  @@unique([organizationId, name])
+  @@index([organizationId])
+  @@map("roles")
+}
+
+/// Catálogo global de permissões (não é por tenant) -- ex.: "leads:read",
+/// "leads:write", "billing:manage". Populado via seed; a aplicação nunca
+/// cria permissões em runtime.
+model Permission {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  description String
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  roles RolePermission[]
+
+  @@map("permissions")
+}
+
+model RolePermission {
+  roleId       String @map("role_id")
+  permissionId String @map("permission_id")
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+/// Refresh tokens de sessão. Guardamos o HASH do token (nunca o valor em
+/// claro) para que um vazamento do banco não permita forjar sessões.
+/// Rotação: ao usar um refresh token, ele é revogado e substituído por um
+/// novo (`replacedByTokenId`) -- reuso de um token já revogado é tratado
+/// como possível roubo de sessão (revoga toda a família).
+model RefreshToken {
+  id                String    @id @default(cuid())
+  userId            String    @map("user_id")
+  organizationId    String?   @map("organization_id")
+  tokenHash         String    @unique @map("token_hash")
+  userAgent         String?   @map("user_agent")
+  ipAddress         String?   @map("ip_address")
+  expiresAt         DateTime  @map("expires_at")
+  revokedAt         DateTime? @map("revoked_at")
+  replacedByTokenId String?   @map("replaced_by_token_id")
+  createdAt         DateTime  @default(now()) @map("created_at")
+
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@map("refresh_tokens")
+}
+
+/// Trilha de auditoria de AÇÕES do sistema (quem fez o quê, quando) --
+/// diferente de `Audit`/`AuditReport`/`AuditScore` abaixo, que é a
+/// auditoria de SITE (feature de produto da Fase 6). Nomes parecidos,
+/// domínios diferentes: esta tabela é infraestrutura/segurança.
+model AuditLog {
+  id             String   @id @default(cuid())
+  organizationId String?  @map("organization_id")
+  userId         String?  @map("user_id")
+  action         String
+  entityType     String?  @map("entity_type")
+  entityId       String?  @map("entity_id")
+  metadata       Json?
+  ipAddress      String?  @map("ip_address")
+  userAgent      String?  @map("user_agent")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  user         User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, createdAt])
+  @@index([userId])
+  @@index([entityType, entityId])
+  @@map("audit_logs")
+}
+
+// ===================================================================
+// CRM: EMPRESAS, LEADS E PIPELINE
+// ===================================================================
+
+model Company {
+  id             String   @id @default(cuid())
+  organizationId String   @map("organization_id")
+  name           String
+  document       String? // CNPJ ou equivalente
+  segment        String?
+  sizeEstimate   String?  @map("size_estimate")
+  city           String?
+  state          String?
+  country        String   @default("BR")
+  phone          String?
+  email          String?
+  notes          String?
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  organization Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  websites     CompanyWebsite[]
+  socials      CompanySocial[]
+  leads        Lead[]
+  audits       Audit[]
+  landingPages LandingPage[]
+
+  @@unique([organizationId, document])
+  @@index([organizationId])
+  @@map("companies")
+}
+
+model CompanyWebsite {
+  id             String   @id @default(cuid())
+  organizationId String   @map("organization_id")
+  companyId      String   @map("company_id")
+  url            String
+  isPrimary      Boolean  @default(false) @map("is_primary")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  company      Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, url])
+  @@index([organizationId])
+  @@index([companyId])
+  @@map("company_websites")
+}
+
+enum SocialPlatform {
+  INSTAGRAM
+  FACEBOOK
+  LINKEDIN
+  TIKTOK
+  WHATSAPP
+  OTHER
+
+  @@map("social_platform")
+}
+
+model CompanySocial {
+  id             String         @id @default(cuid())
+  organizationId String         @map("organization_id")
+  companyId      String         @map("company_id")
+  platform       SocialPlatform
+  handleOrUrl    String         @map("handle_or_url")
+  createdAt      DateTime       @default(now()) @map("created_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  company      Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([companyId])
+  @@map("company_socials")
+}
+
+enum LeadSource {
+  MANUAL
+  IMPORT
+  SCRAPER
+  REFERRAL
+  INBOUND
+
+  @@map("lead_source")
+}
+
+enum LeadStatus {
+  OPEN
+  WON
+  LOST
+
+  @@map("lead_status")
+}
+
+model Lead {
+  id              String     @id @default(cuid())
+  organizationId  String     @map("organization_id")
+  companyId       String?    @map("company_id")
+  pipelineStageId String?    @map("pipeline_stage_id")
+  ownerId         String?    @map("owner_id")
+  title           String
+  source          LeadSource @default(MANUAL)
+  status          LeadStatus @default(OPEN)
+  score           Int?
+  value           Decimal?   @db.Decimal(12, 2)
+  currency        String     @default("BRL")
+  lostReason      String?    @map("lost_reason")
+  closedAt        DateTime?  @map("closed_at")
+  createdAt       DateTime   @default(now()) @map("created_at")
+  updatedAt       DateTime   @updatedAt @map("updated_at")
+
+  organization  Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  company       Company?       @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  pipelineStage PipelineStage? @relation(fields: [pipelineStageId], references: [id], onDelete: SetNull)
+  owner         User?          @relation("LeadOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+
+  contacts   LeadContact[]
+  notes      LeadNote[]
+  tags       LeadTag[]
+  tasks      Task[]
+  activities Activity[]
+  // Reunião/mensagem/proposta são registros comerciais -- apagar um Lead
+  // não pode destruir isso em cascata sem querer. Restrict: primeiro
+  // resolve/arquiva o que está pendurado, depois apaga o lead.
+  meetings  Meeting[]
+  proposals Proposal[]
+  messages  Message[]
+  landingPages LandingPage[]
+
+  @@index([organizationId, status])
+  @@index([companyId])
+  @@index([pipelineStageId])
+  @@index([ownerId])
+  @@map("leads")
+}
+
+model LeadContact {
+  id             String   @id @default(cuid())
+  organizationId String   @map("organization_id")
+  leadId         String   @map("lead_id")
+  name           String
+  role           String?
+  email          String?
+  phone          String?
+  isPrimary      Boolean  @default(false) @map("is_primary")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  lead         Lead         @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([leadId])
+  @@map("lead_contacts")
+}
+
+model LeadNote {
+  id             String   @id @default(cuid())
+  organizationId String   @map("organization_id")
+  leadId         String   @map("lead_id")
+  authorId       String?  @map("author_id")
+  body           String
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  lead         Lead         @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  author       User?        @relation(fields: [authorId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId])
+  @@index([leadId])
+  @@map("lead_notes")
+}
+
+/// Catálogo de etiquetas reutilizáveis por organização (ex.: "quente",
+/// "e-commerce", "sem site"). `LeadTag` é só a tabela de junção.
+model Tag {
+  id             String   @id @default(cuid())
+  organizationId String   @map("organization_id")
+  name           String
+  color          String   @default("#38BDF8")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  leads        LeadTag[]
+
+  @@unique([organizationId, name])
+  @@map("tags")
+}
+
+model LeadTag {
+  leadId    String   @map("lead_id")
+  tagId     String   @map("tag_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  lead Lead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  tag  Tag  @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([leadId, tagId])
+  @@index([tagId])
+  @@map("lead_tags")
+}
+
+model Pipeline {
+  id             String   @id @default(cuid())
+  organizationId String   @map("organization_id")
+  name           String
+  isDefault      Boolean  @default(false) @map("is_default")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  organization Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  stages       PipelineStage[]
+
+  @@index([organizationId])
+  @@map("pipelines")
+}
+
+model PipelineStage {
+  id             String   @id @default(cuid())
+  organizationId String   @map("organization_id")
+  pipelineId     String   @map("pipeline_id")
+  name           String
+  order          Int
+  color          String   @default("#38BDF8")
+  isWon          Boolean  @default(false) @map("is_won")
+  isLost         Boolean  @default(false) @map("is_lost")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  pipeline     Pipeline     @relation(fields: [pipelineId], references: [id], onDelete: Cascade)
+  leads        Lead[]
+
+  // [pipelineId, order] já cobre buscas por pipelineId (coluna líder do
+  // índice composto) -- um @@index([pipelineId]) separado seria redundante.
+  @@unique([pipelineId, order])
+  @@index([organizationId])
+  @@map("pipeline_stages")
+}
+
+// ===================================================================
+// EXECUÇÃO: TAREFAS, ATIVIDADES, REUNIÕES, PROPOSTAS
+// ===================================================================
+
+enum TaskStatus {
+  PENDING
+  DONE
+  CANCELLED
+
+  @@map("task_status")
+}
+
+model Task {
+  id             String     @id @default(cuid())
+  organizationId String     @map("organization_id")
+  leadId         String?    @map("lead_id")
+  assigneeId     String?    @map("assignee_id")
+  title          String
+  description    String?
+  status         TaskStatus @default(PENDING)
+  dueAt          DateTime?  @map("due_at")
+  completedAt    DateTime?  @map("completed_at")
+  createdAt      DateTime   @default(now()) @map("created_at")
+  updatedAt      DateTime   @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  lead         Lead?        @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  assignee     User?        @relation("TaskAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, status])
+  @@index([organizationId, dueAt])
+  @@index([leadId])
+  @@index([assigneeId])
+  @@map("tasks")
+}
+
+enum ActivityType {
+  NOTE
+  CALL
+  EMAIL
+  STATUS_CHANGE
+  TASK_CREATED
+  MEETING_SCHEDULED
+  MESSAGE_SENT
+  PROPOSAL_SENT
+  OTHER
+
+  @@map("activity_type")
+}
+
+/// Feed cronológico auto-gerado de tudo que aconteceu num lead --
+/// alimenta a timeline do CRM. Diferente de `AuditLog` (segurança/sistema)
+/// e de `Task` (algo pendente de ser feito): `Activity` é o registro do
+/// que JÁ aconteceu.
+model Activity {
+  id             String       @id @default(cuid())
+  organizationId String       @map("organization_id")
+  leadId         String?      @map("lead_id")
+  userId         String?      @map("user_id")
+  type           ActivityType
+  payload        Json?
+  createdAt      DateTime     @default(now()) @map("created_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  lead         Lead?        @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  user         User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId])
+  @@index([leadId, createdAt])
+  @@map("activities")
+}
+
+enum MeetingLocation {
+  ONLINE
+  IN_PERSON
+  PHONE
+
+  @@map("meeting_location")
+}
+
+enum MeetingStatus {
+  SCHEDULED
+  COMPLETED
+  CANCELED
+  NO_SHOW
+
+  @@map("meeting_status")
+}
+
+model Meeting {
+  id              String          @id @default(cuid())
+  organizationId  String          @map("organization_id")
+  leadId          String?         @map("lead_id")
+  createdById     String?         @map("created_by_id")
+  title           String
+  scheduledAt     DateTime        @map("scheduled_at")
+  durationMinutes Int             @default(30) @map("duration_minutes")
+  location        MeetingLocation @default(ONLINE)
+  meetingUrl      String?         @map("meeting_url")
+  status          MeetingStatus   @default(SCHEDULED)
+  createdAt       DateTime        @default(now()) @map("created_at")
+  updatedAt       DateTime        @updatedAt @map("updated_at")
+
+  organization Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  lead         Lead?             @relation(fields: [leadId], references: [id], onDelete: Restrict)
+  createdBy    User?             @relation("MeetingCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  attendees    MeetingAttendee[]
+
+  @@index([organizationId, scheduledAt])
+  @@index([leadId])
+  @@map("meetings")
+}
+
+model MeetingAttendee {
+  id             String  @id @default(cuid())
+  organizationId String  @map("organization_id")
+  meetingId      String  @map("meeting_id")
+  userId         String? @map("user_id")
+  name           String
+  email          String?
+  isInternal     Boolean @default(false) @map("is_internal")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  meeting      Meeting      @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  user         User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId])
+  @@index([meetingId])
+  @@map("meeting_attendees")
+}
+
+enum ProposalStatus {
+  DRAFT
+  SENT
+  VIEWED
+  ACCEPTED
+  REJECTED
+  EXPIRED
+
+  @@map("proposal_status")
+}
+
+model Proposal {
+  id             String         @id @default(cuid())
+  organizationId String         @map("organization_id")
+  leadId         String         @map("lead_id")
+  createdById    String?        @map("created_by_id")
+  title          String
+  status         ProposalStatus @default(DRAFT)
+  value          Decimal        @db.Decimal(12, 2)
+  currency       String         @default("BRL")
+  validUntil     DateTime?      @map("valid_until")
+  pdfUrl         String?        @map("pdf_url")
+  sentAt         DateTime?      @map("sent_at")
+  respondedAt    DateTime?      @map("responded_at")
+  createdAt      DateTime       @default(now()) @map("created_at")
+  updatedAt      DateTime       @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  lead         Lead         @relation(fields: [leadId], references: [id], onDelete: Restrict)
+  createdBy    User?        @relation("ProposalCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, status])
+  @@index([leadId])
+  @@map("proposals")
+}
+
+// ===================================================================
+// AUDITORIA DE SITE (feature de produto -- Fase 6, schema já modelado)
+// ===================================================================
+
+enum AuditStatus {
+  QUEUED
+  RUNNING
+  COMPLETED
+  FAILED
+
+  @@map("audit_status")
+}
+
+enum AuditTrigger {
+  MANUAL
+  AUTOMATIC
+
+  @@map("audit_trigger")
+}
+
+model Audit {
+  id             String       @id @default(cuid())
+  organizationId String       @map("organization_id")
+  companyId      String       @map("company_id")
+  requestedById  String?      @map("requested_by_id")
+  status         AuditStatus  @default(QUEUED)
+  triggeredBy    AuditTrigger @default(MANUAL) @map("triggered_by")
+  startedAt      DateTime?    @map("started_at")
+  completedAt    DateTime?    @map("completed_at")
+  createdAt      DateTime     @default(now()) @map("created_at")
+
+  organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  company      Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  requestedBy  User?         @relation("AuditRequestedBy", fields: [requestedById], references: [id], onDelete: SetNull)
+  report       AuditReport?
+  scores       AuditScore[]
+
+  @@index([organizationId, status])
+  @@index([companyId])
+  @@map("audits")
+}
+
+model AuditReport {
+  id             String   @id @default(cuid())
+  organizationId String   @map("organization_id")
+  auditId        String   @unique @map("audit_id")
+  summary        String?
+  rawData        Json?    @map("raw_data")
+  pdfUrl         String?  @map("pdf_url")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  audit        Audit        @relation(fields: [auditId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@map("audit_reports")
+}
+
+enum AuditScoreCategory {
+  PERFORMANCE
+  SEO
+  ACCESSIBILITY
+  SECURITY
+  DESIGN
+  MOBILE
+
+  @@map("audit_score_category")
+}
+
+model AuditScore {
+  id             String             @id @default(cuid())
+  organizationId String             @map("organization_id")
+  auditId        String             @map("audit_id")
+  category       AuditScoreCategory
+  score          Int
+  details        Json?
+  createdAt      DateTime           @default(now()) @map("created_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  audit        Audit        @relation(fields: [auditId], references: [id], onDelete: Cascade)
+
+  @@unique([auditId, category])
+  @@index([organizationId])
+  @@map("audit_scores")
+}
+
+// ===================================================================
+// MENSAGERIA (Fase 7 -- mensagens automáticas via IA, schema já modelado)
+// ===================================================================
+
+enum MessageChannel {
+  WHATSAPP
+  EMAIL
+  SMS
+
+  @@map("message_channel")
+}
+
+model MessageTemplate {
+  id             String         @id @default(cuid())
+  organizationId String         @map("organization_id")
+  name           String
+  channel        MessageChannel
+  subject        String?
+  body           String
+  variables      Json?
+  isActive       Boolean        @default(true) @map("is_active")
+  createdAt      DateTime       @default(now()) @map("created_at")
+  updatedAt      DateTime       @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  messages     Message[]
+
+  @@unique([organizationId, name])
+  @@index([organizationId])
+  @@map("message_templates")
+}
+
+enum MessageDirection {
+  OUTBOUND
+  INBOUND
+
+  @@map("message_direction")
+}
+
+enum MessageStatus {
+  DRAFT
+  QUEUED
+  SENT
+  DELIVERED
+  READ
+  FAILED
+
+  @@map("message_status")
+}
+
+model Message {
+  id             String           @id @default(cuid())
+  organizationId String           @map("organization_id")
+  leadId         String           @map("lead_id")
+  templateId     String?          @map("template_id")
+  channel        MessageChannel
+  direction      MessageDirection @default(OUTBOUND)
+  status         MessageStatus    @default(DRAFT)
+  body           String
+  sentAt         DateTime?        @map("sent_at")
+  createdAt      DateTime         @default(now()) @map("created_at")
+
+  organization Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  lead         Lead             @relation(fields: [leadId], references: [id], onDelete: Restrict)
+  template     MessageTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  logs         MessageLog[]
+
+  @@index([organizationId])
+  @@index([organizationId, status])
+  @@index([leadId])
+  @@map("messages")
+}
+
+enum MessageLogEvent {
+  QUEUED
+  SENT
+  DELIVERED
+  READ
+  FAILED
+  BOUNCED
+
+  @@map("message_log_event")
+}
+
+/// Eventos de entrega reportados pelo provedor (webhook) para uma
+/// mensagem -- histórico completo, `Message.status` guarda só o estado
+/// atual.
+model MessageLog {
+  id             String          @id @default(cuid())
+  organizationId String          @map("organization_id")
+  messageId      String          @map("message_id")
+  event          MessageLogEvent
+  payload        Json?
+  createdAt      DateTime        @default(now()) @map("created_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  message      Message      @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([messageId])
+  @@map("message_logs")
+}
+
+// ===================================================================
+// LANDING PAGES (Fase 8 -- geradas por IA)
+// ===================================================================
+
+enum LandingPageKind {
+  /// Demo do site do PROSPECT ("veja como o site de vocês poderia ficar").
+  DEMO_SITE
+  /// Página de pitch da agência para o prospect (proposta de valor).
+  PITCH
+
+  @@map("landing_page_kind")
+}
+
+enum LandingPageStatus {
+  QUEUED
+  GENERATING
+  READY
+  FAILED
+
+  @@map("landing_page_status")
+}
+
+/// Landing page gerada por IA (HTML único, autocontido). Pública somente
+/// quando `isPublished` -- a rota /p/:slug da API serve o HTML sem auth,
+/// então publicar = expor na internet (local: só na máquina do dev).
+model LandingPage {
+  id             String            @id @default(cuid())
+  organizationId String            @map("organization_id")
+  companyId      String            @map("company_id")
+  leadId         String?           @map("lead_id")
+  createdById    String?           @map("created_by_id")
+  slug           String            @unique
+  title          String
+  kind           LandingPageKind   @default(DEMO_SITE)
+  status         LandingPageStatus @default(QUEUED)
+  /// Instruções livres do vendedor pra geração.
+  brief          String?
+  html           String?
+  errorMessage   String?           @map("error_message")
+  isPublished    Boolean           @default(false) @map("is_published")
+  publishedAt    DateTime?         @map("published_at")
+  views          Int               @default(0)
+  createdAt      DateTime          @default(now()) @map("created_at")
+  updatedAt      DateTime          @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  company      Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  lead         Lead?        @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  createdBy    User?        @relation("LandingPageCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, status])
+  @@index([companyId])
+  @@map("landing_pages")
+}
+
+// ===================================================================
+// BILLING
+// ===================================================================
+
+enum SubscriptionPlan {
+  FREE
+  STARTER
+  PRO
+  ENTERPRISE
+
+  @@map("subscription_plan")
+}
+
+enum SubscriptionStatus {
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  CANCELED
+  INCOMPLETE
+
+  @@map("subscription_status")
+}
+
+model Subscription {
+  id                     String             @id @default(cuid())
+  organizationId         String             @unique @map("organization_id")
+  plan                   SubscriptionPlan   @default(FREE)
+  status                 SubscriptionStatus @default(TRIALING)
+  providerCustomerId     String?            @map("provider_customer_id")
+  providerSubscriptionId String?            @map("provider_subscription_id")
+  currentPeriodStart     DateTime?          @map("current_period_start")
+  currentPeriodEnd       DateTime?          @map("current_period_end")
+  cancelAtPeriodEnd      Boolean            @default(false) @map("cancel_at_period_end")
+  createdAt              DateTime           @default(now()) @map("created_at")
+  updatedAt              DateTime           @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@map("subscriptions")
+}
