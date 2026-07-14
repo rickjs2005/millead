@@ -36,3 +36,5 @@ coverage/
 
 # Docker volumes (local dev data)
 .docker-data/
+
+.vercel
