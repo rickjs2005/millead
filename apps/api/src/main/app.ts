@@ -10,6 +10,11 @@ import { createAiRoutes } from "../interfaces/http/routes/ai-routes.js";
 import { createAuditRoutes } from "../interfaces/http/routes/audit-routes.js";
 import { createAuthRoutes } from "../interfaces/http/routes/auth-routes.js";
 import {
+  createContractRoutes,
+  createPublicContractRoutes,
+  createSignatureWebhookRoutes,
+} from "../interfaces/http/routes/contract-routes.js";
+import {
   createLandingPageRoutes,
   createPublicLandingPageRoutes,
 } from "../interfaces/http/routes/landing-page-routes.js";
@@ -36,7 +41,15 @@ export function createApp(container: Container): Express {
   app.set("trust proxy", true); // necessário pra req.ip funcionar atrás de proxy/load balancer
   app.use(helmet());
   app.use(cors({ origin: env.CORS_ORIGIN, credentials: true }));
-  app.use(express.json({ limit: "1mb" }));
+  app.use(
+    express.json({
+      limit: "1mb",
+      // Corpo cru preservado pra validação HMAC de webhooks (assinatura).
+      verify: (req, _res, buf) => {
+        (req as express.Request & { rawBody?: string }).rawBody = buf.toString("utf8");
+      },
+    }),
+  );
   app.use(cookieParser());
   app.use(pinoHttp({ logger }));
 
@@ -51,6 +64,14 @@ export function createApp(container: Container): Express {
     "/api/v1/landing-pages",
     createLandingPageRoutes(container.landingPageController, container.authenticate),
   );
+  app.use(
+    "/api/v1/contracts",
+    createContractRoutes(container.contractController, container.authenticate),
+  );
+  // Formulário público de fechamento (rate-limit por IP, sem login).
+  app.use("/api/v1/public", createPublicContractRoutes(container.contractController));
+  // Webhook do provedor de assinatura (validado por HMAC, sem login).
+  app.use("/api/v1/webhooks", createSignatureWebhookRoutes(container.contractController));
   // Rota PÚBLICA da landing page -- o link que o prospect abre, sem login.
   app.use("/p", createPublicLandingPageRoutes(container.landingPageController));
   app.use("/api/v1/auth", createAuthRoutes(container.authController, container.authenticate));

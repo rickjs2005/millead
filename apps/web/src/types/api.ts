@@ -433,6 +433,88 @@ export interface LandingPage {
   html?: string | null;
 }
 
+// ---------- Contratos (Fase 9) ----------
+
+export type ContractType = "SITE" | "SISTEMA" | "SAAS" | "MANUTENCAO" | "CONSULTORIA";
+export type ContractPaymentMethod = "PIX" | "BOLETO" | "CARTAO" | "TRANSFERENCIA" | "PARCELADO";
+export type ContractStatus =
+  | "RASCUNHO"
+  | "VALIDADO"
+  | "PDF_GERADO"
+  | "AGUARDANDO_ASSINATURA"
+  | "ASSINADO"
+  | "CANCELADO"
+  | "EXPIRADO";
+
+export interface ContractorSnapshot {
+  tipoPessoa: "PF" | "PJ";
+  nome: string;
+  documento: string;
+  email: string;
+  telefone: string;
+  endereco: string;
+  nomeEmpresa?: string | null;
+}
+
+export interface Contract {
+  id: string;
+  organizationId: string;
+  companyId: string;
+  leadId: string | null;
+  createdById: string | null;
+  numero: string;
+  tipo: ContractType;
+  status: ContractStatus;
+  descricaoProjeto: string;
+  valorTotal: string;
+  formaPagamento: ContractPaymentMethod;
+  percentualEntrada: string;
+  prazoEntregaDias: number;
+  limiteRevisoes: number;
+  contractorSnapshot: ContractorSnapshot;
+  contractedSnapshot: unknown;
+  provider: string;
+  signatureDocId: string | null;
+  signatureUrl: string | null;
+  assinadoEm: string | null;
+  hasPdfOriginal: boolean;
+  hasPdfAssinado: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ContractSigner {
+  id: string;
+  contractId: string;
+  nome: string;
+  email: string;
+  papel: string;
+  assinadoEm: string | null;
+  ip: string | null;
+  createdAt: string;
+}
+
+export interface ContractEvent {
+  id: string;
+  contractId: string;
+  tipo: string;
+  origem: string;
+  payload: unknown;
+  createdAt: string;
+}
+
+export interface ContractDetail extends Contract {
+  signers: ContractSigner[];
+  events: ContractEvent[];
+}
+
+export interface ContractKpis {
+  total: number;
+  aguardandoAssinatura: number;
+  assinados: number;
+  valorFechado: string;
+}
+
 // ---------- Erros ----------
 
 export interface ApiErrorBody {

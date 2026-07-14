@@ -10,6 +10,7 @@ export const QUEUE_NAMES = {
   PING: "ping", // fila de exemplo, só pra provar que a infra funciona
   AUDIT_SITE: "audit-site", // Fase 6 -- auditoria de site de prospect
   LANDING_PAGE: "landing-page", // Fase 8 -- geração de landing page por IA
+  CONTRACT_PROCESS: "contract-process", // Fase 9 -- PDF + doc de assinatura
 } as const;
 
 export interface PingJobData {
@@ -37,6 +38,21 @@ export interface LandingPageJobData {
   landingPageId: string;
   organizationId: string;
 }
+
+export interface ContractJobData {
+  contractId: string;
+  organizationId: string;
+}
+
+export const contractQueue = new Queue<ContractJobData>(QUEUE_NAMES.CONTRACT_PROCESS, {
+  connection: queueConnection,
+  defaultJobOptions: {
+    attempts: 2,
+    backoff: { type: "exponential", delay: 5000 },
+    removeOnComplete: 200,
+    removeOnFail: 500,
+  },
+});
 
 export const landingPageQueue = new Queue<LandingPageJobData>(QUEUE_NAMES.LANDING_PAGE, {
   connection: queueConnection,

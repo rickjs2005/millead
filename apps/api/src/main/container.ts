@@ -2,6 +2,7 @@ import { ActivityLogger } from "../application/services/activity-logger.js";
 import { AiService } from "../application/services/ai-service.js";
 import { AuditLogger } from "../application/services/audit-logger.js";
 import { AuditService } from "../application/services/audit-service.js";
+import { ContractService } from "../application/services/contract-service.js";
 import { LandingPageService } from "../application/services/landing-page-service.js";
 import { MessageService } from "../application/services/message-service.js";
 import { CompanyService } from "../application/services/company-service.js";
@@ -21,13 +22,17 @@ import { env } from "../config/env.js";
 import { BcryptPasswordHasher } from "../infrastructure/auth/bcrypt-password-hasher.js";
 import { JwtAccessTokenService } from "../infrastructure/auth/jwt-access-token-service.js";
 import { ClaudeLeadAi } from "../infrastructure/ai/claude-lead-ai.js";
+import { DefaultContractNotifier } from "../infrastructure/contracts/notifications/contract-notifier.js";
+import { createSignatureGateway } from "../infrastructure/contracts/signature/factory.js";
 import { BullAuditQueue } from "../infrastructure/queue/bull-audit-queue.js";
+import { BullContractQueue } from "../infrastructure/queue/bull-contract-queue.js";
 import { BullLandingPageQueue } from "../infrastructure/queue/bull-landing-page-queue.js";
 import { PrismaActivityRepository } from "../infrastructure/prisma/prisma-activity-repository.js";
 import { PrismaAuditLogRepository } from "../infrastructure/prisma/prisma-audit-log-repository.js";
 import { PrismaAuditRepository } from "../infrastructure/prisma/prisma-audit-repository.js";
 import { PrismaCompanyRepository } from "../infrastructure/prisma/prisma-company-repository.js";
 import { PrismaLeadRepository } from "../infrastructure/prisma/prisma-lead-repository.js";
+import { PrismaContractRepository } from "../infrastructure/prisma/prisma-contract-repository.js";
 import { PrismaLandingPageRepository } from "../infrastructure/prisma/prisma-landing-page-repository.js";
 import { PrismaMeetingRepository } from "../infrastructure/prisma/prisma-meeting-repository.js";
 import { PrismaMessageRepository } from "../infrastructure/prisma/prisma-message-repository.js";
@@ -45,6 +50,7 @@ import { createAuthenticateMiddleware } from "../interfaces/http/middlewares/aut
 import { AiController } from "../interfaces/http/controllers/ai-controller.js";
 import { AuditController } from "../interfaces/http/controllers/audit-controller.js";
 import { AuthController } from "../interfaces/http/controllers/auth-controller.js";
+import { ContractController } from "../interfaces/http/controllers/contract-controller.js";
 import { LandingPageController } from "../interfaces/http/controllers/landing-page-controller.js";
 import { MessageController } from "../interfaces/http/controllers/message-controller.js";
 import { CompanyController } from "../interfaces/http/controllers/company-controller.js";
@@ -62,6 +68,7 @@ export interface Container {
   auditController: AuditController;
   authController: AuthController;
   companyController: CompanyController;
+  contractController: ContractController;
   landingPageController: LandingPageController;
   messageController: MessageController;
   leadController: LeadController;
@@ -103,6 +110,7 @@ export function buildContainer(): Container {
   const messageRepository = new PrismaMessageRepository();
   const messageTemplateRepository = new PrismaMessageTemplateRepository();
   const landingPageRepository = new PrismaLandingPageRepository();
+  const contractRepository = new PrismaContractRepository();
 
   // ---- Serviços ----
   const passwordHasher = new BcryptPasswordHasher();
@@ -132,6 +140,14 @@ export function buildContainer(): Container {
     companyRepository,
     new BullLandingPageQueue(),
     !!env.ANTHROPIC_API_KEY,
+  );
+  const contractService = new ContractService(
+    contractRepository,
+    companyRepository,
+    organizationRepository,
+    new BullContractQueue(),
+    createSignatureGateway(),
+    new DefaultContractNotifier(),
   );
   const aiService = new AiService(
     leadAi,
@@ -191,12 +207,14 @@ export function buildContainer(): Container {
   const aiController = new AiController(aiService);
   const messageController = new MessageController(messageService);
   const landingPageController = new LandingPageController(landingPageService);
+  const contractController = new ContractController(contractService);
   const authenticate = createAuthenticateMiddleware(accessTokenService, membershipRepository);
 
   return {
     aiController,
     auditController,
     authController,
+    contractController,
     landingPageController,
     messageController,
     companyController,

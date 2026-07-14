@@ -6,3 +6,4 @@
 import "./ping.worker.js";
 import "./audit.worker.js";
 import "./landing-page.worker.js";
+import "./contract.worker.js";

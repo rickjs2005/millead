@@ -114,6 +114,15 @@ pnpm --filter @millead/api dev:worker
       `GET /p/:slug` (sem login, com contador de visitas). UI em
       `/landing-pages` (gerar, preview, publicar, copiar link, regenerar).
       Requer `ANTHROPIC_API_KEY` **e o worker rodando**.
+- [x] **Fase 9 — Contratos (migrado do milweb-contratos)**: fluxo completo
+      de fechamento -> PDF jurídico (15 cláusulas, `pdf-lib`) -> assinatura
+      eletrônica -> acompanhamento. Formulário público em
+      `/fechamento/:orgSlug` (rate-limit por IP), numeração automática
+      `MILWEB-AAAA-NNNNNN` por org+ano, PDFs guardados no banco, timeline
+      de eventos, webhook de assinatura com HMAC. Provedor padrão: **mock**
+      (simulado); ZapSign pronto via `SIGNATURE_PROVIDER=zapsign` + token.
+      E-mail/WhatsApp opcionais via env. O contratante vira `Company` do
+      CRM automaticamente (upsert por CPF/CNPJ). Requer o worker rodando.
 - [ ] **Frontend (em andamento)**: telas de login/cadastro, dashboard,
       leads, CRM (kanban), agenda, reuniões, tarefas, propostas, mensagens
       e configurações já existem em `apps/web`, consumindo a API via
@@ -140,6 +149,7 @@ RBAC. Listagens aceitam `?page=&pageSize=` (paginação) e devolvem
 | IA        | `GET /api/v1/ai/status`, `POST /api/v1/ai/leads/:id/score`, `POST .../report`, `POST .../message` (503 sem `ANTHROPIC_API_KEY`)                                                      |
 | Mensagens | `GET /api/v1/messages[?leadId=&status=&channel=]`, `PATCH /:id`, `GET/POST /api/v1/messages/templates`, `PATCH /templates/:id`                                                       |
 | Landing pages | `POST/GET /api/v1/landing-pages`, `GET /:id`, `POST /:id/regenerate`, `POST /:id/publish`, `DELETE /:id` -- pública: `GET /p/:slug`                                              |
+| Contratos | `POST/GET /api/v1/contracts`, `GET /kpis`, `GET /:id[/pdf]`, `PATCH /:id/status`, `POST /:id/reprocess` -- públicas: `POST /api/v1/public/contracts`, `POST /api/v1/webhooks/signature` |
 
 Detalhes de design que valem saber antes de consumir essa API:
 

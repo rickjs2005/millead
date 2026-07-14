@@ -55,6 +55,7 @@ model User {
   createdProposals Proposal[]        @relation("ProposalCreatedBy")
   requestedAudits  Audit[]           @relation("AuditRequestedBy")
   landingPages     LandingPage[]     @relation("LandingPageCreatedBy")
+  contracts        Contract[]        @relation("ContractCreatedBy")
 
   @@map("users")
 }
@@ -94,6 +95,10 @@ model Organization {
   messages         Message[]
   messageLogs      MessageLog[]
   landingPages     LandingPage[]
+  contracts         Contract[]
+  contractSigners   ContractSigner[]
+  contractEvents    ContractEvent[]
+  contractSequences ContractSequence[]
   subscription     Subscription?
 
   @@map("organizations")
@@ -251,6 +256,7 @@ model Company {
   leads        Lead[]
   audits       Audit[]
   landingPages LandingPage[]
+  contracts    Contract[]
 
   @@unique([organizationId, document])
   @@index([organizationId])
@@ -353,6 +359,7 @@ model Lead {
   proposals Proposal[]
   messages  Message[]
   landingPages LandingPage[]
+  contracts    Contract[]
 
   @@index([organizationId, status])
   @@index([companyId])
@@ -872,6 +879,154 @@ model LandingPage {
   @@index([organizationId, status])
   @@index([companyId])
   @@map("landing_pages")
+}
+
+// ===================================================================
+// CONTRATOS (Fase 9 -- migrado do sistema milweb-contratos)
+// ===================================================================
+
+enum ContractType {
+  SITE
+  SISTEMA
+  SAAS
+  MANUTENCAO
+  CONSULTORIA
+
+  @@map("contract_type")
+}
+
+enum ContractPaymentMethod {
+  PIX
+  BOLETO
+  CARTAO
+  TRANSFERENCIA
+  PARCELADO
+
+  @@map("contract_payment_method")
+}
+
+enum ContractStatus {
+  RASCUNHO
+  VALIDADO
+  PDF_GERADO
+  AGUARDANDO_ASSINATURA
+  ASSINADO
+  CANCELADO
+  EXPIRADO
+
+  @@map("contract_status")
+}
+
+enum ContractSignatureProvider {
+  MOCK
+  ZAPSIGN
+  CLICKSIGN
+  DOCUSIGN
+  AUTENTIQUE
+
+  @@map("contract_signature_provider")
+}
+
+/// Contrato de prestação de serviço. O "cliente" do sistema antigo virou a
+/// Company do millead (upsert por documento); os dados do contratante NO
+/// MOMENTO do contrato ficam em `contractorSnapshot` (imutabilidade
+/// jurídica), assim como os da contratada em `contractedSnapshot`.
+model Contract {
+  id             String                    @id @default(cuid())
+  organizationId String                    @map("organization_id")
+  companyId      String                    @map("company_id")
+  leadId         String?                   @map("lead_id")
+  createdById    String?                   @map("created_by_id")
+  numero         String
+  tipo           ContractType              @default(SITE)
+  status         ContractStatus            @default(RASCUNHO)
+
+  descricaoProjeto  String                @map("descricao_projeto")
+  valorTotal        Decimal               @map("valor_total") @db.Decimal(12, 2)
+  formaPagamento    ContractPaymentMethod @map("forma_pagamento")
+  percentualEntrada Decimal               @map("percentual_entrada") @db.Decimal(5, 2)
+  prazoEntregaDias  Int                   @map("prazo_entrega_dias")
+  limiteRevisoes    Int                   @default(2) @map("limite_revisoes")
+
+  /// Dados do contratante no momento do contrato (tipoPessoa, nome,
+  /// documento, email, telefone, endereco, nomeEmpresa).
+  contractorSnapshot Json @map("contractor_snapshot")
+  /// Dados da contratada (razaoSocial, cnpj, docLabel, endereco, email, foro).
+  contractedSnapshot Json @map("contracted_snapshot")
+
+  provider       ContractSignatureProvider @default(MOCK)
+  signatureDocId String?                   @map("signature_doc_id")
+  signatureUrl   String?                   @map("signature_url")
+  assinadoEm     DateTime?                 @map("assinado_em")
+
+  /// PDFs guardados direto no banco (volume baixo; evita depender de
+  /// storage externo). ~100-300KB por contrato.
+  pdfOriginal Bytes? @map("pdf_original")
+  pdfAssinado Bytes? @map("pdf_assinado")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  company      Company      @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  lead         Lead?        @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  createdBy    User?        @relation("ContractCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  signers      ContractSigner[]
+  events       ContractEvent[]
+
+  @@unique([organizationId, numero])
+  @@index([organizationId, status])
+  @@index([companyId])
+  @@map("contracts")
+}
+
+model ContractSigner {
+  id             String    @id @default(cuid())
+  organizationId String    @map("organization_id")
+  contractId     String    @map("contract_id")
+  nome           String
+  email          String
+  /// CONTRATANTE | CONTRATADA | TESTEMUNHA
+  papel          String
+  assinadoEm     DateTime? @map("assinado_em")
+  ip             String?
+  createdAt      DateTime  @default(now()) @map("created_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  contract     Contract     @relation(fields: [contractId], references: [id], onDelete: Cascade)
+
+  @@index([contractId])
+  @@map("contract_signers")
+}
+
+/// Timeline do contrato (CRIADO, PDF_GERADO, ENVIADO, ASSINADO, FALHA_*...)
+model ContractEvent {
+  id             String   @id @default(cuid())
+  organizationId String   @map("organization_id")
+  contractId     String   @map("contract_id")
+  tipo           String
+  /// APP | PUBLIC_FORM | WEBHOOK | WORKER | ADMIN
+  origem         String
+  payload        Json?
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  contract     Contract     @relation(fields: [contractId], references: [id], onDelete: Cascade)
+
+  @@index([contractId, createdAt])
+  @@map("contract_events")
+}
+
+/// Numeração sequencial por organização+ano, sem corrida (upsert atômico).
+model ContractSequence {
+  organizationId String @map("organization_id")
+  ano            Int
+  ultimo         Int    @default(0)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@id([organizationId, ano])
+  @@map("contract_sequences")
 }
 
 // ===================================================================

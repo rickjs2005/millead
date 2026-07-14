@@ -26,6 +26,8 @@ export interface CompanyFilters {
 export interface CompanyRepository {
   create(input: CreateCompanyInput): Promise<Company>;
   findByIdForOrg(id: string, organizationId: string): Promise<CompanyDetail | null>;
+  /** Busca por CPF/CNPJ (só dígitos) dentro da org -- usado pelo fluxo de contratos. */
+  findByDocumentForOrg(document: string, organizationId: string): Promise<Company | null>;
   list(
     organizationId: string,
     filters: CompanyFilters,

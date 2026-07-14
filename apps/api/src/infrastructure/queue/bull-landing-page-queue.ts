@@ -6,7 +6,8 @@ export class BullLandingPageQueue implements LandingPageQueue {
     await landingPageQueue.add("generate", job, {
       // Sufixo de tempo: um reenfileiramento não colide com o job anterior
       // (BullMQ guarda jobs concluídos/falhos por um tempo com o mesmo id).
-      jobId: `${job.landingPageId}:${Date.now()}`,
+      // Atenção: BullMQ proíbe ":" em jobId custom -- separador "-".
+      jobId: `${job.landingPageId}-${Date.now()}`,
     });
   }
 }

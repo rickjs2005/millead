@@ -26,6 +26,10 @@ export class PrismaCompanyRepository implements CompanyRepository {
     return company;
   }
 
+  async findByDocumentForOrg(document: string, organizationId: string): Promise<Company | null> {
+    return prisma.company.findFirst({ where: { organizationId, document } });
+  }
+
   async list(
     organizationId: string,
     filters: CompanyFilters,

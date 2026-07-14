@@ -16,6 +16,11 @@ export const queryKeys = {
     list: (params: object) => ["landing-pages", "list", params] as const,
     detail: (id: string) => ["landing-pages", "detail", id] as const,
   },
+  contracts: {
+    list: (params: object) => ["contracts", "list", params] as const,
+    detail: (id: string) => ["contracts", "detail", id] as const,
+    kpis: () => ["contracts", "kpis"] as const,
+  },
   companies: {
     list: (params: object) => ["companies", "list", params] as const,
     detail: (id: string) => ["companies", "detail", id] as const,

@@ -238,6 +238,30 @@ Dois conceitos com nomes parecidos, domínios diferentes:
 - Tabela `landing_pages` criada na migration `20260714153905_landing_pages`
   com RLS habilitado (padrão Supabase do projeto).
 
+## Contratos (Fase 9 -- migrado do milweb-contratos)
+
+- Sistema `milweb-contratos` (contratos.milweb.ai) foi absorvido: os models
+  viraram `Contract`/`ContractSigner`/`ContractEvent`/`ContractSequence`
+  multi-tenant; o "Cliente" do sistema antigo virou a `Company` do CRM
+  (upsert por CPF/CNPJ na criação do contrato). O projeto Supabase antigo
+  (`acqdvrbdtqniujijkixd`) foi pausado -- estava sem dados reais.
+- Fluxo: criação (painel ou formulário público `/fechamento/:orgSlug`) ->
+  fila `contract-process` -> worker gera o PDF (`pdf-lib`, 15 cláusulas em
+  `infrastructure/contracts/pdf/render.ts`) -> cria documento no gateway de
+  assinatura -> convite por e-mail (best-effort) -> webhook confirma ->
+  `ASSINADO` + notificações. Idempotente em retry (reusa docId).
+- Snapshots JSON (`contractorSnapshot`/`contractedSnapshot`) congelam as
+  partes no momento do contrato (integridade jurídica); dados da contratada
+  vêm das envs `CONTRACTOR_*`.
+- PDFs ficam em `Bytes` no Postgres (volume baixo; evita credencial de
+  storage). Download via rota autenticada `GET /:id/pdf`.
+- Gateways: porta `domain/services/contract-signature.ts`; `mock` (padrão,
+  simulado -- webhook aceita qualquer POST em dev) e `zapsign` (HMAC
+  fail-closed). Clicksign/DocuSign/Autentique existem no repo antigo e
+  podem ser portados sob a mesma porta.
+- Permissões reusam `proposals:read/write` (contrato é o desfecho da
+  proposta; permissão própria exigiria re-seed do RBAC).
+
 ## Uma dívida técnica assumida conscientemente: `tsx` em produção
 
 `apps/api` roda via `tsx` tanto em dev quanto (por enquanto) em "prod"
