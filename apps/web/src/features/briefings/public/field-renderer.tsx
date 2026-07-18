@@ -12,7 +12,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import type { BriefingField, BriefingFile } from "@/types/api";
 import { FileField } from "./file-field";
-import { isMultiField, maskPhoneBR, normalizeUrl } from "./field-utils";
+import { isMultiField, maskPhoneBR, normalizeUrl, pickMask } from "./field-utils";
 import { TagsInput } from "./tags-input";
 import type { LocalAnswer } from "./use-briefing-wizard";
 
@@ -30,7 +30,7 @@ export function FieldRenderer({ field, value, onChange, token, files, onFileRegi
   switch (field.type) {
     // Cidade/Estado (ou qualquer TEXT marcado como multi) viram chips: o
     // negócio pode atender mais de uma cidade/estado (ex.: Kavita Drones).
-    case "TEXT":
+    case "TEXT": {
       if (isMultiField(field.key, field.config)) {
         return (
           <TagsInput
@@ -40,12 +40,19 @@ export function FieldRenderer({ field, value, onChange, token, files, onFileRegi
           />
         );
       }
+      // CEP/CNPJ (ou config.mask) ganham máscara automática.
+      const mask = pickMask(field.key, field.config);
+      const isCep = field.key.toLowerCase().includes("cep");
+      const isCnpj = field.key.toLowerCase().includes("cnpj");
       return (
         <Input
+          inputMode={mask ? "numeric" : undefined}
+          placeholder={isCnpj ? "00.000.000/0000-00" : isCep ? "00000-000" : undefined}
           value={value?.valueText ?? ""}
-          onChange={(e) => onChange({ valueText: e.target.value })}
+          onChange={(e) => onChange({ valueText: mask ? mask(e.target.value) : e.target.value })}
         />
       );
+    }
 
     case "EMAIL":
       return (

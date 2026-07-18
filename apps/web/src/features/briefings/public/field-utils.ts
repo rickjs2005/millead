@@ -10,6 +10,39 @@ export function maskPhoneBR(raw: string): string {
   return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
 }
 
+/** CEP: 00000-000. */
+export function maskCEP(raw: string): string {
+  const d = raw.replace(/\D/g, "").slice(0, 8);
+  if (d.length <= 5) return d;
+  return `${d.slice(0, 5)}-${d.slice(5)}`;
+}
+
+/** CNPJ: 00.000.000/0000-00. */
+export function maskCNPJ(raw: string): string {
+  const d = raw.replace(/\D/g, "").slice(0, 14);
+  let out = d.slice(0, 2);
+  if (d.length > 2) out += `.${d.slice(2, 5)}`;
+  if (d.length > 5) out += `.${d.slice(5, 8)}`;
+  if (d.length > 8) out += `/${d.slice(8, 12)}`;
+  if (d.length > 12) out += `-${d.slice(12)}`;
+  return out;
+}
+
+/**
+ * Escolhe a máscara de um campo TEXT: por `config.mask` ("cep"|"cnpj"|
+ * "phone") ou por heurística da key. Retorna a função de máscara ou null.
+ */
+export function pickMask(key: string, config: unknown): ((v: string) => string) | null {
+  const cfgMask =
+    config && typeof config === "object" ? (config as { mask?: string }).mask : undefined;
+  const k = key.toLowerCase();
+  if (cfgMask === "cep" || k.includes("cep")) return maskCEP;
+  if (cfgMask === "cnpj" || k.includes("cnpj")) return maskCNPJ;
+  if (cfgMask === "phone" || k.includes("telefone") || k.includes("whatsapp") || k.includes("fone"))
+    return maskPhoneBR;
+  return null;
+}
+
 /** Completa https:// quando o cliente digita só o domínio (usado no onBlur de URL). */
 export function normalizeUrl(raw: string): string {
   const v = raw.trim();
