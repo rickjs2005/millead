@@ -8,6 +8,7 @@ import {
   ShieldAlert,
   Users2,
 } from "lucide-react";
+import { FinanceCards } from "@/features/dashboard/components/finance-cards";
 import { LeadStatusChart } from "@/features/dashboard/components/lead-status-chart";
 import { OnboardingChecklist } from "@/features/dashboard/components/onboarding-checklist";
 import { PipelineFunnelChart } from "@/features/dashboard/components/pipeline-funnel-chart";
@@ -60,6 +61,8 @@ export default function DashboardPage() {
           ]}
         />
       )}
+
+      <FinanceCards />
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <StatCard

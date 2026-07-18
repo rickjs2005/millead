@@ -24,6 +24,8 @@ export function createLeadRoutes(controller: LeadController, authenticate: Reque
 
   router.post("/", write, validateBody(createLeadSchema), asyncHandler(controller.create));
   router.get("/", read, validateQuery(listLeadsQuerySchema), asyncHandler(controller.list));
+  // Antes de /:id -- senão "finance" seria capturado como id de lead.
+  router.get("/finance", read, asyncHandler(controller.finance));
   router.get("/:id", read, asyncHandler(controller.get));
   router.patch("/:id", write, validateBody(updateLeadSchema), asyncHandler(controller.update));
   router.delete("/:id", write, asyncHandler(controller.delete));

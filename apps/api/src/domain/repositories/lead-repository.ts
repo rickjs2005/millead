@@ -48,6 +48,21 @@ export type DeleteLeadResult =
   | { status: "not_found" }
   | { status: "blocked"; meetings: number; proposals: number; messages: number };
 
+/**
+ * Resumo financeiro dos leads ganhos. `wonWithoutContract*` exclui leads
+ * com contrato ASSINADO vinculado -- esses já entram na receita pelo KPI de
+ * contratos (`valorFechado`), então somar os dois lados nunca conta a mesma
+ * venda duas vezes.
+ */
+export interface LeadFinance {
+  wonCount: number;
+  /** Soma de `value` de todos os leads WON (Decimal serializado). */
+  wonSum: string;
+  wonWithoutContractCount: number;
+  /** Soma de `value` dos WON sem contrato assinado vinculado. */
+  wonWithoutContractSum: string;
+}
+
 export interface LeadRepository {
   create(input: CreateLeadInput): Promise<Lead>;
   findByIdForOrg(id: string, organizationId: string): Promise<LeadDetail | null>;
@@ -59,6 +74,7 @@ export interface LeadRepository {
   update(id: string, organizationId: string, patch: UpdateLeadInput): Promise<Lead | null>;
   delete(id: string, organizationId: string): Promise<DeleteLeadResult>;
   moveStage(id: string, organizationId: string, input: MoveStageInput): Promise<Lead | null>;
+  finance(organizationId: string): Promise<LeadFinance>;
   /** Grava o score de oportunidade calculado pela IA (0-100). */
   updateScore(id: string, organizationId: string, score: number): Promise<Lead | null>;
 

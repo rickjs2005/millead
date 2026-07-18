@@ -4,6 +4,7 @@ import type {
   Lead,
   LeadContact,
   LeadDetail,
+  LeadFinance,
   LeadNote,
   LeadSource,
   LeadStatus,
@@ -41,6 +42,8 @@ export interface ListLeadsParams {
 
 export const leadsService = {
   list: (params: ListLeadsParams = {}) => api.get<PaginatedResult<Lead>>("/api/v1/leads", params),
+
+  finance: () => api.get<LeadFinance>("/api/v1/leads/finance"),
 
   get: (id: string) => api.get<LeadDetail>(`/api/v1/leads/${id}`),
 

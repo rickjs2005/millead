@@ -70,6 +70,10 @@ export class LeadService {
     }
   }
 
+  finance(organizationId: string) {
+    return this.leads.finance(organizationId);
+  }
+
   async moveStage(organizationId: string, userId: string, leadId: string, pipelineStageId: string) {
     const stage = await this.pipelines.findStageForOrg(pipelineStageId, organizationId);
     if (!stage) throw new NotFoundError("Estágio de pipeline não encontrado.");

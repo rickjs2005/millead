@@ -4,6 +4,7 @@ import type {
   CreateLeadInput,
   DeleteLeadResult,
   LeadFilters,
+  LeadFinance,
   LeadRepository,
   MoveStageInput,
   UpdateLeadInput,
@@ -140,6 +141,34 @@ export class PrismaLeadRepository implements LeadRepository {
     if (count === 0) return null;
     const row = await prisma.lead.findUniqueOrThrow({ where: { id } });
     return toDomainLead(row);
+  }
+
+  async finance(organizationId: string): Promise<LeadFinance> {
+    const [won, wonWithoutContract] = await Promise.all([
+      prisma.lead.aggregate({
+        where: { organizationId, status: "WON" },
+        _sum: { value: true },
+        _count: true,
+      }),
+      // WON sem contrato ASSINADO vinculado -- a receita desses NÃO está no
+      // valorFechado dos contratos, então é a parcela "sem contrato" que
+      // completa o total sem dupla contagem (ver LeadFinance no domain).
+      prisma.lead.aggregate({
+        where: {
+          organizationId,
+          status: "WON",
+          contracts: { none: { status: "ASSINADO" } },
+        },
+        _sum: { value: true },
+        _count: true,
+      }),
+    ]);
+    return {
+      wonCount: won._count,
+      wonSum: (won._sum.value ?? new Prisma.Decimal(0)).toString(),
+      wonWithoutContractCount: wonWithoutContract._count,
+      wonWithoutContractSum: (wonWithoutContract._sum.value ?? new Prisma.Decimal(0)).toString(),
+    };
   }
 
   async addContact(

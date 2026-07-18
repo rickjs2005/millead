@@ -517,6 +517,15 @@ export interface ContractKpis {
   valorFechado: string;
 }
 
+/** Resumo financeiro dos leads ganhos -- `wonWithoutContract*` exclui leads
+ * com contrato assinado (a receita desses já está em ContractKpis.valorFechado). */
+export interface LeadFinance {
+  wonCount: number;
+  wonSum: string;
+  wonWithoutContractCount: number;
+  wonWithoutContractSum: string;
+}
+
 // ---------- Briefings ----------
 
 export type BriefingTemplateKind = "INSTITUCIONAL" | "ECOMMERCE";
