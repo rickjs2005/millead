@@ -12,6 +12,8 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import type { BriefingField, BriefingFile } from "@/types/api";
 import { FileField } from "./file-field";
+import { isMultiField, maskPhoneBR, normalizeUrl } from "./field-utils";
+import { TagsInput } from "./tags-input";
 import type { LocalAnswer } from "./use-briefing-wizard";
 
 interface FieldRendererProps {
@@ -26,15 +28,62 @@ interface FieldRendererProps {
 /** Renderiza UM campo (não-GROUP) a partir de `field.type` -- ver RepeatableGroupField pro caso GROUP. */
 export function FieldRenderer({ field, value, onChange, token, files, onFileRegistered }: FieldRendererProps) {
   switch (field.type) {
+    // Cidade/Estado (ou qualquer TEXT marcado como multi) viram chips: o
+    // negócio pode atender mais de uma cidade/estado (ex.: Kavita Drones).
     case "TEXT":
+      if (isMultiField(field.key, field.config)) {
+        return (
+          <TagsInput
+            value={value?.valueText}
+            onChange={(joined) => onChange({ valueText: joined })}
+            placeholder="Digite e aperte Enter para adicionar mais…"
+          />
+        );
+      }
+      return (
+        <Input
+          value={value?.valueText ?? ""}
+          onChange={(e) => onChange({ valueText: e.target.value })}
+        />
+      );
+
     case "EMAIL":
+      return (
+        <Input
+          type="email"
+          inputMode="email"
+          autoComplete="email"
+          placeholder="voce@exemplo.com"
+          value={value?.valueText ?? ""}
+          onChange={(e) => onChange({ valueText: e.target.value })}
+        />
+      );
+
+    // Máscara de telefone/WhatsApp: formata (XX) XXXXX-XXXX enquanto digita.
     case "PHONE":
+      return (
+        <Input
+          type="tel"
+          inputMode="tel"
+          placeholder="(00) 00000-0000"
+          value={value?.valueText ?? ""}
+          onChange={(e) => onChange({ valueText: maskPhoneBR(e.target.value) })}
+        />
+      );
+
+    // URL: completa https:// ao sair do campo, se o cliente esquecer.
     case "URL":
       return (
         <Input
-          type={field.type === "EMAIL" ? "email" : field.type === "URL" ? "url" : "text"}
+          type="url"
+          inputMode="url"
+          placeholder="https://…"
           value={value?.valueText ?? ""}
           onChange={(e) => onChange({ valueText: e.target.value })}
+          onBlur={(e) => {
+            const normalized = normalizeUrl(e.target.value);
+            if (normalized !== e.target.value) onChange({ valueText: normalized }, { debounce: false });
+          }}
         />
       );
 
