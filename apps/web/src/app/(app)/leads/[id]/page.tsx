@@ -43,7 +43,7 @@ export default function LeadDetailPage() {
       <Tabs defaultValue="info">
         <TabsList>
           <TabsTrigger value="info">Informações</TabsTrigger>
-          <TabsTrigger value="crm">CRM</TabsTrigger>
+          <TabsTrigger value="crm">Atividades</TabsTrigger>
           <TabsTrigger value="history">Histórico</TabsTrigger>
           <TabsTrigger value="notes">Observações</TabsTrigger>
           <TabsTrigger value="audit">Auditoria</TabsTrigger>

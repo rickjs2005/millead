@@ -16,6 +16,7 @@ import {
 import { useDebounce } from "@/hooks/use-debounce";
 import { companiesService } from "@/services/companies";
 import { leadsService } from "@/services/leads";
+import { useAuthStore } from "@/stores/auth-store";
 import { useUiStore } from "@/stores/ui-store";
 import { NAV_ITEMS } from "./nav-items";
 
@@ -23,8 +24,13 @@ export function CommandPalette() {
   const open = useUiStore((s) => s.commandOpen);
   const setOpen = useUiStore((s) => s.setCommandOpen);
   const router = useRouter();
+  const hasPermission = useAuthStore((s) => s.hasPermission);
   const [search, setSearch] = useState("");
   const debouncedSearch = useDebounce(search, 250);
+
+  // Mesmo filtro da sidebar -- sem isso o palette virava porta dos fundos
+  // pra módulos que o usuário não tem permissão de ver.
+  const navItems = NAV_ITEMS.filter((item) => !item.permission || hasPermission(item.permission));
 
   const { data: leadResults } = useQuery({
     queryKey: ["command", "leads", debouncedSearch],
@@ -67,7 +73,7 @@ export function CommandPalette() {
         {companyResults && companyResults.items.length > 0 && (
           <CommandGroup heading="Empresas">
             {companyResults.items.map((company) => (
-              <CommandItem key={company.id} onSelect={() => go(`/leads?companyId=${company.id}`)}>
+              <CommandItem key={company.id} onSelect={() => go(`/companies/${company.id}`)}>
                 <Building2 /> {company.name}
               </CommandItem>
             ))}
@@ -77,7 +83,7 @@ export function CommandPalette() {
         <CommandSeparator />
 
         <CommandGroup heading="Navegar">
-          {NAV_ITEMS.map((item) => (
+          {navItems.map((item) => (
             <CommandItem key={item.href} onSelect={() => go(item.href)}>
               <item.icon /> {item.label}
             </CommandItem>

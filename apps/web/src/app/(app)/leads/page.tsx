@@ -1,11 +1,13 @@
 "use client";
 
-import { Download, X } from "lucide-react";
+import { Download, Kanban, Table2, X } from "lucide-react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useMemo, useState } from "react";
 import { ErrorState } from "@/components/error-state";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Pagination } from "@/components/ui/pagination";
+import { KanbanBoard } from "@/features/crm/components/kanban-board";
 import { CreateLeadDialog } from "@/features/leads/components/create-lead-dialog";
 import { LeadFilters } from "@/features/leads/components/lead-filters";
 import { LeadsTable } from "@/features/leads/components/leads-table";
@@ -18,11 +20,21 @@ import { formatCurrency, formatDate } from "@/utils/format";
 import type { LeadStatus } from "@/types/api";
 
 export default function LeadsPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  // Visão unificada (auditoria de UX): a tabela e o kanban (ex-página /crm)
+  // agora são o mesmo módulo, alternados por ?view= -- shareable e permite
+  // que /crm continue funcionando como redirect.
+  const view = searchParams.get("view") === "kanban" ? "kanban" : "table";
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<LeadStatus | "ALL">("ALL");
   const [stageId, setStageId] = useState<string | "ALL">("ALL");
   const [selected, setSelected] = useState<Set<string>>(new Set());
+
+  function setView(next: "table" | "kanban") {
+    router.replace(next === "kanban" ? "/leads?view=kanban" : "/leads", { scroll: false });
+  }
 
   const debouncedSearch = useDebounce(search, 350);
 
@@ -81,21 +93,49 @@ export default function LeadsPage() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Leads</h1>
           <p className="text-sm text-muted-foreground">
-            {data ? `${data.total} lead${data.total === 1 ? "" : "s"} no total` : "Carregando…"}
+            {view === "kanban"
+              ? "Arraste os cards entre as colunas para mover o lead de estágio."
+              : data
+                ? `${data.total} lead${data.total === 1 ? "" : "s"} no total`
+                : "Carregando…"}
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            onClick={handleExport}
-            disabled={!data || data.items.length === 0}
-          >
-            <Download /> Exportar{selected.size > 0 ? ` (${selected.size})` : ""}
-          </Button>
+          <div className="flex items-center rounded-lg border p-0.5">
+            <Button
+              variant={view === "table" ? "secondary" : "ghost"}
+              size="sm"
+              className="gap-1.5"
+              onClick={() => setView("table")}
+            >
+              <Table2 className="h-4 w-4" /> Tabela
+            </Button>
+            <Button
+              variant={view === "kanban" ? "secondary" : "ghost"}
+              size="sm"
+              className="gap-1.5"
+              onClick={() => setView("kanban")}
+            >
+              <Kanban className="h-4 w-4" /> Kanban
+            </Button>
+          </div>
+          {view === "table" && (
+            <Button
+              variant="outline"
+              onClick={handleExport}
+              disabled={!data || data.items.length === 0}
+            >
+              <Download /> Exportar{selected.size > 0 ? ` (${selected.size})` : ""}
+            </Button>
+          )}
           <CreateLeadDialog />
         </div>
       </div>
 
+      {view === "kanban" ? (
+        <KanbanBoard />
+      ) : (
+        <>
       <Card className="p-4">
         <LeadFilters
           search={search}
@@ -157,6 +197,8 @@ export default function LeadsPage() {
           totalPages={data.totalPages}
           onPageChange={setPage}
         />
+      )}
+        </>
       )}
     </div>
   );

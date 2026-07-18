@@ -2,20 +2,15 @@ import {
   BarChart3,
   Building2,
   Calendar,
-  CheckCircle2,
-  CheckSquare,
   ClipboardList,
-  Clock,
   FileSignature,
-  Kanban,
   LayoutDashboard,
   LayoutList,
   MessageSquare,
   Rocket,
-  Send,
+  Settings,
   ShieldCheck,
   Users2,
-  Video,
   type LucideIcon,
 } from "lucide-react";
 import type { PermissionKey } from "@/types/api";
@@ -31,29 +26,56 @@ export interface NavItem {
   children?: Omit<NavItem, "children">[];
 }
 
-export const NAV_ITEMS: NavItem[] = [
-  { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-  { label: "Leads", href: "/leads", icon: Users2, permission: "leads:read" },
-  { label: "Empresas", href: "/companies", icon: Building2, permission: "companies:read" },
-  { label: "CRM", href: "/crm", icon: Kanban, permission: "leads:read" },
-  { label: "Tarefas", href: "/tasks", icon: CheckSquare, permission: "tasks:read" },
-  { label: "Agenda", href: "/agenda", icon: Calendar },
-  { label: "Propostas", href: "/proposals", icon: BarChart3, permission: "proposals:read" },
-  { label: "Contratos", href: "/contracts", icon: FileSignature, permission: "proposals:read" },
+export interface NavSection {
+  /** Sem título = sem cabeçalho (usado no topo/rodapé do menu). */
+  title?: string;
+  items: NavItem[];
+}
+
+/**
+ * Menu agrupado por área de trabalho (auditoria de UX 07/2026): antes eram
+ * 13 itens numa lista plana. Leads absorveu o kanban (ex-item "CRM", toggle
+ * na própria página) e Agenda absorveu Tarefas/Reuniões (tabs). As rotas
+ * antigas continuam vivas -- só saíram do menu.
+ */
+export const NAV_SECTIONS: NavSection[] = [
   {
-    label: "Briefings",
-    href: "/briefings",
-    icon: ClipboardList,
-    permission: "leads:read",
-    children: [
-      { label: "Templates", href: "/briefings/templates", icon: LayoutList },
-      { label: "Enviados", href: "/briefings?status=PENDING", icon: Send },
-      { label: "Em andamento", href: "/briefings?status=IN_PROGRESS", icon: Clock },
-      { label: "Concluídos", href: "/briefings?status=COMPLETED", icon: CheckCircle2 },
+    items: [{ label: "Dashboard", href: "/dashboard", icon: LayoutDashboard }],
+  },
+  {
+    title: "Vendas",
+    items: [
+      { label: "Leads", href: "/leads", icon: Users2, permission: "leads:read" },
+      { label: "Empresas", href: "/companies", icon: Building2, permission: "companies:read" },
+      { label: "Agenda", href: "/agenda", icon: Calendar },
     ],
   },
-  { label: "Auditoria", href: "/audit", icon: ShieldCheck, permission: "audits:read" },
-  { label: "Mensagens", href: "/messages", icon: MessageSquare, permission: "messages:read" },
-  { label: "Landing pages", href: "/landing-pages", icon: Rocket, permission: "leads:read" },
-  { label: "Reuniões", href: "/meetings", icon: Video, permission: "meetings:read" },
+  {
+    title: "Fechamento",
+    items: [
+      { label: "Propostas", href: "/proposals", icon: BarChart3, permission: "proposals:read" },
+      { label: "Contratos", href: "/contracts", icon: FileSignature, permission: "proposals:read" },
+      {
+        label: "Briefings",
+        href: "/briefings",
+        icon: ClipboardList,
+        permission: "leads:read",
+        children: [{ label: "Templates", href: "/briefings/templates", icon: LayoutList }],
+      },
+    ],
+  },
+  {
+    title: "Prospecção",
+    items: [
+      { label: "Auditoria de sites", href: "/audit", icon: ShieldCheck, permission: "audits:read" },
+      { label: "Landing pages", href: "/landing-pages", icon: Rocket, permission: "leads:read" },
+      { label: "Mensagens", href: "/messages", icon: MessageSquare, permission: "messages:read" },
+    ],
+  },
+  {
+    items: [{ label: "Configurações", href: "/settings", icon: Settings }],
+  },
 ];
+
+/** Lista plana derivada -- usada pelo command palette e por quem não liga pra seções. */
+export const NAV_ITEMS: NavItem[] = NAV_SECTIONS.flatMap((s) => s.items);

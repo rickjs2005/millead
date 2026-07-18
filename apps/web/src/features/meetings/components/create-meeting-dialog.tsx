@@ -37,7 +37,16 @@ const schema = z.object({
 });
 type FormValues = z.infer<typeof schema>;
 
-export function CreateMeetingDialog() {
+/** Com `leadId`, o dialog vem pré-vinculado ao lead (o combobox some) --
+ * substitui o antigo QuickMeetingDialog da tab do lead (auditoria de UX
+ * 07/2026). */
+export function CreateMeetingDialog({
+  leadId,
+  trigger,
+}: {
+  leadId?: string;
+  trigger?: React.ReactNode;
+}) {
   const [open, setOpen] = useState(false);
   const createMeeting = useCreateMeeting();
   const {
@@ -48,13 +57,13 @@ export function CreateMeetingDialog() {
     formState: { errors },
   } = useForm<FormValues>({
     resolver: zodResolver(schema),
-    defaultValues: { location: "ONLINE" },
+    defaultValues: { location: "ONLINE", leadId },
   });
 
   async function onSubmit(values: FormValues) {
     await createMeeting.mutateAsync({
       title: values.title,
-      leadId: values.leadId,
+      leadId: leadId ?? values.leadId,
       scheduledAt: new Date(values.scheduledAt).toISOString(),
       durationMinutes: values.durationMinutes ? Number(values.durationMinutes) : undefined,
       location: values.location,
@@ -67,9 +76,11 @@ export function CreateMeetingDialog() {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button>
-          <Plus /> Nova reunião
-        </Button>
+        {trigger ?? (
+          <Button>
+            <Plus /> Nova reunião
+          </Button>
+        )}
       </DialogTrigger>
       <DialogContent>
         <form onSubmit={handleSubmit(onSubmit)}>
@@ -82,20 +93,22 @@ export function CreateMeetingDialog() {
               <Input id="title" {...register("title")} />
               {errors.title && <p className="text-xs text-destructive">{errors.title.message}</p>}
             </div>
-            <div className="flex flex-col gap-1.5">
-              <Label>Lead vinculado</Label>
-              <Controller
-                control={control}
-                name="leadId"
-                render={({ field }) => (
-                  <LeadCombobox
-                    value={field.value}
-                    onChange={(id) => field.onChange(id)}
-                    placeholder="Nenhum lead (opcional)"
-                  />
-                )}
-              />
-            </div>
+            {!leadId && (
+              <div className="flex flex-col gap-1.5">
+                <Label>Lead vinculado</Label>
+                <Controller
+                  control={control}
+                  name="leadId"
+                  render={({ field }) => (
+                    <LeadCombobox
+                      value={field.value}
+                      onChange={(id) => field.onChange(id)}
+                      placeholder="Nenhum lead (opcional)"
+                    />
+                  )}
+                />
+              </div>
+            )}
             <div className="grid grid-cols-2 gap-4">
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor="scheduledAt">Data e hora</Label>

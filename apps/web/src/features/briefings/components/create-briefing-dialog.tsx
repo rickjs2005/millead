@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
+import { publicAppUrl } from "@/lib/public-url";
 import { LeadCombobox } from "@/features/leads/components/lead-combobox";
 import { useCreateBriefing } from "@/features/briefings/hooks";
 import type { BriefingTemplateKind } from "@/types/api";
@@ -34,8 +35,6 @@ const TEMPLATE_OPTIONS: { kind: BriefingTemplateKind; key: string; label: string
     icon: ShoppingCart,
   },
 ];
-
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
 
 export function CreateBriefingDialog() {
   const [open, setOpen] = useState(false);
@@ -58,7 +57,7 @@ export function CreateBriefingDialog() {
     setCreatedLink({ token: briefing.link.token });
   }
 
-  const publicUrl = createdLink ? `${APP_URL}/b/${createdLink.token}` : "";
+  const publicUrl = createdLink ? `${publicAppUrl()}/b/${createdLink.token}` : "";
 
   function copyLink() {
     navigator.clipboard.writeText(publicUrl);

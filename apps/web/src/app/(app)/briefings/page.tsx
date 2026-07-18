@@ -53,8 +53,7 @@ import {
 import { useDebounce } from "@/hooks/use-debounce";
 import { formatDate } from "@/utils/format";
 import type { BriefingStatus } from "@/types/api";
-
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+import { publicAppUrl } from "@/lib/public-url";
 
 export default function BriefingsPage() {
   const searchParams = useSearchParams();
@@ -213,7 +212,7 @@ export default function BriefingsPage() {
                     <DropdownMenuItem
                       onSelect={async () => {
                         const copy = await duplicateBriefing.mutateAsync(briefing.id);
-                        navigator.clipboard.writeText(`${APP_URL}/b/${copy.link.token}`);
+                        navigator.clipboard.writeText(`${publicAppUrl()}/b/${copy.link.token}`);
                         toast.success("Briefing duplicado — novo link copiado.");
                       }}
                     >

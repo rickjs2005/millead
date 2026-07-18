@@ -28,7 +28,16 @@ const schema = z.object({
 });
 type FormValues = z.infer<typeof schema>;
 
-export function CreateTaskDialog() {
+/** Com `leadId`, o dialog vem pré-vinculado ao lead (o combobox some) --
+ * substitui o antigo QuickTaskDialog da tab do lead, era o mesmo formulário
+ * duplicado (auditoria de UX 07/2026). */
+export function CreateTaskDialog({
+  leadId,
+  trigger,
+}: {
+  leadId?: string;
+  trigger?: React.ReactNode;
+}) {
   const [open, setOpen] = useState(false);
   const createTask = useCreateTask();
   const {
@@ -39,10 +48,15 @@ export function CreateTaskDialog() {
     formState: { errors },
   } = useForm<FormValues>({
     resolver: zodResolver(schema),
+    defaultValues: { leadId },
   });
 
   async function onSubmit(values: FormValues) {
-    await createTask.mutateAsync({ ...values, dueAt: values.dueAt || undefined });
+    await createTask.mutateAsync({
+      ...values,
+      leadId: leadId ?? values.leadId,
+      dueAt: values.dueAt || undefined,
+    });
     reset();
     setOpen(false);
   }
@@ -50,9 +64,11 @@ export function CreateTaskDialog() {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button>
-          <Plus /> Nova tarefa
-        </Button>
+        {trigger ?? (
+          <Button>
+            <Plus /> Nova tarefa
+          </Button>
+        )}
       </DialogTrigger>
       <DialogContent>
         <form onSubmit={handleSubmit(onSubmit)}>
@@ -69,20 +85,22 @@ export function CreateTaskDialog() {
               <Label htmlFor="description">Descrição</Label>
               <Textarea id="description" rows={3} {...register("description")} />
             </div>
-            <div className="flex flex-col gap-1.5">
-              <Label>Lead vinculado</Label>
-              <Controller
-                control={control}
-                name="leadId"
-                render={({ field }) => (
-                  <LeadCombobox
-                    value={field.value}
-                    onChange={(id) => field.onChange(id)}
-                    placeholder="Nenhum lead (opcional)"
-                  />
-                )}
-              />
-            </div>
+            {!leadId && (
+              <div className="flex flex-col gap-1.5">
+                <Label>Lead vinculado</Label>
+                <Controller
+                  control={control}
+                  name="leadId"
+                  render={({ field }) => (
+                    <LeadCombobox
+                      value={field.value}
+                      onChange={(id) => field.onChange(id)}
+                      placeholder="Nenhum lead (opcional)"
+                    />
+                  )}
+                />
+              </div>
+            )}
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="dueAt">Vencimento</Label>
               <Input id="dueAt" type="date" {...register("dueAt")} />

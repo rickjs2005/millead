@@ -33,8 +33,7 @@ import {
   useResendBriefing,
 } from "@/features/briefings/hooks";
 import { formatDateTime } from "@/utils/format";
-
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+import { publicAppUrl } from "@/lib/public-url";
 
 export default function BriefingDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -56,7 +55,7 @@ export default function BriefingDetailPage() {
     return <EmptyState icon={ClipboardList} title="Briefing não encontrado" />;
   }
 
-  const publicUrl = briefing.link ? `${APP_URL}/b/${briefing.link.token}` : null;
+  const publicUrl = briefing.link ? `${publicAppUrl()}/b/${briefing.link.token}` : null;
 
   return (
     <div className="flex flex-col gap-6">
@@ -116,7 +115,7 @@ export default function BriefingDetailPage() {
               variant="outline"
               onClick={async () => {
                 const copy = await duplicateBriefing.mutateAsync(briefing.id);
-                navigator.clipboard.writeText(`${APP_URL}/b/${copy.link.token}`);
+                navigator.clipboard.writeText(`${publicAppUrl()}/b/${copy.link.token}`);
                 toast.success("Briefing duplicado — novo link copiado.");
               }}
             >

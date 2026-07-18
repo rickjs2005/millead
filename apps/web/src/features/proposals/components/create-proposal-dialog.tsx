@@ -27,7 +27,16 @@ const schema = z.object({
 });
 type FormValues = z.infer<typeof schema>;
 
-export function CreateProposalDialog() {
+/** Com `leadId`, o dialog vem pré-vinculado ao lead (o combobox some) --
+ * substitui o antigo QuickProposalDialog da tab do lead (auditoria de UX
+ * 07/2026). */
+export function CreateProposalDialog({
+  leadId,
+  trigger,
+}: {
+  leadId?: string;
+  trigger?: React.ReactNode;
+}) {
   const [open, setOpen] = useState(false);
   const createProposal = useCreateProposal();
   const {
@@ -38,6 +47,7 @@ export function CreateProposalDialog() {
     formState: { errors },
   } = useForm<FormValues>({
     resolver: zodResolver(schema),
+    defaultValues: { leadId: leadId ?? "" },
   });
 
   async function onSubmit(values: FormValues) {
@@ -49,9 +59,11 @@ export function CreateProposalDialog() {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button>
-          <Plus /> Nova proposta
-        </Button>
+        {trigger ?? (
+          <Button>
+            <Plus /> Nova proposta
+          </Button>
+        )}
       </DialogTrigger>
       <DialogContent>
         <form onSubmit={handleSubmit(onSubmit)}>
@@ -59,17 +71,21 @@ export function CreateProposalDialog() {
             <DialogTitle>Nova proposta</DialogTitle>
           </DialogHeader>
           <div className="flex flex-col gap-4 py-4">
-            <div className="flex flex-col gap-1.5">
-              <Label>Lead</Label>
-              <Controller
-                control={control}
-                name="leadId"
-                render={({ field }) => (
-                  <LeadCombobox value={field.value} onChange={(id) => field.onChange(id ?? "")} />
+            {!leadId && (
+              <div className="flex flex-col gap-1.5">
+                <Label>Lead</Label>
+                <Controller
+                  control={control}
+                  name="leadId"
+                  render={({ field }) => (
+                    <LeadCombobox value={field.value} onChange={(id) => field.onChange(id ?? "")} />
+                  )}
+                />
+                {errors.leadId && (
+                  <p className="text-xs text-destructive">{errors.leadId.message}</p>
                 )}
-              />
-              {errors.leadId && <p className="text-xs text-destructive">{errors.leadId.message}</p>}
-            </div>
+              </div>
+            )}
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="title">Título</Label>
               <Input id="title" {...register("title")} />
