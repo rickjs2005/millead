@@ -14,6 +14,8 @@ import { LeadService } from "../application/services/lead-service.js";
 import { MeetingService } from "../application/services/meeting-service.js";
 import { PipelineService } from "../application/services/pipeline-service.js";
 import { ProposalService } from "../application/services/proposal-service.js";
+import { SettingsService } from "../application/services/settings-service.js";
+import { DefaultProposalNotifier } from "../infrastructure/proposals/proposal-notifier.js";
 import { SessionIssuer } from "../application/services/session-issuer.js";
 import { TagService } from "../application/services/tag-service.js";
 import { TaskService } from "../application/services/task-service.js";
@@ -70,6 +72,7 @@ import { LeadController } from "../interfaces/http/controllers/lead-controller.j
 import { MeetingController } from "../interfaces/http/controllers/meeting-controller.js";
 import { PipelineController } from "../interfaces/http/controllers/pipeline-controller.js";
 import { ProposalController } from "../interfaces/http/controllers/proposal-controller.js";
+import { SettingsController } from "../interfaces/http/controllers/settings-controller.js";
 import { TagController } from "../interfaces/http/controllers/tag-controller.js";
 import { TaskController } from "../interfaces/http/controllers/task-controller.js";
 import type { MembershipRepository } from "../domain/repositories/membership-repository.js";
@@ -88,6 +91,7 @@ export interface Container {
   meetingController: MeetingController;
   pipelineController: PipelineController;
   proposalController: ProposalController;
+  settingsController: SettingsController;
   tagController: TagController;
   taskController: TaskController;
   authenticate: RequestHandler;
@@ -141,7 +145,14 @@ export function buildContainer(): Container {
   const tagService = new TagService(tagRepository);
   const taskService = new TaskService(taskRepository);
   const meetingService = new MeetingService(meetingRepository);
-  const proposalService = new ProposalService(proposalRepository, activityLogger);
+  const proposalService = new ProposalService(
+    proposalRepository,
+    activityLogger,
+    leadRepository,
+    organizationRepository,
+    new DefaultProposalNotifier(),
+  );
+  const settingsService = new SettingsService(userRepository, organizationRepository);
   const auditService = new AuditService(auditRepository, companyRepository, new BullAuditQueue());
   const messageService = new MessageService(
     messageRepository,
@@ -235,6 +246,7 @@ export function buildContainer(): Container {
   const taskController = new TaskController(taskService);
   const meetingController = new MeetingController(meetingService);
   const proposalController = new ProposalController(proposalService);
+  const settingsController = new SettingsController(settingsService);
   const auditController = new AuditController(auditService);
   const aiController = new AiController(aiService);
   const messageController = new MessageController(messageService);
@@ -261,6 +273,7 @@ export function buildContainer(): Container {
     meetingController,
     pipelineController,
     proposalController,
+    settingsController,
     tagController,
     taskController,
     authenticate,

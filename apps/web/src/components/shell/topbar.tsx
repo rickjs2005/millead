@@ -1,13 +1,13 @@
 "use client";
 
-import { Bell, Menu, Search } from "lucide-react";
+import { Menu, Search } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useUiStore } from "@/stores/ui-store";
 import { Breadcrumb } from "./breadcrumb";
 import { Logo } from "@/components/logo";
+import { NotificationsBell } from "./notifications-bell";
 import { SidebarNav } from "./sidebar-nav";
 import { UserMenu } from "./user-menu";
 
@@ -47,14 +47,7 @@ export function Topbar() {
         </kbd>
       </button>
 
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button variant="ghost" size="icon" className="ml-auto md:ml-0">
-            <Bell className="h-4 w-4" />
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent>Notificações — em breve</TooltipContent>
-      </Tooltip>
+      <NotificationsBell />
 
       <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
         <SheetContent side="left" className="flex w-72 flex-col p-0">

@@ -25,6 +25,11 @@ export class LeadController {
     res.status(200).json(await this.leads.finance(auth.organizationId));
   };
 
+  recentActivities = async (req: Request, res: Response): Promise<void> => {
+    const auth = requireAuth(req);
+    res.status(200).json(await this.leads.recentActivities(auth.organizationId));
+  };
+
   get = async (req: Request, res: Response): Promise<void> => {
     const auth = requireAuth(req);
     const lead = await this.leads.get(auth.organizationId, req.params.id!);

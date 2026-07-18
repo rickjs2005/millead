@@ -9,4 +9,6 @@ export interface ActivityRepository {
     organizationId: string,
     pagination: PaginationParams,
   ): Promise<PaginatedResult<Activity>>;
+  /** Últimas atividades da organização inteira -- alimenta o sino de notificações. */
+  listRecentForOrg(organizationId: string, limit: number): Promise<Activity[]>;
 }

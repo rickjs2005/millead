@@ -17,3 +17,21 @@ export const authRateLimit = rateLimit({
     error: { code: "TOO_MANY_REQUESTS", message: "Muitas tentativas. Tente novamente mais tarde." },
   },
 });
+
+/**
+ * Limite pras rotas públicas sem login (fechamento de contrato, wizard de
+ * briefing, landing pages). Mais permissivo que o de auth: o autosave do
+ * briefing dispara várias vezes numa sessão legítima de preenchimento.
+ */
+export const publicRateLimit = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 300,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    error: {
+      code: "TOO_MANY_REQUESTS",
+      message: "Muitas requisições. Tente novamente em alguns minutos.",
+    },
+  },
+});

@@ -18,4 +18,8 @@ export class PrismaUserRepository implements UserRepository {
   async touchLastLogin(id: string): Promise<void> {
     await prisma.user.update({ where: { id }, data: { lastLoginAt: new Date() } });
   }
+
+  async updateName(id: string, name: string): Promise<User> {
+    return prisma.user.update({ where: { id }, data: { name } });
+  }
 }

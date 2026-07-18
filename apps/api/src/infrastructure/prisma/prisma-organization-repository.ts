@@ -17,4 +17,8 @@ export class PrismaOrganizationRepository implements OrganizationRepository {
   async create(input: CreateOrganizationInput): Promise<Organization> {
     return prisma.organization.create({ data: input });
   }
+
+  async updateName(id: string, name: string): Promise<Organization> {
+    return prisma.organization.update({ where: { id }, data: { name } });
+  }
 }

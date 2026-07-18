@@ -17,6 +17,10 @@ interface AuthState {
   }) => void;
   /** Só troca os tokens (usado após um refresh bem-sucedido) -- mantém user/org/role em cache. */
   setTokens: (accessToken: string, refreshToken: string) => void;
+  /** Atualiza campos do usuário em cache após edição de perfil. */
+  patchUser: (patch: Partial<PublicUser>) => void;
+  /** Atualiza campos da organização em cache após edição em settings. */
+  patchOrganization: (patch: Partial<OrganizationRef>) => void;
   clear: () => void;
   hasPermission: (permission: PermissionKey) => boolean;
 }
@@ -39,6 +43,14 @@ export const useAuthStore = create<AuthState>()(
       setSession: ({ user, organization, role, accessToken, refreshToken }) =>
         set({ user, organization, role, accessToken, refreshToken }),
       setTokens: (accessToken, refreshToken) => set({ accessToken, refreshToken }),
+      patchUser: (patch) => {
+        const user = get().user;
+        if (user) set({ user: { ...user, ...patch } });
+      },
+      patchOrganization: (patch) => {
+        const organization = get().organization;
+        if (organization) set({ organization: { ...organization, ...patch } });
+      },
       clear: () =>
         set({ user: null, organization: null, role: null, accessToken: null, refreshToken: null }),
       hasPermission: (permission) => get().role?.permissions.includes(permission) ?? false,

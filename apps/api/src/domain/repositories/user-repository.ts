@@ -11,4 +11,5 @@ export interface UserRepository {
   findById(id: string): Promise<User | null>;
   create(input: CreateUserInput): Promise<User>;
   touchLastLogin(id: string): Promise<void>;
+  updateName(id: string, name: string): Promise<User>;
 }

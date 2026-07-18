@@ -45,6 +45,8 @@ export const leadsService = {
 
   finance: () => api.get<LeadFinance>("/api/v1/leads/finance"),
 
+  recentActivities: () => api.get<Activity[]>("/api/v1/leads/activities/recent"),
+
   get: (id: string) => api.get<LeadDetail>(`/api/v1/leads/${id}`),
 
   create: (payload: CreateLeadPayload) => api.post<Lead>("/api/v1/leads", payload),

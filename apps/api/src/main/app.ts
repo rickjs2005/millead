@@ -29,6 +29,8 @@ import { createLeadRoutes } from "../interfaces/http/routes/lead-routes.js";
 import { createMeetingRoutes } from "../interfaces/http/routes/meeting-routes.js";
 import { createPipelineRoutes } from "../interfaces/http/routes/pipeline-routes.js";
 import { createProposalRoutes } from "../interfaces/http/routes/proposal-routes.js";
+import { createSettingsRoutes } from "../interfaces/http/routes/settings-routes.js";
+import { publicRateLimit } from "../interfaces/http/middlewares/rate-limit.js";
 import { createTagRoutes } from "../interfaces/http/routes/tag-routes.js";
 import { createTaskRoutes } from "../interfaces/http/routes/task-routes.js";
 import type { Container } from "./container.js";
@@ -78,13 +80,13 @@ export function createApp(container: Container): Express {
     createBriefingRoutes(container.briefingController, container.authenticate),
   );
   // Formulário público de fechamento (rate-limit por IP, sem login).
-  app.use("/api/v1/public", createPublicContractRoutes(container.contractController));
+  app.use("/api/v1/public", publicRateLimit, createPublicContractRoutes(container.contractController));
   // Wizard público do briefing (/b/:token no front) -- rate-limit por IP, sem login.
-  app.use("/api/v1/public", createPublicBriefingRoutes(container.briefingController));
+  app.use("/api/v1/public", publicRateLimit, createPublicBriefingRoutes(container.briefingController));
   // Webhook do provedor de assinatura (validado por HMAC, sem login).
   app.use("/api/v1/webhooks", createSignatureWebhookRoutes(container.contractController));
   // Rota PÚBLICA da landing page -- o link que o prospect abre, sem login.
-  app.use("/p", createPublicLandingPageRoutes(container.landingPageController));
+  app.use("/p", publicRateLimit, createPublicLandingPageRoutes(container.landingPageController));
   app.use("/api/v1/auth", createAuthRoutes(container.authController, container.authenticate));
   app.use(
     "/api/v1/companies",
@@ -102,6 +104,10 @@ export function createApp(container: Container): Express {
   app.use(
     "/api/v1/proposals",
     createProposalRoutes(container.proposalController, container.authenticate),
+  );
+  app.use(
+    "/api/v1/settings",
+    createSettingsRoutes(container.settingsController, container.authenticate),
   );
   app.use("/api/v1/tags", createTagRoutes(container.tagController, container.authenticate));
   app.use("/api/v1/tasks", createTaskRoutes(container.taskController, container.authenticate));

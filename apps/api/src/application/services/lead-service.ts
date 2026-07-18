@@ -74,6 +74,10 @@ export class LeadService {
     return this.leads.finance(organizationId);
   }
 
+  recentActivities(organizationId: string, limit = 15) {
+    return this.activityLogger.listRecent(organizationId, limit);
+  }
+
   async moveStage(organizationId: string, userId: string, leadId: string, pipelineStageId: string) {
     const stage = await this.pipelines.findStageForOrg(pipelineStageId, organizationId);
     if (!stage) throw new NotFoundError("Estágio de pipeline não encontrado.");

@@ -2,29 +2,48 @@
 
 import { Monitor, Moon, Sun } from "lucide-react";
 import { useTheme } from "next-themes";
+import { useState } from "react";
+import { toast } from "sonner";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { settingsService } from "@/services/settings";
 import { useAuthStore } from "@/stores/auth-store";
 import { formatDate, getInitials } from "@/utils/format";
 import { cn } from "@/lib/utils";
 
 export default function ProfileSettingsPage() {
   const user = useAuthStore((s) => s.user);
+  const patchUser = useAuthStore((s) => s.patchUser);
   const { theme, setTheme } = useTheme();
+  const [name, setName] = useState(user?.name ?? "");
+  const [saving, setSaving] = useState(false);
 
   if (!user) return null;
+
+  const dirty = name.trim() !== user.name && name.trim().length >= 2;
+
+  async function saveName() {
+    setSaving(true);
+    try {
+      const updated = await settingsService.updateProfile({ name: name.trim() });
+      patchUser({ name: updated.name });
+      toast.success("Nome atualizado.");
+    } catch {
+      toast.error("Não foi possível salvar. Tente novamente.");
+    } finally {
+      setSaving(false);
+    }
+  }
 
   return (
     <div className="flex flex-col gap-4">
       <Card>
         <CardHeader>
           <CardTitle>Perfil</CardTitle>
-          <CardDescription>
-            Edição de perfil ainda não está disponível na API -- essa tela é somente leitura por
-            enquanto.
-          </CardDescription>
+          <CardDescription>Seu nome aparece na equipe e nas atividades do CRM.</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
           <div className="flex items-center gap-4">
@@ -41,13 +60,26 @@ export default function ProfileSettingsPage() {
           </div>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="flex flex-col gap-1.5">
-              <Label>Nome</Label>
-              <Input value={user.name} disabled />
+              <Label htmlFor="profile-name">Nome</Label>
+              <Input
+                id="profile-name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                maxLength={120}
+              />
             </div>
             <div className="flex flex-col gap-1.5">
               <Label>E-mail</Label>
               <Input value={user.email} disabled />
+              <p className="text-xs text-muted-foreground">
+                E-mail é sua identidade de login e não pode ser trocado por aqui.
+              </p>
             </div>
+          </div>
+          <div>
+            <Button onClick={saveName} disabled={!dirty || saving}>
+              {saving ? "Salvando…" : "Salvar nome"}
+            </Button>
           </div>
         </CardContent>
       </Card>

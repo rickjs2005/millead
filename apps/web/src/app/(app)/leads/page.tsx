@@ -14,6 +14,7 @@ import { LeadsTable } from "@/features/leads/components/leads-table";
 import { LEAD_STATUS_LABELS } from "@/features/leads/lead-labels";
 import { useLeads } from "@/features/leads/hooks";
 import { usePipelines } from "@/features/pipeline/hooks";
+import { leadsService } from "@/services/leads";
 import { useDebounce } from "@/hooks/use-debounce";
 import { exportToCsv } from "@/utils/csv-export";
 import { formatCurrency, formatDate } from "@/utils/format";
@@ -73,18 +74,43 @@ export default function LeadsPage() {
     });
   }
 
-  function handleExport() {
+  const [exporting, setExporting] = useState(false);
+
+  async function handleExport() {
     if (!data) return;
-    const rows = data.items
-      .filter((l) => selected.size === 0 || selected.has(l.id))
-      .map((lead) => ({
+    setExporting(true);
+    try {
+      // Com seleção: exporta só os selecionados (da página visível). Sem
+      // seleção: busca TODAS as páginas do filtro atual -- antes exportava
+      // só a página carregada, o que enganava em bases maiores.
+      let leads = data.items.filter((l) => selected.size > 0 && selected.has(l.id));
+      if (selected.size === 0) {
+        leads = [];
+        const filters = {
+          search: debouncedSearch || undefined,
+          status: status === "ALL" ? undefined : status,
+          pipelineStageId: stageId === "ALL" ? undefined : stageId,
+        };
+        let current = 1;
+        // Teto de 50 páginas x 100 = 5000 leads por export, pra não travar o browser.
+        for (;;) {
+          const batch = await leadsService.list({ ...filters, page: current, pageSize: 100 });
+          leads.push(...batch.items);
+          if (current >= batch.totalPages || current >= 50) break;
+          current += 1;
+        }
+      }
+      const rows = leads.map((lead) => ({
         Título: lead.title,
         Status: LEAD_STATUS_LABELS[lead.status],
         Valor: formatCurrency(lead.value, lead.currency),
         Origem: lead.source,
         "Criado em": formatDate(lead.createdAt),
       }));
-    exportToCsv(`leads-${new Date().toISOString().slice(0, 10)}.csv`, rows);
+      exportToCsv(`leads-${new Date().toISOString().slice(0, 10)}.csv`, rows);
+    } finally {
+      setExporting(false);
+    }
   }
 
   return (
@@ -123,9 +149,10 @@ export default function LeadsPage() {
             <Button
               variant="outline"
               onClick={handleExport}
-              disabled={!data || data.items.length === 0}
+              disabled={!data || data.items.length === 0 || exporting}
             >
-              <Download /> Exportar{selected.size > 0 ? ` (${selected.size})` : ""}
+              <Download />{" "}
+              {exporting ? "Exportando…" : `Exportar${selected.size > 0 ? ` (${selected.size})` : ""}`}
             </Button>
           )}
           <CreateLeadDialog />

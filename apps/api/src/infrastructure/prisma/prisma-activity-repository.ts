@@ -57,4 +57,13 @@ export class PrismaActivityRepository implements ActivityRepository {
     ]);
     return paginate(rows.map(toDomain), total, pagination);
   }
+
+  async listRecentForOrg(organizationId: string, limit: number): Promise<Activity[]> {
+    const rows = await prisma.activity.findMany({
+      where: { organizationId },
+      orderBy: { createdAt: "desc" },
+      take: limit,
+    });
+    return rows.map(toDomain);
+  }
 }

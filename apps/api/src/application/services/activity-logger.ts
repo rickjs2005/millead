@@ -23,4 +23,9 @@ export class ActivityLogger {
   async listForLead(organizationId: string, leadId: string, pagination: PaginationParams) {
     return this.repository.listForLead(leadId, organizationId, pagination);
   }
+
+  /** Últimas atividades da org inteira -- alimenta o sino de notificações. */
+  async listRecent(organizationId: string, limit = 15) {
+    return this.repository.listRecentForOrg(organizationId, limit);
+  }
 }
