@@ -31,6 +31,12 @@ export class CompanyController {
     res.status(200).json(company);
   };
 
+  delete = async (req: Request, res: Response): Promise<void> => {
+    const auth = requireAuth(req);
+    await this.companies.delete(auth.organizationId, req.params.id!);
+    res.status(204).send();
+  };
+
   addWebsite = async (req: Request, res: Response): Promise<void> => {
     const auth = requireAuth(req);
     const website = await this.companies.addWebsite(

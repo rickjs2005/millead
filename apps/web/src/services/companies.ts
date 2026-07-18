@@ -40,6 +40,8 @@ export const companiesService = {
   update: (id: string, payload: UpdateCompanyPayload) =>
     api.patch<Company>(`/api/v1/companies/${id}`, payload),
 
+  delete: (id: string) => api.delete<void>(`/api/v1/companies/${id}`),
+
   addWebsite: (companyId: string, url: string, isPrimary?: boolean) =>
     api.post<CompanyWebsite>(`/api/v1/companies/${companyId}/websites`, { url, isPrimary }),
 

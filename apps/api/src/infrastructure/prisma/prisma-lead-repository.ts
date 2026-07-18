@@ -2,6 +2,7 @@ import { prisma, Prisma } from "@millead/database";
 import type { Lead, LeadDetail } from "../../domain/entities/lead.js";
 import type {
   CreateLeadInput,
+  DeleteLeadResult,
   LeadFilters,
   LeadRepository,
   MoveStageInput,
@@ -99,6 +100,22 @@ export class PrismaLeadRepository implements LeadRepository {
     if (count === 0) return null;
     const row = await prisma.lead.findUniqueOrThrow({ where: { id } });
     return toDomainLead(row);
+  }
+
+  async delete(id: string, organizationId: string): Promise<DeleteLeadResult> {
+    const lead = await prisma.lead.findFirst({
+      where: { id, organizationId },
+      select: { _count: { select: { meetings: true, proposals: true, messages: true } } },
+    });
+    if (!lead) return { status: "not_found" };
+
+    const { meetings, proposals, messages } = lead._count;
+    if (meetings > 0 || proposals > 0 || messages > 0) {
+      return { status: "blocked", meetings, proposals, messages };
+    }
+
+    await prisma.lead.delete({ where: { id } });
+    return { status: "deleted" };
   }
 
   async updateScore(id: string, organizationId: string, score: number): Promise<Lead | null> {

@@ -191,6 +191,8 @@ export type ActivityType =
   | "MEETING_SCHEDULED"
   | "MESSAGE_SENT"
   | "PROPOSAL_SENT"
+  | "BRIEFING_SENT"
+  | "BRIEFING_COMPLETED"
   | "OTHER";
 
 export interface Activity {
@@ -514,6 +516,129 @@ export interface ContractKpis {
   assinados: number;
   valorFechado: string;
 }
+
+// ---------- Briefings ----------
+
+export type BriefingTemplateKind = "INSTITUCIONAL" | "ECOMMERCE";
+export type BriefingFieldType =
+  | "TEXT"
+  | "TEXTAREA"
+  | "EMAIL"
+  | "PHONE"
+  | "URL"
+  | "SELECT"
+  | "MULTI_SELECT"
+  | "FILE"
+  | "GROUP";
+export type BriefingStatus = "PENDING" | "IN_PROGRESS" | "COMPLETED" | "ARCHIVED";
+
+export interface BriefingTemplate {
+  id: string;
+  key: string;
+  kind: BriefingTemplateKind;
+  name: string;
+  description: string | null;
+  isActive: boolean;
+}
+
+export interface BriefingField {
+  id: string;
+  sectionId: string;
+  parentFieldId: string | null;
+  key: string;
+  label: string;
+  type: BriefingFieldType;
+  order: number;
+  required: boolean;
+  helpText: string | null;
+  config: unknown;
+  /** Só populado quando type === "GROUP". */
+  children?: BriefingField[];
+}
+
+export interface BriefingSection {
+  id: string;
+  templateId: string;
+  key: string;
+  title: string;
+  description: string | null;
+  order: number;
+  fields: BriefingField[];
+}
+
+export interface BriefingTemplateDetail extends BriefingTemplate {
+  sections: BriefingSection[];
+}
+
+export interface Briefing {
+  id: string;
+  organizationId: string;
+  templateId: string;
+  leadId: string | null;
+  companyId: string | null;
+  createdById: string | null;
+  status: BriefingStatus;
+  progressPercent: number;
+  contactName: string | null;
+  contactEmail: string | null;
+  contactPhone: string | null;
+  pdfUrl: string | null;
+  startedAt: string | null;
+  completedAt: string | null;
+  archivedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface BriefingLink {
+  id: string;
+  briefingId: string;
+  token: string;
+  revokedAt: string | null;
+  createdAt: string;
+}
+
+export interface BriefingAnswer {
+  id: string;
+  briefingId: string;
+  fieldId: string;
+  groupItemId: string;
+  groupItemOrder: number | null;
+  valueText: string | null;
+  valueJson: unknown;
+  updatedAt: string;
+}
+
+export interface BriefingFile {
+  id: string;
+  briefingId: string;
+  blobUrl: string;
+  pathname: string;
+  originalName: string;
+  mimeType: string;
+  sizeBytes: number;
+  createdAt: string;
+}
+
+export interface BriefingHistoryEntry {
+  id: string;
+  briefingId: string;
+  tipo: string;
+  origem: string;
+  payload: unknown;
+  createdAt: string;
+}
+
+export interface BriefingDetail extends Briefing {
+  template: BriefingTemplateDetail;
+  link: BriefingLink | null;
+  answers: BriefingAnswer[];
+  files: BriefingFile[];
+  history: BriefingHistoryEntry[];
+}
+
+/** Resposta pública do formulário (wizard) -- mesmo shape de BriefingDetail. */
+export type PublicBriefing = BriefingDetail;
 
 // ---------- Erros ----------
 

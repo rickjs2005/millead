@@ -23,6 +23,10 @@ export interface CompanyFilters {
   search?: string;
 }
 
+/** Contrato é `onDelete: Restrict` no schema -- ver DeleteLeadResult pro motivo do check antes de apagar. */
+export type DeleteCompanyResult =
+  { status: "deleted" } | { status: "not_found" } | { status: "blocked"; contracts: number };
+
 export interface CompanyRepository {
   create(input: CreateCompanyInput): Promise<Company>;
   findByIdForOrg(id: string, organizationId: string): Promise<CompanyDetail | null>;
@@ -34,6 +38,7 @@ export interface CompanyRepository {
     pagination: PaginationParams,
   ): Promise<PaginatedResult<Company>>;
   update(id: string, organizationId: string, patch: UpdateCompanyInput): Promise<Company | null>;
+  delete(id: string, organizationId: string): Promise<DeleteCompanyResult>;
 
   addWebsite(
     companyId: string,

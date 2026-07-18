@@ -1,8 +1,109 @@
 import bcrypt from "bcryptjs";
 import { PrismaClient } from "../src/generated/client/index.js";
 import { ALL_PERMISSIONS, SYSTEM_ROLES } from "../src/permissions.js";
+import { BRIEFING_TEMPLATES, type FieldSeed } from "./seed-data/briefing-templates.js";
 
 const prisma = new PrismaClient();
+
+/**
+ * Upsert em cascata Template -> Section -> Field. Campos-filho de um GROUP
+ * vão num segundo passe: só existe `parentFieldId` depois que o campo pai
+ * já tem `id` gravado.
+ */
+async function seedBriefingTemplates() {
+  for (const tpl of BRIEFING_TEMPLATES) {
+    const template = await prisma.briefingTemplate.upsert({
+      where: { key: tpl.key },
+      update: { name: tpl.name, description: tpl.description, kind: tpl.kind },
+      create: {
+        key: tpl.key,
+        kind: tpl.kind,
+        name: tpl.name,
+        description: tpl.description,
+      },
+    });
+
+    for (const [sectionOrder, section] of tpl.sections.entries()) {
+      const dbSection = await prisma.briefingSection.upsert({
+        where: { templateId_key: { templateId: template.id, key: section.key } },
+        update: { title: section.title, description: section.description, order: sectionOrder },
+        create: {
+          templateId: template.id,
+          key: section.key,
+          title: section.title,
+          description: section.description,
+          order: sectionOrder,
+        },
+      });
+
+      const pendingGroups: { parentFieldId: string; parentKey: string; children: FieldSeed[] }[] =
+        [];
+
+      for (const [fieldOrder, field] of section.fields.entries()) {
+        const dbField = await prisma.briefingField.upsert({
+          where: { sectionId_key: { sectionId: dbSection.id, key: field.key } },
+          update: {
+            label: field.label,
+            type: field.type,
+            order: fieldOrder,
+            required: field.required ?? false,
+            helpText: field.helpText,
+            config: field.config,
+          },
+          create: {
+            sectionId: dbSection.id,
+            key: field.key,
+            label: field.label,
+            type: field.type,
+            order: fieldOrder,
+            required: field.required ?? false,
+            helpText: field.helpText,
+            config: field.config,
+          },
+        });
+
+        if (field.children?.length) {
+          pendingGroups.push({
+            parentFieldId: dbField.id,
+            parentKey: field.key,
+            children: field.children,
+          });
+        }
+      }
+
+      // segundo passe: campos-filho de GROUP, agora que o pai tem id.
+      // Key namespaceada "<pai>.<filho>" (ex.: "servicos.nome") -- garante
+      // unicidade em @@unique([sectionId, key]) mesmo se outro campo de
+      // topo (ou outro GROUP) usar a mesma key de filho no futuro.
+      for (const { parentFieldId, parentKey, children } of pendingGroups) {
+        for (const [childOrder, child] of children.entries()) {
+          const childKey = `${parentKey}.${child.key}`;
+          await prisma.briefingField.upsert({
+            where: { sectionId_key: { sectionId: dbSection.id, key: childKey } },
+            update: {
+              label: child.label,
+              type: child.type,
+              order: childOrder,
+              required: child.required ?? false,
+              config: child.config,
+              parentFieldId,
+            },
+            create: {
+              sectionId: dbSection.id,
+              parentFieldId,
+              key: childKey,
+              label: child.label,
+              type: child.type,
+              order: childOrder,
+              required: child.required ?? false,
+              config: child.config,
+            },
+          });
+        }
+      }
+    }
+  }
+}
 
 const DEFAULT_STAGES = [
   { name: "Novo Lead", order: 0 },
@@ -111,6 +212,9 @@ async function main() {
       },
     });
   }
+
+  console.log("Seed: templates de briefing...");
+  await seedBriefingTemplates();
 
   console.log(
     `Seed concluído. Login: rick@milweb.com.br / senha: ${seedPassword} (defina SEED_OWNER_PASSWORD em produção).`,

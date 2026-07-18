@@ -1,5 +1,7 @@
 import {
   CheckSquare,
+  ClipboardCheck,
+  ClipboardList,
   MessageSquareText,
   Phone,
   Handshake,
@@ -20,6 +22,8 @@ export const ACTIVITY_ICON: Record<ActivityType, LucideIcon> = {
   MEETING_SCHEDULED: Video,
   MESSAGE_SENT: MessageSquareText,
   PROPOSAL_SENT: Handshake,
+  BRIEFING_SENT: ClipboardList,
+  BRIEFING_COMPLETED: ClipboardCheck,
   OTHER: Sparkles,
 };
 
@@ -42,6 +46,10 @@ export function describeActivity(activity: Activity): string {
       return "Ligação registrada";
     case "EMAIL":
       return "E-mail registrado";
+    case "BRIEFING_SENT":
+      return "Briefing enviado";
+    case "BRIEFING_COMPLETED":
+      return "Briefing concluído pelo cliente";
     default:
       return payload.event === "lead_created" ? "Lead criado" : "Atividade registrada";
   }

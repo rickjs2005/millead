@@ -37,6 +37,17 @@ export interface LeadFilters {
   search?: string;
 }
 
+/**
+ * Reunião/proposta/mensagem são `onDelete: Restrict` no schema (ver
+ * comentário no model Lead) -- apagar precisa checar isso ANTES de tentar,
+ * pra devolver "existem 2 reuniões vinculadas" em vez de deixar o Postgres
+ * estourar uma violação de FK crua.
+ */
+export type DeleteLeadResult =
+  | { status: "deleted" }
+  | { status: "not_found" }
+  | { status: "blocked"; meetings: number; proposals: number; messages: number };
+
 export interface LeadRepository {
   create(input: CreateLeadInput): Promise<Lead>;
   findByIdForOrg(id: string, organizationId: string): Promise<LeadDetail | null>;
@@ -46,6 +57,7 @@ export interface LeadRepository {
     pagination: PaginationParams,
   ): Promise<PaginatedResult<Lead>>;
   update(id: string, organizationId: string, patch: UpdateLeadInput): Promise<Lead | null>;
+  delete(id: string, organizationId: string): Promise<DeleteLeadResult>;
   moveStage(id: string, organizationId: string, input: MoveStageInput): Promise<Lead | null>;
   /** Grava o score de oportunidade calculado pela IA (0-100). */
   updateScore(id: string, organizationId: string, score: number): Promise<Lead | null>;

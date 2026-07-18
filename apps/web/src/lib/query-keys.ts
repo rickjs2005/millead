@@ -49,4 +49,10 @@ export const queryKeys = {
     list: (params: object) => ["proposals", "list", params] as const,
     detail: (id: string) => ["proposals", "detail", id] as const,
   },
+  briefings: {
+    list: (params: object) => ["briefings", "list", params] as const,
+    detail: (id: string) => ["briefings", "detail", id] as const,
+    templates: () => ["briefings", "templates"] as const,
+    template: (key: string) => ["briefings", "template", key] as const,
+  },
 };

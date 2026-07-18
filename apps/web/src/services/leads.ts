@@ -49,6 +49,8 @@ export const leadsService = {
   update: (id: string, payload: UpdateLeadPayload) =>
     api.patch<Lead>(`/api/v1/leads/${id}`, payload),
 
+  delete: (id: string) => api.delete<void>(`/api/v1/leads/${id}`),
+
   moveStage: (id: string, pipelineStageId: string) =>
     api.patch<Lead>(`/api/v1/leads/${id}/stage`, { pipelineStageId }),
 

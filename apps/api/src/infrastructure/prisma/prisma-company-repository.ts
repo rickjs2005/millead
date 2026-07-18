@@ -4,6 +4,7 @@ import type {
   CompanyFilters,
   CompanyRepository,
   CreateCompanyInput,
+  DeleteCompanyResult,
   UpdateCompanyInput,
 } from "../../domain/repositories/company-repository.js";
 import {
@@ -64,6 +65,21 @@ export class PrismaCompanyRepository implements CompanyRepository {
     });
     if (count === 0) return null;
     return prisma.company.findUniqueOrThrow({ where: { id } });
+  }
+
+  async delete(id: string, organizationId: string): Promise<DeleteCompanyResult> {
+    const company = await prisma.company.findFirst({
+      where: { id, organizationId },
+      select: { _count: { select: { contracts: true } } },
+    });
+    if (!company) return { status: "not_found" };
+
+    if (company._count.contracts > 0) {
+      return { status: "blocked", contracts: company._count.contracts };
+    }
+
+    await prisma.company.delete({ where: { id } });
+    return { status: "deleted" };
   }
 
   async addWebsite(

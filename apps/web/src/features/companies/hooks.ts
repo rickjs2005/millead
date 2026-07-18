@@ -52,6 +52,19 @@ export function useUpdateCompany(id: string) {
   });
 }
 
+export function useDeleteCompany() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => companiesService.delete(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["companies", "list"] });
+      toast.success("Empresa excluída.");
+    },
+    onError: (err) =>
+      toast.error(err instanceof ApiError ? err.message : "Erro ao excluir empresa."),
+  });
+}
+
 /** Invalida só o detalhe: websites/socials não aparecem na listagem. */
 function useCompanyDetailMutation<TVars>(
   companyId: string,

@@ -41,6 +41,9 @@
       "prisma",
       "sharp",
       "unrs-resolver"
-    ]
+    ],
+    "overrides": {
+      "zod": "^3.24.1"
+    }
   }
 }

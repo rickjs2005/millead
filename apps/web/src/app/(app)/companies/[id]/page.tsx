@@ -1,8 +1,9 @@
 "use client";
 
-import { ArrowLeft, Building2, Mail, MapPin, Pencil, Phone, Users2 } from "lucide-react";
+import { ArrowLeft, Building2, Mail, MapPin, Pencil, Phone, Trash2, Users2 } from "lucide-react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
+import { useConfirmDialog } from "@/components/confirm-dialog";
 import { EmptyState } from "@/components/empty-state";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,12 +12,15 @@ import { CompanyAuditCard } from "@/features/audit/components/company-audit-card
 import { CompanyFormDialog } from "@/features/companies/components/company-form-dialog";
 import { CompanySocialsCard } from "@/features/companies/components/company-socials-card";
 import { CompanyWebsitesCard } from "@/features/companies/components/company-websites-card";
-import { useCompany } from "@/features/companies/hooks";
+import { useCompany, useDeleteCompany } from "@/features/companies/hooks";
 import { formatDate } from "@/utils/format";
 
 export default function CompanyDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const router = useRouter();
   const { data: company, isLoading } = useCompany(id);
+  const deleteCompany = useDeleteCompany();
+  const { confirm, dialog } = useConfirmDialog();
 
   if (isLoading) {
     return (
@@ -67,8 +71,26 @@ export default function CompanyDetailPage() {
                 </Button>
               }
             />
+            <Button
+              variant="outline"
+              className="text-destructive hover:text-destructive"
+              onClick={() =>
+                confirm({
+                  title: "Excluir empresa",
+                  description: `Excluir "${company.name}"? Essa ação não pode ser desfeita. Se houver contratos vinculados, resolva-os antes.`,
+                  confirmLabel: "Excluir",
+                  onConfirm: async () => {
+                    await deleteCompany.mutateAsync(company.id);
+                    router.push("/companies");
+                  },
+                })
+              }
+            >
+              <Trash2 /> Excluir
+            </Button>
           </div>
         </div>
+        {dialog}
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">

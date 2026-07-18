@@ -64,6 +64,18 @@ export function useUpdateLead(id: string) {
   });
 }
 
+export function useDeleteLead() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => leadsService.delete(id),
+    onSuccess: () => {
+      invalidateLeadLists(queryClient);
+      toast.success("Lead excluído.");
+    },
+    onError: (err) => toast.error(err instanceof ApiError ? err.message : "Erro ao excluir lead."),
+  });
+}
+
 export function useMoveLeadStage() {
   const queryClient = useQueryClient();
   return useMutation({

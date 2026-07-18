@@ -1,5 +1,5 @@
 import type { SocialPlatform } from "@millead/database";
-import { NotFoundError } from "../../domain/errors/app-error.js";
+import { ConflictError, NotFoundError } from "../../domain/errors/app-error.js";
 import type {
   CompanyFilters,
   CompanyRepository,
@@ -35,6 +35,16 @@ export class CompanyService {
     const updated = await this.repository.update(id, organizationId, patch);
     if (!updated) throw new NotFoundError("Empresa não encontrada.");
     return updated;
+  }
+
+  async delete(organizationId: string, id: string) {
+    const result = await this.repository.delete(id, organizationId);
+    if (result.status === "not_found") throw new NotFoundError("Empresa não encontrada.");
+    if (result.status === "blocked") {
+      throw new ConflictError(
+        `Não é possível excluir: existem ${result.contracts} contrato(s) vinculados a esta empresa. Isso preserva o histórico jurídico -- resolva/cancele-os antes de excluir.`,
+      );
+    }
   }
 
   async addWebsite(organizationId: string, companyId: string, url: string, isPrimary?: boolean) {

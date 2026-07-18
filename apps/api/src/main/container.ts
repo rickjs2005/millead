@@ -2,6 +2,10 @@ import { ActivityLogger } from "../application/services/activity-logger.js";
 import { AiService } from "../application/services/ai-service.js";
 import { AuditLogger } from "../application/services/audit-logger.js";
 import { AuditService } from "../application/services/audit-service.js";
+import { BriefingAnswerService } from "../application/services/briefing-answer-service.js";
+import { BriefingCompletionService } from "../application/services/briefing-completion-service.js";
+import { BriefingFileService } from "../application/services/briefing-file-service.js";
+import { BriefingService } from "../application/services/briefing-service.js";
 import { ContractService } from "../application/services/contract-service.js";
 import { LandingPageService } from "../application/services/landing-page-service.js";
 import { MessageService } from "../application/services/message-service.js";
@@ -22,14 +26,21 @@ import { env } from "../config/env.js";
 import { BcryptPasswordHasher } from "../infrastructure/auth/bcrypt-password-hasher.js";
 import { JwtAccessTokenService } from "../infrastructure/auth/jwt-access-token-service.js";
 import { ClaudeLeadAi } from "../infrastructure/ai/claude-lead-ai.js";
+import { VercelBlobStorage } from "../infrastructure/blob/vercel-blob-storage.js";
+import { DefaultBriefingNotifier } from "../infrastructure/briefings/notifications/briefing-notifier.js";
 import { DefaultContractNotifier } from "../infrastructure/contracts/notifications/contract-notifier.js";
 import { createSignatureGateway } from "../infrastructure/contracts/signature/factory.js";
 import { BullAuditQueue } from "../infrastructure/queue/bull-audit-queue.js";
+import { BullBriefingQueue } from "../infrastructure/queue/bull-briefing-queue.js";
 import { BullContractQueue } from "../infrastructure/queue/bull-contract-queue.js";
 import { BullLandingPageQueue } from "../infrastructure/queue/bull-landing-page-queue.js";
 import { PrismaActivityRepository } from "../infrastructure/prisma/prisma-activity-repository.js";
 import { PrismaAuditLogRepository } from "../infrastructure/prisma/prisma-audit-log-repository.js";
 import { PrismaAuditRepository } from "../infrastructure/prisma/prisma-audit-repository.js";
+import { PrismaBriefingAnswerRepository } from "../infrastructure/prisma/prisma-briefing-answer-repository.js";
+import { PrismaBriefingFileRepository } from "../infrastructure/prisma/prisma-briefing-file-repository.js";
+import { PrismaBriefingRepository } from "../infrastructure/prisma/prisma-briefing-repository.js";
+import { PrismaBriefingTemplateRepository } from "../infrastructure/prisma/prisma-briefing-template-repository.js";
 import { PrismaCompanyRepository } from "../infrastructure/prisma/prisma-company-repository.js";
 import { PrismaLeadRepository } from "../infrastructure/prisma/prisma-lead-repository.js";
 import { PrismaContractRepository } from "../infrastructure/prisma/prisma-contract-repository.js";
@@ -50,6 +61,7 @@ import { createAuthenticateMiddleware } from "../interfaces/http/middlewares/aut
 import { AiController } from "../interfaces/http/controllers/ai-controller.js";
 import { AuditController } from "../interfaces/http/controllers/audit-controller.js";
 import { AuthController } from "../interfaces/http/controllers/auth-controller.js";
+import { BriefingController } from "../interfaces/http/controllers/briefing-controller.js";
 import { ContractController } from "../interfaces/http/controllers/contract-controller.js";
 import { LandingPageController } from "../interfaces/http/controllers/landing-page-controller.js";
 import { MessageController } from "../interfaces/http/controllers/message-controller.js";
@@ -67,6 +79,7 @@ export interface Container {
   aiController: AiController;
   auditController: AuditController;
   authController: AuthController;
+  briefingController: BriefingController;
   companyController: CompanyController;
   contractController: ContractController;
   landingPageController: LandingPageController;
@@ -111,6 +124,10 @@ export function buildContainer(): Container {
   const messageTemplateRepository = new PrismaMessageTemplateRepository();
   const landingPageRepository = new PrismaLandingPageRepository();
   const contractRepository = new PrismaContractRepository();
+  const briefingRepository = new PrismaBriefingRepository();
+  const briefingTemplateRepository = new PrismaBriefingTemplateRepository();
+  const briefingAnswerRepository = new PrismaBriefingAnswerRepository();
+  const briefingFileRepository = new PrismaBriefingFileRepository();
 
   // ---- Serviços ----
   const passwordHasher = new BcryptPasswordHasher();
@@ -149,6 +166,21 @@ export function buildContainer(): Container {
     createSignatureGateway(),
     new DefaultContractNotifier(),
   );
+  const blobStorage = new VercelBlobStorage();
+  const briefingService = new BriefingService(
+    briefingRepository,
+    briefingTemplateRepository,
+    new DefaultBriefingNotifier(),
+    activityLogger,
+  );
+  const briefingAnswerService = new BriefingAnswerService(briefingRepository, briefingAnswerRepository);
+  const briefingCompletionService = new BriefingCompletionService(
+    briefingRepository,
+    briefingAnswerRepository,
+    new BullBriefingQueue(),
+    activityLogger,
+  );
+  const briefingFileService = new BriefingFileService(briefingRepository, briefingFileRepository, blobStorage);
   const aiService = new AiService(
     leadAi,
     leadRepository,
@@ -208,12 +240,19 @@ export function buildContainer(): Container {
   const messageController = new MessageController(messageService);
   const landingPageController = new LandingPageController(landingPageService);
   const contractController = new ContractController(contractService);
+  const briefingController = new BriefingController(
+    briefingService,
+    briefingAnswerService,
+    briefingCompletionService,
+    briefingFileService,
+  );
   const authenticate = createAuthenticateMiddleware(accessTokenService, membershipRepository);
 
   return {
     aiController,
     auditController,
     authController,
+    briefingController,
     contractController,
     landingPageController,
     messageController,

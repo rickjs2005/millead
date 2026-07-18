@@ -26,6 +26,7 @@ export function createLeadRoutes(controller: LeadController, authenticate: Reque
   router.get("/", read, validateQuery(listLeadsQuerySchema), asyncHandler(controller.list));
   router.get("/:id", read, asyncHandler(controller.get));
   router.patch("/:id", write, validateBody(updateLeadSchema), asyncHandler(controller.update));
+  router.delete("/:id", write, asyncHandler(controller.delete));
   router.patch(
     "/:id/stage",
     write,

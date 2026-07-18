@@ -56,6 +56,7 @@ model User {
   requestedAudits  Audit[]           @relation("AuditRequestedBy")
   landingPages     LandingPage[]     @relation("LandingPageCreatedBy")
   contracts        Contract[]        @relation("ContractCreatedBy")
+  createdBriefings Briefing[]        @relation("BriefingCreatedBy")
 
   @@map("users")
 }
@@ -100,6 +101,11 @@ model Organization {
   contractEvents    ContractEvent[]
   contractSequences ContractSequence[]
   subscription     Subscription?
+  briefings        Briefing[]
+  briefingLinks    BriefingLink[]
+  briefingAnswers  BriefingAnswer[]
+  briefingFiles    BriefingFile[]
+  briefingHistory  BriefingHistory[]
 
   @@map("organizations")
 }
@@ -257,6 +263,7 @@ model Company {
   audits       Audit[]
   landingPages LandingPage[]
   contracts    Contract[]
+  briefings    Briefing[]
 
   @@unique([organizationId, document])
   @@index([organizationId])
@@ -360,6 +367,7 @@ model Lead {
   messages  Message[]
   landingPages LandingPage[]
   contracts    Contract[]
+  briefings    Briefing[]
 
   @@index([organizationId, status])
   @@index([companyId])
@@ -515,6 +523,8 @@ enum ActivityType {
   MEETING_SCHEDULED
   MESSAGE_SENT
   PROPOSAL_SENT
+  BRIEFING_SENT
+  BRIEFING_COMPLETED
   OTHER
 
   @@map("activity_type")
@@ -1068,4 +1078,233 @@ model Subscription {
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@map("subscriptions")
+}
+
+// ===================================================================
+// BRIEFINGS (Fase 10 -- onboarding inteligente de cliente)
+// ===================================================================
+
+enum BriefingTemplateKind {
+  INSTITUCIONAL
+  ECOMMERCE
+
+  @@map("briefing_template_kind")
+}
+
+enum BriefingFieldType {
+  TEXT
+  TEXTAREA
+  EMAIL
+  PHONE
+  URL
+  SELECT
+  MULTI_SELECT
+  FILE
+  GROUP
+
+  @@map("briefing_field_type")
+}
+
+enum BriefingStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  ARCHIVED
+
+  @@map("briefing_status")
+}
+
+/// Catálogo GLOBAL de templates de briefing -- não é dado de tenant (sem
+/// organizationId), mesmo padrão do model `Permission`. Populado via seed
+/// (packages/database/prisma/seed-data/briefing-templates.ts); sem editor
+/// de template nesta fase, a aplicação não cria templates em runtime.
+model BriefingTemplate {
+  id          String               @id @default(cuid())
+  key         String               @unique
+  kind        BriefingTemplateKind
+  name        String
+  description String?
+  isActive    Boolean              @default(true) @map("is_active")
+  createdAt   DateTime             @default(now()) @map("created_at")
+  updatedAt   DateTime             @updatedAt @map("updated_at")
+
+  sections  BriefingSection[]
+  briefings Briefing[]
+
+  @@map("briefing_templates")
+}
+
+model BriefingSection {
+  id          String   @id @default(cuid())
+  templateId  String   @map("template_id")
+  key         String
+  title       String
+  description String?
+  order       Int
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  template BriefingTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  fields   BriefingField[]
+
+  @@unique([templateId, key])
+  @@index([templateId])
+  @@map("briefing_sections")
+}
+
+/// Campo de um template. `parentFieldId` é usado só pelos campos-FILHO de
+/// um campo `GROUP` (ex.: na seção "Serviços", o campo GROUP "servicos"
+/// tem filhos "nome"/"descricao"/"imagem") -- isso é definido UMA VEZ no
+/// template (schema do item repetível), não por item preenchido pelo
+/// cliente (isso é `BriefingAnswer.groupItemId`, ver abaixo).
+model BriefingField {
+  id            String            @id @default(cuid())
+  sectionId     String            @map("section_id")
+  parentFieldId String?           @map("parent_field_id")
+  key           String
+  label         String
+  type          BriefingFieldType
+  order         Int
+  required      Boolean           @default(false)
+  helpText      String?           @map("help_text")
+  /// SELECT/MULTI_SELECT: { options: string[] }. FILE: { accept: string[],
+  /// maxFiles?: number, maxSizeMB?: number }. GROUP: { minItems?: number,
+  /// maxItems?: number, itemLabel: string }.
+  config        Json?
+
+  section  BriefingSection  @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  parent   BriefingField?   @relation("GroupChildren", fields: [parentFieldId], references: [id], onDelete: Cascade)
+  children BriefingField[]  @relation("GroupChildren")
+  answers  BriefingAnswer[]
+
+  @@unique([sectionId, key])
+  @@index([sectionId])
+  @@index([parentFieldId])
+  @@map("briefing_fields")
+}
+
+/// Um briefing enviado a um cliente. `contactName/Email/Phone` são
+/// denormalizados a partir das respostas da 1ª seção -- a lista admin
+/// precisa mostrar "cliente" mesmo quando NÃO há Lead/Company vinculado.
+model Briefing {
+  id              String         @id @default(cuid())
+  organizationId  String         @map("organization_id")
+  templateId      String         @map("template_id")
+  leadId          String?        @map("lead_id")
+  companyId       String?        @map("company_id")
+  createdById     String?        @map("created_by_id")
+  status          BriefingStatus @default(PENDING)
+  /// Denormalizado, recalculado a cada autosave -- evita aggregate query
+  /// toda vez que a lista admin renderiza.
+  progressPercent Int            @default(0) @map("progress_percent")
+  contactName     String?        @map("contact_name")
+  contactEmail    String?        @map("contact_email")
+  contactPhone    String?        @map("contact_phone")
+  pdfUrl          String?        @map("pdf_url")
+  startedAt       DateTime?      @map("started_at")
+  completedAt     DateTime?      @map("completed_at")
+  archivedAt      DateTime?      @map("archived_at")
+  createdAt       DateTime       @default(now()) @map("created_at")
+  updatedAt       DateTime       @updatedAt @map("updated_at")
+
+  organization Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  template     BriefingTemplate  @relation(fields: [templateId], references: [id], onDelete: Restrict)
+  lead         Lead?             @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  company      Company?          @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  createdBy    User?             @relation("BriefingCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  link         BriefingLink?
+  answers      BriefingAnswer[]
+  files        BriefingFile[]
+  history      BriefingHistory[]
+
+  @@index([organizationId, status])
+  @@index([leadId])
+  @@index([companyId])
+  @@map("briefings")
+}
+
+/// Link público (/b/:token). 1:1 com Briefing nesta fase -- sem
+/// regeneração de token (pra revogar, marca `revokedAt`).
+model BriefingLink {
+  id             String    @id @default(cuid())
+  organizationId String    @map("organization_id")
+  briefingId     String    @unique @map("briefing_id")
+  token          String    @unique
+  revokedAt      DateTime? @map("revoked_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  briefing     Briefing     @relation(fields: [briefingId], references: [id], onDelete: Cascade)
+
+  @@map("briefing_links")
+}
+
+/// Resposta de UM campo. `groupItemId` correlaciona os campos-filho de um
+/// MESMO item dentro de um campo GROUP (ex.: o 2º "Serviço" preenchido) --
+/// é uma string gerada no CLIENTE (crypto.randomUUID()), não uma FK. Usa
+/// "" (não null) como sentinela para campos de topo: Postgres trata
+/// NULL <> NULL, então uma unique constraint com groupItemId nulo NÃO
+/// bloquearia duplicata nenhuma de campo de topo -- "" torna o upsert por
+/// [briefingId, fieldId, groupItemId] realmente atômico e idempotente,
+/// tanto pra autosave de campo simples quanto de item de grupo.
+model BriefingAnswer {
+  id             String   @id @default(cuid())
+  organizationId String   @map("organization_id")
+  briefingId     String   @map("briefing_id")
+  fieldId        String   @map("field_id")
+  groupItemId    String   @default("") @map("group_item_id")
+  groupItemOrder Int?     @map("group_item_order")
+  valueText      String?  @map("value_text")
+  /// MULTI_SELECT: string[]. FILE: BriefingFile.id[].
+  valueJson      Json?    @map("value_json")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  briefing     Briefing      @relation(fields: [briefingId], references: [id], onDelete: Cascade)
+  field        BriefingField @relation(fields: [fieldId], references: [id], onDelete: Cascade)
+
+  @@unique([briefingId, fieldId, groupItemId])
+  @@index([organizationId])
+  @@index([briefingId])
+  @@map("briefing_answers")
+}
+
+/// Arquivo enviado (Vercel Blob). Sem `fieldId` -- o vínculo "este arquivo
+/// pertence ao campo X (ou ao item Y de um GROUP)" já vive em
+/// `BriefingAnswer.valueJson` (array de ids de BriefingFile).
+model BriefingFile {
+  id             String   @id @default(cuid())
+  organizationId String   @map("organization_id")
+  briefingId     String   @map("briefing_id")
+  blobUrl        String   @map("blob_url")
+  pathname       String
+  originalName   String   @map("original_name")
+  mimeType       String   @map("mime_type")
+  sizeBytes      Int      @map("size_bytes")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  briefing     Briefing     @relation(fields: [briefingId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([briefingId])
+  @@map("briefing_files")
+}
+
+/// Timeline do briefing -- mesmo shape de `ContractEvent`.
+model BriefingHistory {
+  id             String   @id @default(cuid())
+  organizationId String   @map("organization_id")
+  briefingId     String   @map("briefing_id")
+  tipo           String
+  /// APP | PUBLIC_FORM | WORKER
+  origem         String
+  payload        Json?
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  briefing     Briefing     @relation(fields: [briefingId], references: [id], onDelete: Cascade)
+
+  @@index([briefingId, createdAt])
+  @@map("briefing_history")
 }

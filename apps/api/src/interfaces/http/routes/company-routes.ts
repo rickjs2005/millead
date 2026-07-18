@@ -38,6 +38,11 @@ export function createCompanyRoutes(
     validateBody(updateCompanySchema),
     asyncHandler(controller.update),
   );
+  router.delete(
+    "/:id",
+    requirePermission(PERMISSIONS.COMPANIES_WRITE),
+    asyncHandler(controller.delete),
+  );
 
   router.post(
     "/:id/websites",

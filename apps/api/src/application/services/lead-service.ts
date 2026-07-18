@@ -1,4 +1,4 @@
-import { NotFoundError } from "../../domain/errors/app-error.js";
+import { ConflictError, NotFoundError } from "../../domain/errors/app-error.js";
 import type {
   CreateLeadInput,
   LeadFilters,
@@ -54,6 +54,20 @@ export class LeadService {
     const lead = await this.leads.update(id, organizationId, patch);
     if (!lead) throw new NotFoundError("Lead não encontrado.");
     return lead;
+  }
+
+  async delete(organizationId: string, id: string) {
+    const result = await this.leads.delete(id, organizationId);
+    if (result.status === "not_found") throw new NotFoundError("Lead não encontrado.");
+    if (result.status === "blocked") {
+      const parts: string[] = [];
+      if (result.meetings > 0) parts.push(`${result.meetings} reunião(ões)`);
+      if (result.proposals > 0) parts.push(`${result.proposals} proposta(s)`);
+      if (result.messages > 0) parts.push(`${result.messages} mensagem(ns)`);
+      throw new ConflictError(
+        `Não é possível excluir: existem ${parts.join(", ")} vinculadas a este lead. Resolva ou arquive-as antes de excluir.`,
+      );
+    }
   }
 
   async moveStage(organizationId: string, userId: string, leadId: string, pipelineStageId: string) {

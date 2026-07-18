@@ -32,6 +32,12 @@ export class LeadController {
     res.status(200).json(lead);
   };
 
+  delete = async (req: Request, res: Response): Promise<void> => {
+    const auth = requireAuth(req);
+    await this.leads.delete(auth.organizationId, req.params.id!);
+    res.status(204).send();
+  };
+
   moveStage = async (req: Request, res: Response): Promise<void> => {
     const auth = requireAuth(req);
     const lead = await this.leads.moveStage(

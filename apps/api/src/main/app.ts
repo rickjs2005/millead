@@ -10,6 +10,10 @@ import { createAiRoutes } from "../interfaces/http/routes/ai-routes.js";
 import { createAuditRoutes } from "../interfaces/http/routes/audit-routes.js";
 import { createAuthRoutes } from "../interfaces/http/routes/auth-routes.js";
 import {
+  createBriefingRoutes,
+  createPublicBriefingRoutes,
+} from "../interfaces/http/routes/briefing-routes.js";
+import {
   createContractRoutes,
   createPublicContractRoutes,
   createSignatureWebhookRoutes,
@@ -69,8 +73,14 @@ export function createApp(container: Container): Express {
     "/api/v1/contracts",
     createContractRoutes(container.contractController, container.authenticate),
   );
+  app.use(
+    "/api/v1/briefings",
+    createBriefingRoutes(container.briefingController, container.authenticate),
+  );
   // Formulário público de fechamento (rate-limit por IP, sem login).
   app.use("/api/v1/public", createPublicContractRoutes(container.contractController));
+  // Wizard público do briefing (/b/:token no front) -- rate-limit por IP, sem login.
+  app.use("/api/v1/public", createPublicBriefingRoutes(container.briefingController));
   // Webhook do provedor de assinatura (validado por HMAC, sem login).
   app.use("/api/v1/webhooks", createSignatureWebhookRoutes(container.contractController));
   // Rota PÚBLICA da landing page -- o link que o prospect abre, sem login.

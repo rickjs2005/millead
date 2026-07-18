@@ -52,6 +52,15 @@ const envSchema = z.object({
   WHATSAPP_PHONE_ID: z.string().optional(),
   WHATSAPP_TOKEN: z.string().optional(),
   WHATSAPP_API_VERSION: z.string().default("v21.0"),
+
+  // ===== Briefings (Fase 10) =====
+  // Sem fallback no-op de propósito: diferente de SMTP/WhatsApp (onde "não
+  // notificar" é aceitável), sem storage o upload de arquivo simplesmente
+  // não existe -- falha rápido no boot em vez de 500 tardio no primeiro upload.
+  BLOB_READ_WRITE_TOKEN: z.string().min(1),
+  // URL pública do APP Next (não da API -- ver APP_PUBLIC_URL acima) usada
+  // pra montar o link /b/:token em e-mail e WhatsApp.
+  WEB_PUBLIC_URL: z.string().default("http://localhost:3000"),
 });
 
 export type Env = z.infer<typeof envSchema>;

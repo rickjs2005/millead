@@ -5,6 +5,7 @@ import { EmptyState } from "@/components/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CompanyAuditCard } from "@/features/audit/components/company-audit-card";
+import { LeadBriefingsTab } from "@/features/leads/components/lead-briefings-tab";
 import { LeadCompanyCard } from "@/features/leads/components/lead-company-card";
 import { LeadMessagesTab } from "@/features/messages/components/lead-messages-tab";
 import { LeadContactsCard } from "@/features/leads/components/lead-contacts-card";
@@ -47,6 +48,7 @@ export default function LeadDetailPage() {
           <TabsTrigger value="notes">Observações</TabsTrigger>
           <TabsTrigger value="audit">Auditoria</TabsTrigger>
           <TabsTrigger value="messages">Mensagens</TabsTrigger>
+          <TabsTrigger value="briefings">Briefings</TabsTrigger>
           <TabsTrigger value="files">Arquivos</TabsTrigger>
         </TabsList>
 
@@ -89,6 +91,10 @@ export default function LeadDetailPage() {
 
         <TabsContent value="messages">
           <LeadMessagesTab leadId={lead.id} />
+        </TabsContent>
+
+        <TabsContent value="briefings">
+          <LeadBriefingsTab leadId={lead.id} />
         </TabsContent>
 
         <TabsContent value="files">
