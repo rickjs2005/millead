@@ -22,7 +22,9 @@ import {
   ANIMATIONS,
   DEFAULT_SECTIONS,
   DESIGN_STYLES,
+  EFFECTS,
   FRAMEWORKS,
+  findOption,
   GOALS,
   LANGUAGES,
   SECTIONS,
@@ -45,6 +47,7 @@ const EMPTY: PromptInput = {
   framework: "next-tailwind",
   language: "typescript",
   animation: "subtle",
+  effects: [],
   sections: DEFAULT_SECTIONS,
   notes: "",
 };
@@ -129,6 +132,17 @@ export default function PromptBuilderPage() {
     }));
   }
 
+  function toggleEffect(value: string) {
+    setForm((prev) => ({
+      ...prev,
+      effects: prev.effects.includes(value)
+        ? prev.effects.filter((e) => e !== value)
+        : [...prev.effects, value],
+    }));
+  }
+
+  const styleRef = findOption(DESIGN_STYLES, form.designStyle)?.reference;
+
   const prompt = useMemo(() => buildPrompt(form), [form]);
 
   async function copyPrompt() {
@@ -199,7 +213,10 @@ export default function PromptBuilderPage() {
               <Field label="Objetivo da página">
                 <OptionSelect value={form.goal} onChange={(v) => set("goal", v)} options={GOALS} />
               </Field>
-              <Field label="Estilo visual">
+              <Field
+                label="Estilo visual"
+                hint={styleRef ? `Referências: ${styleRef}` : undefined}
+              >
                 <OptionSelect value={form.designStyle} onChange={(v) => set("designStyle", v)} options={DESIGN_STYLES} />
               </Field>
               <div className="grid gap-4 sm:grid-cols-2">
@@ -229,6 +246,32 @@ export default function PromptBuilderPage() {
               </div>
               <Field label="Animações">
                 <OptionSelect value={form.animation} onChange={(v) => set("animation", v)} options={ANIMATIONS} />
+              </Field>
+              <Field
+                label="Recursos avançados"
+                hint="Opcional — some ao prompt. Ex.: 3D com Three.js, shaders, Lottie."
+              >
+                <div className="flex flex-wrap gap-2">
+                  {EFFECTS.map((ef) => {
+                    const active = form.effects.includes(ef.value);
+                    return (
+                      <button
+                        key={ef.value}
+                        type="button"
+                        onClick={() => toggleEffect(ef.value)}
+                        className={cn(
+                          "rounded-full border px-3 py-1.5 text-sm transition-colors",
+                          active
+                            ? "border-primary bg-primary/10 text-primary"
+                            : "border-border text-muted-foreground hover:bg-accent",
+                        )}
+                      >
+                        {active && <Check className="mr-1 inline h-3 w-3" />}
+                        {ef.label}
+                      </button>
+                    );
+                  })}
+                </div>
               </Field>
             </CardContent>
           </Card>

@@ -1,12 +1,14 @@
 import {
   ANIMATIONS,
   DESIGN_STYLES,
+  EFFECTS,
   FRAMEWORKS,
   GOALS,
   LANGUAGES,
   SECTIONS,
   findGuidance,
   findLabel,
+  findOption,
 } from "./options";
 
 export interface PromptInput {
@@ -29,6 +31,7 @@ export interface PromptInput {
   framework: string;
   language: string; // linguagem de programação (typescript/javascript)
   animation: string;
+  effects: string[]; // recursos avançados (values de EFFECTS)
   // Seções (values de SECTIONS, na ordem escolhida)
   sections: string[];
   // Extra
@@ -48,7 +51,8 @@ function line(label: string, value: string): string | null {
  * framework escolhido.
  */
 export function buildPrompt(input: PromptInput): string {
-  const styleGuide = findGuidance(DESIGN_STYLES, input.designStyle);
+  const styleOpt = findOption(DESIGN_STYLES, input.designStyle);
+  const styleGuide = styleOpt?.guidance ?? "";
   const frameworkGuide = findGuidance(FRAMEWORKS, input.framework);
   const langGuide = findGuidance(LANGUAGES, input.language);
   const animGuide = findGuidance(ANIMATIONS, input.animation);
@@ -69,20 +73,31 @@ export function buildPrompt(input: PromptInput): string {
     .filter(Boolean)
     .join("\n");
 
+  // Referência = a que o usuário digitou + a dos exemplos do estilo escolhido.
+  const styleRef = styleOpt?.reference ? `inspiração visual: ${styleOpt.reference}` : "";
+  const refCombined = [input.references.trim(), styleRef].filter(Boolean).join("; ");
+
   const design = [
     `- Estilo: ${findLabel(DESIGN_STYLES, input.designStyle)} — ${styleGuide}`,
     line("Paleta / cores", input.palette),
-    line("Referências", input.references),
+    refCombined ? `- Referências: ${refCombined}` : null,
   ]
     .filter(Boolean)
+    .join("\n");
+
+  const effectsLines = input.effects
+    .map((e) => `- ${findLabel(EFFECTS, e)}: ${findGuidance(EFFECTS, e)}`)
     .join("\n");
 
   const stack = [
     `- Framework/biblioteca: ${findLabel(FRAMEWORKS, input.framework)} — ${frameworkGuide}`,
     `- Linguagem: ${findLabel(LANGUAGES, input.language)} — ${langGuide}`,
     `- Animações: ${findLabel(ANIMATIONS, input.animation)} — ${animGuide}`,
+    effectsLines ? `- Recursos avançados:\n${effectsLines.replace(/^/gm, "  ")}` : null,
     "- 100% responsivo (mobile-first), acessível (semântica, contraste, foco visível) e com SEO básico (title, meta description, tags Open Graph).",
-  ].join("\n");
+  ]
+    .filter(Boolean)
+    .join("\n");
 
   const secoes =
     input.sections.length > 0
