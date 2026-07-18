@@ -68,7 +68,7 @@ export const NAV_SECTIONS: NavSection[] = [
     title: "Prospecção",
     items: [
       { label: "Auditoria de sites", href: "/audit", icon: ShieldCheck, permission: "audits:read" },
-      { label: "Landing pages", href: "/landing-pages", icon: Rocket, permission: "leads:read" },
+      { label: "Gerador de sites", href: "/landing-pages", icon: Rocket, permission: "leads:read" },
       { label: "Mensagens", href: "/messages", icon: MessageSquare, permission: "messages:read" },
     ],
   },
