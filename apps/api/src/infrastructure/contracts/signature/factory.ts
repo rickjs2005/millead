@@ -17,5 +17,10 @@ export function createSignatureGateway(): ContractSignatureGateway {
       isProduction: env.NODE_ENV === "production",
     });
   }
-  return new MockSignatureGateway();
+
+  // Fail-closed em produção: o mock não valida HMAC, então em prod ele
+  // RECUSA webhooks (senão dá pra forjar "contrato assinado" só sabendo o
+  // id do contrato). A API sobe normal; contratos só são "assináveis" de
+  // verdade com o ZapSign configurado. Em dev o mock segue aceitando.
+  return new MockSignatureGateway(env.NODE_ENV === "production");
 }

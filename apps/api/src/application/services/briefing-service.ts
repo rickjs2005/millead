@@ -9,11 +9,17 @@ import type { BriefingNotifier } from "../../domain/services/briefing-notifier.j
 import type { PaginationParams } from "../../shared/pagination.js";
 import type { ActivityLogger } from "./activity-logger.js";
 
-// Sem O/0/I/1 -- evita confusão quando o cliente digita o código à mão.
+// Sem O/0/I/1 -- evita confusão caso o cliente precise ler o código.
 const TOKEN_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
-/** Código curto pro link público (ex.: "8AHS81") -- fácil de ler/compartilhar. */
-function generatePublicToken(length = 6): string {
+/**
+ * Token do link público (/b/:token). 20 chars sobre alfabeto de 32 ≈ 100
+ * bits de entropia -- o link protege PII do lead/empresa e permite gerar
+ * tokens de upload no escopo da org, então precisa ser imprevisível, não só
+ * "único". Antes eram 6 chars (~1bi), enumerável. O link é enviado por
+ * WhatsApp/e-mail (copiado, não digitado), então o comprimento não atrapalha.
+ */
+function generatePublicToken(length = 20): string {
   let token = "";
   for (let i = 0; i < length; i++) {
     token += TOKEN_ALPHABET[randomInt(TOKEN_ALPHABET.length)];
@@ -29,7 +35,7 @@ export class BriefingService {
     private readonly activityLogger: ActivityLogger,
   ) {}
 
-  /** Token único: gera e tenta de novo na rara colisão (espaço de 33^6 ≈ 1.3bi). */
+  /** Token único: gera e tenta de novo na (agora improvável) colisão. */
   private async generateUniqueToken(): Promise<string> {
     let token = generatePublicToken();
     for (let attempt = 0; attempt < 5; attempt++) {

@@ -44,7 +44,10 @@ export function createApp(container: Container): Express {
   const app = express();
 
   app.disable("x-powered-by");
-  app.set("trust proxy", true); // necessário pra req.ip funcionar atrás de proxy/load balancer
+  // Confia só no nº exato de hops do proxy (Render = 1). Com `true` o
+  // X-Forwarded-For do cliente seria confiável e o rate-limit por IP
+  // viraria contornável trocando esse header a cada request.
+  app.set("trust proxy", env.TRUST_PROXY_HOPS);
   app.use(helmet());
   // Aceita múltiplas origens separadas por vírgula (domínio final + vercel.app + local).
   app.use(cors({ origin: env.CORS_ORIGIN.split(",").map((o) => o.trim()), credentials: true }));

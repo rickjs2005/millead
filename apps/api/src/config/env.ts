@@ -7,6 +7,13 @@ import { z } from "zod";
 const envSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   API_PORT: z.coerce.number().int().positive().default(4000),
+  /**
+   * Nº de proxies confiáveis à frente da API (Render = 1). Vira o valor de
+   * `app.set("trust proxy", …)`. NÃO usar `true`/valor alto: com trust total
+   * o Express confia no X-Forwarded-For que o CLIENTE manda, e o rate-limit
+   * (que usa req.ip como chave) pode ser burlado trocando esse header.
+   */
+  TRUST_PROXY_HOPS: z.coerce.number().int().min(0).default(1),
   DATABASE_URL: z.string().min(1),
   REDIS_URL: z.string().min(1),
   // 32+ chars (256 bits) é o mínimo razoável pra um segredo HMAC (HS256) --

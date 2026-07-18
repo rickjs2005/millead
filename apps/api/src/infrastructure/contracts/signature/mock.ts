@@ -9,9 +9,15 @@ import type {
  * Provedor de assinatura SIMULADO -- padrão enquanto nenhum provedor real
  * (ZapSign etc.) está configurado. Não chama API externa: cria um docId
  * falso e aceita webhooks de teste (POST no endpoint com {docId, evento}).
+ *
+ * `failClosed` (ligado em produção): faz `verificarAssinatura` recusar,
+ * porque em produção aceitar webhook sem HMAC deixaria forjar "contrato
+ * assinado" só sabendo o id do contrato.
  */
 export class MockSignatureGateway implements ContractSignatureGateway {
   readonly nome = "MOCK" as const;
+
+  constructor(private readonly failClosed = false) {}
 
   async criarDocumento(params: CriarDocumentoParams): Promise<DocumentoCriado> {
     const fakeId = `mock-${params.metadata?.contractId ?? "doc"}`;
@@ -23,7 +29,8 @@ export class MockSignatureGateway implements ContractSignatureGateway {
   }
 
   verificarAssinatura(): boolean {
-    return true; // aceita qualquer webhook em modo mock (só dev/teste)
+    // Em prod recusa (não há HMAC pra validar); em dev aceita p/ testes.
+    return !this.failClosed;
   }
 
   interpretarWebhook(body: unknown): WebhookResultado {

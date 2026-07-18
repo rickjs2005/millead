@@ -5,6 +5,7 @@ import type {
   SiteAuditResult,
   SiteAuditor,
 } from "../../domain/services/site-auditor.js";
+import { safeFetch } from "./safe-fetch.js";
 
 const FETCH_TIMEOUT_MS = 20_000;
 const AUX_FETCH_TIMEOUT_MS = 6_000;
@@ -37,9 +38,8 @@ function normalizeUrl(raw: string): string {
 /** Fetch auxiliar (robots.txt, sitemap...) -- falha vira null, nunca derruba a auditoria. */
 async function tryFetch(url: string, method: "GET" | "HEAD" = "GET"): Promise<Response | null> {
   try {
-    return await fetch(url, {
+    return await safeFetch(url, {
       method,
-      redirect: "follow",
       signal: AbortSignal.timeout(AUX_FETCH_TIMEOUT_MS),
       headers: { "User-Agent": USER_AGENT },
     });
@@ -55,12 +55,18 @@ export class HttpSiteAuditor implements SiteAuditor {
     const startedAt = Date.now();
     let response: Response;
     try {
-      response = await fetch(url, {
-        redirect: "follow",
+      response = await safeFetch(url, {
         signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
         headers: { "User-Agent": USER_AGENT, Accept: "text/html,application/xhtml+xml" },
       });
     } catch (err) {
+      // Alvo interno / URL inválida -> mensagem específica (guarda de SSRF).
+      if (
+        err instanceof Error &&
+        /interno|inválida|não permitido|resolver|redirecionamentos/i.test(err.message)
+      ) {
+        throw new Error(`endereço não permitido para auditoria (${err.message.toLowerCase()})`);
+      }
       const reason =
         err instanceof Error && err.name === "TimeoutError"
           ? `o site não respondeu em ${FETCH_TIMEOUT_MS / 1000}s`
