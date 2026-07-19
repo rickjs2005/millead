@@ -1,4 +1,5 @@
 import { api } from "./api-client";
+import type { IntegrationsStatusResult } from "@/types/api";
 
 export const settingsService = {
   updateProfile: (payload: { name: string }) =>
@@ -9,4 +10,6 @@ export const settingsService = {
       "/api/v1/settings/organization",
       payload,
     ),
+
+  getIntegrations: () => api.get<IntegrationsStatusResult>("/api/v1/settings/integrations"),
 };

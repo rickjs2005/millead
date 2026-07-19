@@ -16,6 +16,9 @@ export function createSettingsRoutes(
   const router = Router();
   router.use(authenticate);
 
+  // Status das integrações da plataforma -- só leitura, sem segredos, qualquer logado vê.
+  router.get("/integrations", asyncHandler(controller.integrations));
+
   // O próprio nome, qualquer usuário logado pode trocar.
   router.patch("/profile", validateBody(updateProfileSchema), asyncHandler(controller.updateProfile));
   // Nome da organização afeta todo mundo -- exige permissão de settings.

@@ -77,6 +77,22 @@ export interface CurrentUserResult {
   role: RoleRef;
 }
 
+// ---------- Integrações (status da plataforma) ----------
+
+export type IntegrationStatusLevel = "connected" | "disabled" | "not_configured";
+
+export interface IntegrationStatus {
+  key: "email" | "whatsapp" | "signature" | "ai";
+  name: string;
+  status: IntegrationStatusLevel;
+  description: string;
+  detail: string | null;
+}
+
+export interface IntegrationsStatusResult {
+  integrations: IntegrationStatus[];
+}
+
 // ---------- Companies ----------
 
 export type SocialPlatform =

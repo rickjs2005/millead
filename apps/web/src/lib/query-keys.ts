@@ -8,6 +8,9 @@ export const queryKeys = {
   ai: {
     status: () => ["ai", "status"] as const,
   },
+  settings: {
+    integrations: () => ["settings", "integrations"] as const,
+  },
   messages: {
     list: (params: object) => ["messages", "list", params] as const,
     templates: () => ["messages", "templates"] as const,
