@@ -210,12 +210,11 @@ export class ContractService {
     // Idempotência: assinado duas vezes não refaz nada.
     if (contract.status === "ASSINADO") return { ok: true };
 
-    // 2ª camada (defesa em profundidade): antes de marcar como assinado,
-    // reconsulta o status real na API do provedor. Um webhook "assinado"
-    // forjado (mesmo passando pela 1ª camada) não sobrevive a isto. Erro de
-    // rede na reconsulta lança -> 500 -> o provedor reenvia o webhook depois.
-    const confirmado = await this.gateway.confirmarAssinado(resultado.docId);
-    if (!confirmado) {
+    // Reconsulta o status real na API do provedor antes de marcar. Um webhook
+    // "assinado" forjado não sobrevive a isto (a API do ZapSign é a fonte de
+    // verdade). Erro de rede lança -> 500 -> o provedor reenvia o webhook.
+    const conf = await this.gateway.confirmarAssinado(resultado.docId);
+    if (!conf.assinado) {
       await this.contracts.addEvent(
         contract.id,
         contract.organizationId,
@@ -226,17 +225,24 @@ export class ContractService {
       throw new UnauthorizedError("Assinatura não confirmada pela API do provedor.");
     }
 
+    // PDF autoritativo vindo da reconsulta -- a URL do corpo do webhook é
+    // falsificável, então preferimos a que a API do provedor devolveu.
+    const pdfUrl = conf.pdfAssinadoUrl ?? resultado.pdfAssinadoUrl;
     let pdfAssinado: Buffer | null = null;
-    if (resultado.pdfAssinadoUrl) {
+    if (pdfUrl) {
       try {
-        const res = await fetch(resultado.pdfAssinadoUrl);
+        const res = await fetch(pdfUrl);
         if (res.ok) pdfAssinado = Buffer.from(await res.arrayBuffer());
       } catch {
         // best-effort: sem o PDF assinado ainda marcamos como assinado
       }
     }
 
-    const assinadoEm = resultado.assinadoEm ? new Date(resultado.assinadoEm) : new Date();
+    const assinadoEm = conf.assinadoEm
+      ? new Date(conf.assinadoEm)
+      : resultado.assinadoEm
+        ? new Date(resultado.assinadoEm)
+        : new Date();
     await this.contracts.markSigned(contract.id, assinadoEm, pdfAssinado);
     await this.contracts.addEvent(contract.id, contract.organizationId, "ASSINADO", "WEBHOOK");
 

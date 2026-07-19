@@ -91,8 +91,14 @@ export function createApp(container: Container): Express {
   app.use("/api/v1/public", publicRateLimit, createPublicContractRoutes(container.contractController));
   // Wizard público do briefing (/b/:token no front) -- rate-limit por IP, sem login.
   app.use("/api/v1/public", publicRateLimit, createPublicBriefingRoutes(container.briefingController));
-  // Webhook do provedor de assinatura (validado por HMAC, sem login).
-  app.use("/api/v1/webhooks", createSignatureWebhookRoutes(container.contractController));
+  // Webhook do provedor de assinatura (sem login). O ZapSign não assina o
+  // webhook, então a autenticidade vem da reconsulta na API do provedor
+  // (confirmarAssinado) -- o rate-limit por IP aqui mitiga abuso da rota aberta.
+  app.use(
+    "/api/v1/webhooks",
+    publicRateLimit,
+    createSignatureWebhookRoutes(container.contractController),
+  );
   // Rota PÚBLICA da landing page -- o link que o prospect abre, sem login.
   app.use("/p", publicRateLimit, createPublicLandingPageRoutes(container.landingPageController));
   app.use("/api/v1/auth", createAuthRoutes(container.authController, container.authenticate));

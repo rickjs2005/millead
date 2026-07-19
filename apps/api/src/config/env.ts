@@ -44,10 +44,10 @@ const envSchema = z.object({
   APP_PUBLIC_URL: z.string().default("http://localhost:4000"),
   SIGNATURE_PROVIDER: z.enum(["mock", "zapsign"]).default("mock"),
   ZAPSIGN_API_TOKEN: z.string().optional(),
-  // O ZapSign NÃO assina o webhook com HMAC -- este segredo é o valor esperado
-  // no header `Authorization: Bearer <segredo>` que você configura no painel do
-  // ZapSign (Configurações -> Integrações -> API ZapSign -> Webhooks). Além
-  // disso, o webhook é reconsultado na API do ZapSign antes de marcar assinado.
+  // Atualmente NÃO usado: os planos básicos do ZapSign não assinam o webhook
+  // nem permitem header customizado, então a autenticidade vem da reconsulta na
+  // API do ZapSign (confirmarAssinado) + rate-limit na rota. Mantido pra caso
+  // um plano futuro permita header. Pode remover do Render sem impacto.
   ZAPSIGN_WEBHOOK_SECRET: z.string().optional(),
   ZAPSIGN_SANDBOX: z.coerce.boolean().default(false),
   ZAPSIGN_SEND_WHATSAPP: z.coerce.boolean().default(false),

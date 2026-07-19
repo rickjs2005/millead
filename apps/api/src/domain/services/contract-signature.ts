@@ -33,6 +33,13 @@ export interface WebhookResultado {
 /** Headers HTTP no formato do Express (req.headers). */
 export type WebhookHeaders = Record<string, string | string[] | undefined>;
 
+export interface ConfirmacaoAssinatura {
+  assinado: boolean;
+  /** URL do PDF assinado vinda da API do provedor (autoritativa, não do corpo do webhook). */
+  pdfAssinadoUrl?: string;
+  assinadoEm?: string;
+}
+
 export interface ContractSignatureGateway {
   readonly nome: "MOCK" | "ZAPSIGN" | "CLICKSIGN" | "DOCUSIGN" | "AUTENTIQUE";
   criarDocumento(params: CriarDocumentoParams): Promise<DocumentoCriado>;
@@ -43,11 +50,15 @@ export interface ContractSignatureGateway {
   verificarAssinatura(headers: WebhookHeaders, body: string): boolean;
   interpretarWebhook(body: unknown): WebhookResultado;
   /**
-   * 2ª camada (defesa em profundidade): reconsulta o status REAL do documento
-   * na API do provedor antes de marcar como assinado -- um webhook "assinado"
-   * forjado não sobrevive a isto. Retorna true só se o provedor confirmar a
-   * assinatura. Deve LANÇAR em erro de rede (pra o provedor reenviar depois).
-   * Gateways sem API externa (mock) confiam no próprio evento.
+   * Reconsulta o status REAL do documento na API do provedor antes de marcar
+   * como assinado -- um webhook "assinado" forjado não sobrevive a isto, e a
+   * URL do PDF assinado vem daqui (autoritativa), não do corpo do webhook.
+   * Deve LANÇAR em erro de rede (pra o provedor reenviar depois). Gateways sem
+   * API externa (mock) confiam no próprio evento.
+   *
+   * Para o ZapSign esta é a ÚNICA camada de autenticidade: os planos básicos
+   * não assinam o webhook nem permitem header customizado, então
+   * `verificarAssinatura` aceita e a segurança vem 100% daqui + rate-limit.
    */
-  confirmarAssinado(docId: string): Promise<boolean>;
+  confirmarAssinado(docId: string): Promise<ConfirmacaoAssinatura>;
 }

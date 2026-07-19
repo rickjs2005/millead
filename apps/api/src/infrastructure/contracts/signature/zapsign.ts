@@ -1,9 +1,8 @@
-import crypto from "node:crypto";
 import type {
+  ConfirmacaoAssinatura,
   ContractSignatureGateway,
   CriarDocumentoParams,
   DocumentoCriado,
-  WebhookHeaders,
   WebhookResultado,
 } from "../../../domain/services/contract-signature.js";
 
@@ -60,39 +59,33 @@ export class ZapSignGateway implements ContractSignatureGateway {
   }
 
   /**
-   * O ZapSign NÃO assina os webhooks com HMAC (confirmado na doc oficial). Ele
-   * permite configurar um HEADER customizado no painel; usamos
-   * `Authorization: Bearer <ZAPSIGN_WEBHOOK_SECRET>` e comparamos em
-   * tempo-constante. É a 1ª camada -- a 2ª (confirmarAssinado) reconsulta a API.
+   * O ZapSign (planos básicos) NÃO assina o webhook nem permite header
+   * customizado -- confirmado no painel. Então NÃO dá pra validar a
+   * autenticidade aqui: aceitamos, e a segurança do evento crítico (ASSINADO)
+   * vem 100% da 2ª camada (`confirmarAssinado`, que reconsulta a API do ZapSign)
+   * somada ao rate-limit da rota. Se um dia o plano permitir header, dá pra
+   * reintroduzir a validação por `Authorization: Bearer <segredo>` aqui.
    */
-  verificarAssinatura(headers: WebhookHeaders, _body: string): boolean {
-    const secret = this.config.webhookSecret;
-    if (!secret) {
-      // Fail-closed: sem segredo configurado, só aceita em dev + sandbox.
-      return !this.config.isProduction && this.config.sandbox;
-    }
-    const raw = headers["authorization"];
-    const recebido = Array.isArray(raw) ? raw[0] : raw;
-    const esperado = `Bearer ${secret}`;
-    if (!recebido || recebido.length !== esperado.length) return false;
-    return crypto.timingSafeEqual(Buffer.from(recebido), Buffer.from(esperado));
+  verificarAssinatura(): boolean {
+    return true;
   }
 
   /**
-   * Reconsulta o documento na API do ZapSign pra confirmar que está mesmo
-   * assinado. Lança em erro de rede (o ZapSign reenvia o webhook depois);
-   * retorna false só quando a API diz, de forma definitiva, que não está
+   * Reconsulta o documento na API do ZapSign: confirma se está mesmo assinado
+   * e devolve a URL AUTORITATIVA do PDF assinado (não a do corpo do webhook,
+   * que é falsificável). Lança em erro de rede (o ZapSign reenvia depois);
+   * `assinado:false` só quando a API diz, definitivamente, que não está
    * assinado -- o que derruba um webhook forjado.
    */
-  async confirmarAssinado(docId: string): Promise<boolean> {
+  async confirmarAssinado(docId: string): Promise<ConfirmacaoAssinatura> {
     const res = await fetch(`${BASE}/docs/${docId}/`, {
       headers: { Authorization: `Bearer ${this.config.apiToken}` },
     });
     if (!res.ok) {
       throw new Error(`ZapSign reconsulta do documento falhou: ${res.status}`);
     }
-    const data = (await res.json()) as { status?: string };
-    return data.status === "signed";
+    const data = (await res.json()) as { status?: string; signed_file?: string };
+    return { assinado: data.status === "signed", pdfAssinadoUrl: data.signed_file };
   }
 
   interpretarWebhook(body: unknown): WebhookResultado {
