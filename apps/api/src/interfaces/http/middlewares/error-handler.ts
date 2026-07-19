@@ -25,11 +25,15 @@ export const errorHandler: ErrorRequestHandler = (err, req, res, _next) => {
   // esbarra aqui, no banco, que é a fonte de verdade real. Isso vira um
   // 409 legível em vez de um 500 genérico.
   if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+    // `err.meta` carrega o alvo da constraint (nomes de coluna/índice
+    // internos) -- fica só no log do servidor, nunca na resposta, pra não
+    // vazar detalhe de schema pra chamadores não autenticados (ex.: form
+    // público de contrato batendo num unique de documento/e-mail).
+    logger.warn({ meta: err.meta, path: req.path }, "conflito de constraint única (P2002)");
     res.status(409).json({
       error: {
         code: "CONFLICT",
         message: "Já existe um registro com esses dados.",
-        issues: err.meta,
       },
     });
     return;

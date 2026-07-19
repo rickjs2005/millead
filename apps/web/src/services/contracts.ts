@@ -1,4 +1,3 @@
-import { useAuthStore } from "@/stores/auth-store";
 import { api } from "./api-client";
 import type {
   Contract,
@@ -54,12 +53,21 @@ export const contractsService = {
 
   reprocess: (id: string) => api.post<Contract>(`/api/v1/contracts/${id}/reprocess`),
 
-  /** Baixa o PDF (rota autenticada) e abre numa aba nova. */
+  /**
+   * Baixa o PDF (rota autenticada) via BFF e abre numa aba nova. O token está
+   * em cookie httpOnly, então o proxy anexa o Bearer server-side; num 401,
+   * tenta um refresh e repete uma vez.
+   */
   async openPdf(id: string, versao: "original" | "assinado"): Promise<void> {
-    const token = useAuthStore.getState().accessToken;
-    const res = await fetch(`${API_BASE}/api/v1/contracts/${id}/pdf?versao=${versao}`, {
-      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-    });
+    const url = `/api/bff/api/v1/contracts/${id}/pdf?versao=${versao}`;
+    let res = await fetch(url, { credentials: "include" });
+    if (res.status === 401) {
+      const refreshed = await fetch("/api/bff/auth/refresh", {
+        method: "POST",
+        credentials: "include",
+      });
+      if (refreshed.ok) res = await fetch(url, { credentials: "include" });
+    }
     if (!res.ok) throw new Error("PDF indisponível.");
     const blob = await res.blob();
     window.open(URL.createObjectURL(blob), "_blank");

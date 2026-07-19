@@ -8,6 +8,7 @@ import {
 } from "../../../application/dto/landing-page.dto.js";
 import { asyncHandler } from "../async-handler.js";
 import type { LandingPageController } from "../controllers/landing-page-controller.js";
+import { aiRateLimit } from "../middlewares/rate-limit.js";
 import { requirePermission } from "../middlewares/require-permission.js";
 import { validateBody, validateQuery } from "../middlewares/validate.js";
 
@@ -31,6 +32,7 @@ export function createLandingPageRoutes(
   router.get("/:id", read, asyncHandler(controller.get));
   router.post(
     "/:id/regenerate",
+    aiRateLimit,
     write,
     validateBody(regenerateLandingPageSchema),
     asyncHandler(controller.regenerate),

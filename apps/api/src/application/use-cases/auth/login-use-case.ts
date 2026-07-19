@@ -34,10 +34,16 @@ export class LoginUseCase {
     // Mensagem genérica de propósito: não revelar se foi o e-mail ou a senha que errou.
     if (!user || !user.isActive) {
       await this.passwordHasher.compare(input.password, await this.getDummyHash());
+      // Audita a tentativa falha (org/usuário podem ser nulos) -- sem isso,
+      // força-bruta e enumeração de e-mail passam invisíveis. Ambos os ramos
+      // de falha auditam + fazem 1 bcrypt.compare, então a auditoria não
+      // reintroduz diferença de timing entre "e-mail inexistente" e "senha errada".
+      await this.auditFailedLogin(input.email, user ? "inactive" : "unknown_user", user?.id, meta);
       throw new UnauthorizedError(INVALID_CREDENTIALS_MESSAGE);
     }
     const passwordMatches = await this.passwordHasher.compare(input.password, user.passwordHash);
     if (!passwordMatches) {
+      await this.auditFailedLogin(input.email, "wrong_password", user.id, meta);
       throw new UnauthorizedError(INVALID_CREDENTIALS_MESSAGE);
     }
 
@@ -80,5 +86,24 @@ export class LoginUseCase {
       "timing-attack-mitigation-dummy-password",
     );
     return LoginUseCase.dummyHashPromise;
+  }
+
+  private async auditFailedLogin(
+    email: string,
+    reason: "unknown_user" | "inactive" | "wrong_password",
+    userId: string | undefined,
+    meta: RequestMeta,
+  ): Promise<void> {
+    // Best-effort: uma falha ao gravar a auditoria não pode virar 500 na
+    // resposta (que deve ser sempre o 401 genérico de credencial inválida).
+    try {
+      await this.auditLogger.log(
+        { organizationId: null, userId: userId ?? null, ...meta },
+        "auth.login_failed",
+        { metadata: { email, reason } },
+      );
+    } catch {
+      // ignora -- o fluxo de login não depende do log.
+    }
   }
 }

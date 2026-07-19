@@ -5,6 +5,7 @@ import helmet from "helmet";
 import { pinoHttp } from "pino-http";
 import { env } from "../config/env.js";
 import { logger } from "../config/logger.js";
+import { createAuditMutationsMiddleware } from "../interfaces/http/middlewares/audit-mutations.js";
 import { errorHandler } from "../interfaces/http/middlewares/error-handler.js";
 import { createAiRoutes } from "../interfaces/http/routes/ai-routes.js";
 import { createAuditRoutes } from "../interfaces/http/routes/audit-routes.js";
@@ -62,6 +63,10 @@ export function createApp(container: Container): Express {
   );
   app.use(cookieParser());
   app.use(pinoHttp({ logger }));
+  // Audita mutações autenticadas bem-sucedidas (registra um listener de
+  // `finish`; a gravação em si é fire-and-forget). Antes das rotas pra pegar
+  // todas -- lê `req.auth`/status só no finish, quando já estão populados.
+  app.use(createAuditMutationsMiddleware(container.auditLogger));
 
   app.use(createHealthRoutes());
   app.use("/api/v1/ai", createAiRoutes(container.aiController, container.authenticate));

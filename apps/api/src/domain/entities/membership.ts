@@ -20,4 +20,7 @@ export interface MembershipContext extends Membership {
   organizationSlug: string;
   roleName: string;
   permissions: PermissionKey[];
+  /** `isActive` do usuário (conta global) -- separado do `status` do vínculo
+   *  com a org. O `authenticate` rejeita conta desativada a cada request. */
+  userIsActive: boolean;
 }

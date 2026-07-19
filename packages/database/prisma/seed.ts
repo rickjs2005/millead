@@ -159,9 +159,19 @@ async function main() {
   const ownerRole = await prisma.role.findFirstOrThrow({
     where: { organizationId: org.id, name: "Owner" },
   });
-  if (process.env.NODE_ENV === "production" && !process.env.SEED_OWNER_PASSWORD) {
+  // Guard: recusar a senha padrão sempre que o banco alvo NÃO for local. Olhar
+  // só o NODE_ENV do processo não basta -- em dev a `DATABASE_URL` pode
+  // apontar pra nuvem (Supabase), e aí o seed criaria `rick@milweb.com.br`
+  // com uma senha pública do repositório num banco alcançável pela API de
+  // produção. A URL do banco é a fonte de verdade do alvo.
+  const dbUrl = process.env.DATABASE_URL ?? "";
+  const targetsLocalDb = /@(localhost|127\.0\.0\.1|host\.docker\.internal|db|postgres)[:\/]/.test(
+    dbUrl,
+  );
+  if (!process.env.SEED_OWNER_PASSWORD && (process.env.NODE_ENV === "production" || !targetsLocalDb)) {
     throw new Error(
-      "SEED_OWNER_PASSWORD é obrigatória em produção -- recusando criar um owner com a senha padrão de dev.",
+      "SEED_OWNER_PASSWORD é obrigatória quando o banco alvo não é local -- recusando criar um " +
+        "owner com a senha padrão de dev (pública no repositório) num banco de nuvem/produção.",
     );
   }
   const seedPassword = process.env.SEED_OWNER_PASSWORD ?? "millead-dev-only";
@@ -216,9 +226,11 @@ async function main() {
   console.log("Seed: templates de briefing...");
   await seedBriefingTemplates();
 
-  console.log(
-    `Seed concluído. Login: rick@milweb.com.br / senha: ${seedPassword} (defina SEED_OWNER_PASSWORD em produção).`,
-  );
+  // Não imprime a senha (vazaria em logs de CI). Só mostra a origem dela.
+  const passwordSource = process.env.SEED_OWNER_PASSWORD
+    ? "SEED_OWNER_PASSWORD"
+    : "padrão de dev (millead-dev-only)";
+  console.log(`Seed concluído. Login: rick@milweb.com.br / senha: [${passwordSource}].`);
 }
 
 main()

@@ -28,3 +28,10 @@ export const logoutSchema = z.object({
   refreshToken: z.string().min(1),
 });
 export type LogoutInput = z.infer<typeof logoutSchema>;
+
+export const changePasswordSchema = z.object({
+  currentPassword: z.string().min(1, "Informe a senha atual."),
+  // Mesma política do registro: min 8, max 72 (limite de bytes do bcrypt).
+  newPassword: z.string().min(8, "A nova senha precisa ter ao menos 8 caracteres.").max(72),
+});
+export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;

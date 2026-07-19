@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { ChangePasswordForm } from "@/features/auth/components/change-password-form";
 import { settingsService } from "@/services/settings";
 import { useAuthStore } from "@/stores/auth-store";
 import { formatDate, getInitials } from "@/utils/format";
@@ -83,6 +84,8 @@ export default function ProfileSettingsPage() {
           </div>
         </CardContent>
       </Card>
+
+      <ChangePasswordForm />
 
       <Card>
         <CardHeader>

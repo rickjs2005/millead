@@ -1,5 +1,6 @@
 import { Router, type RequestHandler } from "express";
 import {
+  changePasswordSchema,
   loginSchema,
   logoutSchema,
   refreshSchema,
@@ -28,6 +29,13 @@ export function createAuthRoutes(controller: AuthController, authenticate: Reque
   );
   router.post("/logout", validateBody(logoutSchema), asyncHandler(controller.logout));
   router.get("/me", authenticate, asyncHandler(controller.me));
+  router.post(
+    "/change-password",
+    authRateLimit,
+    authenticate,
+    validateBody(changePasswordSchema),
+    asyncHandler(controller.changePassword),
+  );
 
   return router;
 }

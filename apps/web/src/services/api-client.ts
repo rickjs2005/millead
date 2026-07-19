@@ -1,7 +1,12 @@
-import { useAuthStore } from "@/stores/auth-store";
-import type { ApiErrorBody, SessionResult } from "@/types/api";
+import type { ApiErrorBody } from "@/types/api";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+/**
+ * Todas as chamadas passam pelo BFF (route handlers do Next em `/api/bff`),
+ * mesma origem, com cookie httpOnly -- o browser não guarda nem envia tokens.
+ * O proxy do BFF (`app/api/bff/[...path]`) anexa o Bearer server-side. Os
+ * caminhos lógicos (`/api/v1/...`) são preservados: `/api/bff` + `/api/v1/x`.
+ */
+const BFF_BASE = "/api/bff";
 
 export class ApiError extends Error {
   constructor(
@@ -15,31 +20,17 @@ export class ApiError extends Error {
   }
 }
 
-// Módulo-level: dedup de refresh concorrente. Se 3 queries levarem 401 ao
-// mesmo tempo, só UMA chamada de /auth/refresh sai -- o backend revoga o
-// refresh token no primeiro uso (rotação atômica), então uma segunda
-// chamada concorrente com o MESMO token seria tratada como reuso/roubo de
-// sessão e derrubaria a sessão inteira. Esse dedup evita esse falso positivo.
+// Single-flight: se várias queries levarem 401 ao mesmo tempo, só UMA chamada
+// de refresh sai. O backend rotaciona o refresh token no primeiro uso, então
+// duas chamadas concorrentes com o mesmo token seriam tratadas como reuso e
+// derrubariam a sessão inteira -- este dedup evita esse falso positivo.
 let refreshPromise: Promise<boolean> | null = null;
 
 async function refreshSession(): Promise<boolean> {
-  const { refreshToken, setTokens, clear } = useAuthStore.getState();
-  if (!refreshToken) return false;
   try {
-    const res = await fetch(`${API_URL}/api/v1/auth/refresh`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ refreshToken }),
-    });
-    if (!res.ok) {
-      clear();
-      return false;
-    }
-    const data = (await res.json()) as SessionResult;
-    setTokens(data.accessToken, data.refreshToken);
-    return true;
+    const res = await fetch(`${BFF_BASE}/auth/refresh`, { method: "POST", credentials: "include" });
+    return res.ok;
   } catch {
-    clear();
     return false;
   }
 }
@@ -48,27 +39,24 @@ interface RequestOptions {
   method?: "GET" | "POST" | "PATCH" | "DELETE";
   body?: unknown;
   query?: Record<string, string | number | boolean | undefined>;
-  /** Pra chamadas de login/register/refresh, que não devem levar Authorization nem tentar refresh. */
+  /** Pra login/register/logout: não tenta refresh num 401 (credencial errada não é sessão expirada). */
   skipAuth?: boolean;
 }
 
 async function request<T>(path: string, options: RequestOptions = {}, isRetry = false): Promise<T> {
   const { method = "GET", body, query, skipAuth } = options;
-  const url = new URL(`${API_URL}${path}`);
+  const url = new URL(`${BFF_BASE}${path}`, window.location.origin);
   if (query) {
     for (const [key, value] of Object.entries(query)) {
       if (value !== undefined) url.searchParams.set(key, String(value));
     }
   }
 
-  const headers: Record<string, string> = { "Content-Type": "application/json" };
-  const accessToken = useAuthStore.getState().accessToken;
-  if (accessToken && !skipAuth) headers.Authorization = `Bearer ${accessToken}`;
-
   const res = await fetch(url.toString(), {
     method,
-    headers,
+    headers: { "Content-Type": "application/json" },
     body: body !== undefined ? JSON.stringify(body) : undefined,
+    credentials: "include",
   });
 
   if (res.status === 401 && !skipAuth && !isRetry) {
@@ -78,7 +66,6 @@ async function request<T>(path: string, options: RequestOptions = {}, isRetry = 
     const refreshed = await refreshPromise;
     if (refreshed) return request<T>(path, options, true);
 
-    useAuthStore.getState().clear();
     if (typeof window !== "undefined" && !window.location.pathname.startsWith("/login")) {
       window.location.href = "/login";
     }
@@ -103,9 +90,6 @@ async function request<T>(path: string, options: RequestOptions = {}, isRetry = 
 }
 
 export const api = {
-  // `query` aceita qualquer objeto simples de filtros (as interfaces
-  // ListXParams não têm index signature própria) -- o cast é seguro
-  // porque `request` só itera as chaves via Object.entries em runtime.
   get: <T>(path: string, query?: object) =>
     request<T>(path, { query: query as RequestOptions["query"] }),
   post: <T>(path: string, body?: unknown, options?: Pick<RequestOptions, "skipAuth">) =>

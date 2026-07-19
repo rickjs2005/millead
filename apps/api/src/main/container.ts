@@ -19,6 +19,7 @@ import { DefaultProposalNotifier } from "../infrastructure/proposals/proposal-no
 import { SessionIssuer } from "../application/services/session-issuer.js";
 import { TagService } from "../application/services/tag-service.js";
 import { TaskService } from "../application/services/task-service.js";
+import { ChangePasswordUseCase } from "../application/use-cases/auth/change-password-use-case.js";
 import { GetCurrentUserUseCase } from "../application/use-cases/auth/get-current-user-use-case.js";
 import { LoginUseCase } from "../application/use-cases/auth/login-use-case.js";
 import { LogoutUseCase } from "../application/use-cases/auth/logout-use-case.js";
@@ -96,6 +97,7 @@ export interface Container {
   taskController: TaskController;
   authenticate: RequestHandler;
   membershipRepository: MembershipRepository;
+  auditLogger: AuditLogger;
 }
 
 /**
@@ -230,6 +232,12 @@ export function buildContainer(): Container {
   );
   const logoutUseCase = new LogoutUseCase(refreshTokenRepository, auditLogger);
   const getCurrentUserUseCase = new GetCurrentUserUseCase(userRepository, membershipRepository);
+  const changePasswordUseCase = new ChangePasswordUseCase(
+    userRepository,
+    passwordHasher,
+    refreshTokenRepository,
+    auditLogger,
+  );
 
   // ---- Controllers & middlewares ----
   const authController = new AuthController(
@@ -238,6 +246,7 @@ export function buildContainer(): Container {
     refreshUseCase,
     logoutUseCase,
     getCurrentUserUseCase,
+    changePasswordUseCase,
   );
   const companyController = new CompanyController(companyService);
   const leadController = new LeadController(leadService);
@@ -278,5 +287,6 @@ export function buildContainer(): Container {
     taskController,
     authenticate,
     membershipRepository,
+    auditLogger,
   };
 }

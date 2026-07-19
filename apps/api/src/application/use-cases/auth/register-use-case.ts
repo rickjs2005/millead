@@ -61,6 +61,7 @@ export class RegisterUseCase {
       organizationSlug: organization.slug,
       roleName: ownerRole.name,
       permissions: ownerRole.permissions,
+      userIsActive: user.isActive,
     };
 
     await this.auditLogger.log(

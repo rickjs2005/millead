@@ -1,4 +1,5 @@
 import type { Request, Response } from "express";
+import type { ChangePasswordUseCase } from "../../../application/use-cases/auth/change-password-use-case.js";
 import type { GetCurrentUserUseCase } from "../../../application/use-cases/auth/get-current-user-use-case.js";
 import type { LoginUseCase } from "../../../application/use-cases/auth/login-use-case.js";
 import type { LogoutUseCase } from "../../../application/use-cases/auth/logout-use-case.js";
@@ -14,6 +15,7 @@ export class AuthController {
     private readonly refreshUseCase: RefreshUseCase,
     private readonly logoutUseCase: LogoutUseCase,
     private readonly getCurrentUserUseCase: GetCurrentUserUseCase,
+    private readonly changePasswordUseCase: ChangePasswordUseCase,
   ) {}
 
   register = async (req: Request, res: Response): Promise<void> => {
@@ -40,5 +42,16 @@ export class AuthController {
     const auth = requireAuth(req);
     const result = await this.getCurrentUserUseCase.execute(auth.userId, auth.organizationId);
     res.status(200).json(result);
+  };
+
+  changePassword = async (req: Request, res: Response): Promise<void> => {
+    const auth = requireAuth(req);
+    await this.changePasswordUseCase.execute(
+      auth.userId,
+      auth.organizationId,
+      req.body,
+      getRequestMeta(req),
+    );
+    res.status(204).send();
   };
 }

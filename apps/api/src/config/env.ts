@@ -1,6 +1,14 @@
 import { z } from "zod";
 
 /**
+ * Valor exato do placeholder que vai no `.env.example` -- é público (está no
+ * repositório), então qualquer deploy que o herde tem um segredo HMAC
+ * conhecido e qualquer um consegue forjar access tokens. Rejeitado em
+ * produção pelo `superRefine` abaixo.
+ */
+const PLACEHOLDER_JWT_SECRET = "troque-este-segredo-por-um-de-verdade-com-32-chars-ou-mais";
+
+/**
  * Falha rápido na inicialização se faltar/estiver inválida uma env var --
  * melhor um crash claro no boot do que um 500 misterioso em produção.
  */
@@ -70,6 +78,34 @@ const envSchema = z.object({
   WEB_PUBLIC_URL: z.string().default("http://localhost:3000"),
 });
 
+/**
+ * Endurecimentos que só valem em produção -- em dev/test o placeholder e o
+ * default de CORS são convenientes; em produção são falhas de segurança.
+ */
+const productionEnvSchema = envSchema.superRefine((val, ctx) => {
+  if (val.NODE_ENV !== "production") return;
+
+  if (val.JWT_ACCESS_SECRET === PLACEHOLDER_JWT_SECRET) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["JWT_ACCESS_SECRET"],
+      message:
+        "JWT_ACCESS_SECRET está com o valor placeholder do .env.example (público no repositório). " +
+        "Gere um segredo único: `openssl rand -base64 48`.",
+    });
+  }
+
+  // Sem CORS_ORIGIN explícita, o default `localhost:3000` ficaria na
+  // allowlist com credentials em produção.
+  if (val.CORS_ORIGIN === "http://localhost:3000") {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["CORS_ORIGIN"],
+      message: "CORS_ORIGIN deve ser definida explicitamente em produção (não pode ser o default localhost).",
+    });
+  }
+});
+
 export type Env = z.infer<typeof envSchema>;
 
-export const env: Env = envSchema.parse(process.env);
+export const env: Env = productionEnvSchema.parse(process.env);

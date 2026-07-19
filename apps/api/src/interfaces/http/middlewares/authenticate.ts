@@ -30,6 +30,14 @@ export function createAuthenticateMiddleware(
       if (!context || context.status !== "ACTIVE") {
         throw new ForbiddenError("Acesso a esta organização foi revogado.");
       }
+      // Conta desativada perde acesso na hora, sem esperar o access token (15min)
+      // expirar. 401 (não 403) de propósito: dispara o refresh no client, que
+      // também checa isActive e falha -> logout limpo. Antes, só o refresh
+      // checava isActive, então um usuário desativado seguia usando o app até o
+      // access token vencer.
+      if (!context.userIsActive) {
+        throw new UnauthorizedError("Conta desativada.");
+      }
 
       req.auth = context;
       next();

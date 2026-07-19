@@ -12,4 +12,5 @@ export interface UserRepository {
   create(input: CreateUserInput): Promise<User>;
   touchLastLogin(id: string): Promise<void>;
   updateName(id: string, name: string): Promise<User>;
+  updatePassword(id: string, passwordHash: string): Promise<void>;
 }

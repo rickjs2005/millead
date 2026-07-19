@@ -74,7 +74,15 @@ export class BriefingFileService {
     return { clientToken, pathname };
   }
 
-  /** Confirma um upload já concluído no Blob (o client já tem url/pathname). */
+  /**
+   * Confirma um upload já concluído no Blob (o client já tem url/pathname).
+   * O `pathname`/`blobUrl` vêm do client, então precisam ser re-validados
+   * contra o que foi realmente tokenizado pra este briefing -- senão o
+   * allowlist de extensão/tamanho do `createUploadToken` seria contornável:
+   * bastaria confirmar um registro apontando pra uma URL arbitrária, um tipo
+   * fora da lista ou o path de outra organização (o arquivo acaba embutido
+   * no PDF do briefing e exibido no admin).
+   */
   async confirmFile(
     token: string,
     input: {
@@ -86,6 +94,30 @@ export class BriefingFileService {
     },
   ) {
     const briefing = await this.resolveBriefing(token);
+
+    // 1. O pathname tem que estar no prefixo escopado deste briefing.
+    const expectedPrefix = `briefings/${briefing.organizationId}/${briefing.id}/`;
+    if (!input.pathname.startsWith(expectedPrefix) || input.pathname.includes("..")) {
+      throw new ValidationError("Caminho de arquivo inválido para este briefing.");
+    }
+
+    // 2. A extensão tem que estar no allowlist (só era checada na emissão do token).
+    const ext = input.pathname.slice(input.pathname.lastIndexOf(".")).toLowerCase();
+    if (!ALLOWED_EXTENSIONS.has(ext)) {
+      throw new ValidationError(`Tipo de arquivo não permitido: ${ext}`);
+    }
+
+    // 3. O tamanho declarado tem que respeitar o limite.
+    if (input.sizeBytes > MAX_SIZE_BYTES) {
+      throw new ValidationError("Arquivo maior que o limite de 200MB.");
+    }
+
+    // 4. A URL do Blob tem que terminar no pathname escopado (impede apontar
+    //    o registro pra um domínio/arquivo arbitrário).
+    if (!input.blobUrl.endsWith(input.pathname)) {
+      throw new ValidationError("URL do arquivo não corresponde ao caminho enviado.");
+    }
+
     return this.files.create({
       organizationId: briefing.organizationId,
       briefingId: briefing.id,

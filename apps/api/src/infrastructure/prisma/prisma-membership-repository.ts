@@ -9,6 +9,7 @@ import type {
 const withContext = {
   organization: true,
   role: { include: { permissions: { include: { permission: true } } } },
+  user: { select: { isActive: true } },
 } satisfies Prisma.MembershipInclude;
 
 type MembershipRow = Prisma.MembershipGetPayload<{ include: typeof withContext }>;
@@ -24,6 +25,7 @@ function toContext(row: MembershipRow): MembershipContext {
     roleName: row.role.name,
     status: row.status,
     permissions: row.role.permissions.map((p) => p.permission.key as PermissionKey),
+    userIsActive: row.user.isActive,
   };
 }
 
