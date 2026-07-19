@@ -42,4 +42,9 @@ export class MockSignatureGateway implements ContractSignatureGateway {
       raw: body,
     };
   }
+
+  /** Sem API externa pra reconsultar -- confia no próprio webhook de teste. */
+  async confirmarAssinado(): Promise<boolean> {
+    return true;
+  }
 }

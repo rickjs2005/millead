@@ -59,18 +59,40 @@ export class ZapSignGateway implements ContractSignatureGateway {
     return { docId: data.token, signUrl: data.signers?.[0]?.sign_url ?? "", raw: data };
   }
 
-  verificarAssinatura(headers: WebhookHeaders, body: string): boolean {
+  /**
+   * O ZapSign NÃO assina os webhooks com HMAC (confirmado na doc oficial). Ele
+   * permite configurar um HEADER customizado no painel; usamos
+   * `Authorization: Bearer <ZAPSIGN_WEBHOOK_SECRET>` e comparamos em
+   * tempo-constante. É a 1ª camada -- a 2ª (confirmarAssinado) reconsulta a API.
+   */
+  verificarAssinatura(headers: WebhookHeaders, _body: string): boolean {
     const secret = this.config.webhookSecret;
     if (!secret) {
-      // Fail-closed: sem segredo, só aceita em dev + sandbox.
+      // Fail-closed: sem segredo configurado, só aceita em dev + sandbox.
       return !this.config.isProduction && this.config.sandbox;
     }
-    const raw = headers["x-zapsign-signature"];
-    const assinatura = Array.isArray(raw) ? raw[0] : raw;
-    if (!assinatura) return false;
-    const esperado = crypto.createHmac("sha256", secret).update(body).digest("hex");
-    if (assinatura.length !== esperado.length) return false;
-    return crypto.timingSafeEqual(Buffer.from(assinatura), Buffer.from(esperado));
+    const raw = headers["authorization"];
+    const recebido = Array.isArray(raw) ? raw[0] : raw;
+    const esperado = `Bearer ${secret}`;
+    if (!recebido || recebido.length !== esperado.length) return false;
+    return crypto.timingSafeEqual(Buffer.from(recebido), Buffer.from(esperado));
+  }
+
+  /**
+   * Reconsulta o documento na API do ZapSign pra confirmar que está mesmo
+   * assinado. Lança em erro de rede (o ZapSign reenvia o webhook depois);
+   * retorna false só quando a API diz, de forma definitiva, que não está
+   * assinado -- o que derruba um webhook forjado.
+   */
+  async confirmarAssinado(docId: string): Promise<boolean> {
+    const res = await fetch(`${BASE}/docs/${docId}/`, {
+      headers: { Authorization: `Bearer ${this.config.apiToken}` },
+    });
+    if (!res.ok) {
+      throw new Error(`ZapSign reconsulta do documento falhou: ${res.status}`);
+    }
+    const data = (await res.json()) as { status?: string };
+    return data.status === "signed";
   }
 
   interpretarWebhook(body: unknown): WebhookResultado {

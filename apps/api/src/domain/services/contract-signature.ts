@@ -36,7 +36,18 @@ export type WebhookHeaders = Record<string, string | string[] | undefined>;
 export interface ContractSignatureGateway {
   readonly nome: "MOCK" | "ZAPSIGN" | "CLICKSIGN" | "DOCUSIGN" | "AUTENTIQUE";
   criarDocumento(params: CriarDocumentoParams): Promise<DocumentoCriado>;
-  /** Valida HMAC/segredo do webhook. Fail-closed em produção. */
+  /**
+   * 1ª camada: valida a autenticidade do webhook (HMAC ou header secreto,
+   * conforme o provedor). Síncrono, fail-closed em produção.
+   */
   verificarAssinatura(headers: WebhookHeaders, body: string): boolean;
   interpretarWebhook(body: unknown): WebhookResultado;
+  /**
+   * 2ª camada (defesa em profundidade): reconsulta o status REAL do documento
+   * na API do provedor antes de marcar como assinado -- um webhook "assinado"
+   * forjado não sobrevive a isto. Retorna true só se o provedor confirmar a
+   * assinatura. Deve LANÇAR em erro de rede (pra o provedor reenviar depois).
+   * Gateways sem API externa (mock) confiam no próprio evento.
+   */
+  confirmarAssinado(docId: string): Promise<boolean>;
 }

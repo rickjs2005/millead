@@ -210,6 +210,22 @@ export class ContractService {
     // Idempotência: assinado duas vezes não refaz nada.
     if (contract.status === "ASSINADO") return { ok: true };
 
+    // 2ª camada (defesa em profundidade): antes de marcar como assinado,
+    // reconsulta o status real na API do provedor. Um webhook "assinado"
+    // forjado (mesmo passando pela 1ª camada) não sobrevive a isto. Erro de
+    // rede na reconsulta lança -> 500 -> o provedor reenvia o webhook depois.
+    const confirmado = await this.gateway.confirmarAssinado(resultado.docId);
+    if (!confirmado) {
+      await this.contracts.addEvent(
+        contract.id,
+        contract.organizationId,
+        "ASSINADO_NAO_CONFIRMADO",
+        "WEBHOOK",
+        { raw: resultado.raw },
+      );
+      throw new UnauthorizedError("Assinatura não confirmada pela API do provedor.");
+    }
+
     let pdfAssinado: Buffer | null = null;
     if (resultado.pdfAssinadoUrl) {
       try {
