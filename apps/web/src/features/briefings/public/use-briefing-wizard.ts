@@ -28,6 +28,12 @@ export function useBriefingWizard(token: string) {
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved">("idle");
   const hydrated = useRef(false);
   const timers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  // Patches ainda no debounce (não gravados). Usado pra dar flush antes de
+  // concluir -- senão digitar e clicar "Finalizar" em <500ms perde a última
+  // resposta (ou o servidor acusa obrigatório que o cliente acabou de preencher).
+  const pending = useRef<Record<string, { fieldId: string; groupItemId: string; patch: LocalAnswer }>>(
+    {},
+  );
 
   useEffect(() => {
     if (!query.data || hydrated.current) return;
@@ -64,9 +70,9 @@ export function useBriefingWizard(token: string) {
     return answers[answerKey(fieldId, groupItemId)];
   }
 
-  function saveNow(fieldId: string, groupItemId: string, patch: LocalAnswer) {
+  function saveNow(fieldId: string, groupItemId: string, patch: LocalAnswer): Promise<void> {
     setSaveState("saving");
-    briefingsPublicService
+    return briefingsPublicService
       .saveAnswer(token, { fieldId, groupItemId: groupItemId || undefined, ...patch })
       .then(() => {
         setSaveState("saved");
@@ -90,10 +96,31 @@ export function useBriefingWizard(token: string) {
 
     if (timers.current[key]) clearTimeout(timers.current[key]);
     if (opts?.debounce === false) {
-      saveNow(fieldId, groupItemId, patch);
+      delete pending.current[key];
+      void saveNow(fieldId, groupItemId, patch);
       return;
     }
-    timers.current[key] = setTimeout(() => saveNow(fieldId, groupItemId, patch), SAVE_DEBOUNCE_MS);
+    pending.current[key] = { fieldId, groupItemId, patch };
+    timers.current[key] = setTimeout(() => {
+      delete pending.current[key];
+      void saveNow(fieldId, groupItemId, patch);
+    }, SAVE_DEBOUNCE_MS);
+  }
+
+  /** Grava agora tudo que ainda estava no debounce (chamado antes de concluir). */
+  async function flushPending(): Promise<void> {
+    const entries = Object.entries(pending.current);
+    pending.current = {};
+    await Promise.all(
+      entries.map(([key, p]) => {
+        const timer = timers.current[key];
+        if (timer) {
+          clearTimeout(timer);
+          delete timers.current[key];
+        }
+        return saveNow(p.fieldId, p.groupItemId, p.patch);
+      }),
+    );
   }
 
   function addGroupItem(groupFieldId: string): string {
@@ -120,6 +147,7 @@ export function useBriefingWizard(token: string) {
   }
 
   async function complete() {
+    await flushPending();
     return briefingsPublicService.complete(token);
   }
 

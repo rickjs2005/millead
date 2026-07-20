@@ -48,6 +48,9 @@ export interface BriefingRepository {
     status: BriefingStatus,
     extra?: { startedAt?: Date; completedAt?: Date; archivedAt?: Date },
   ): Promise<Briefing | null>;
+  /** Transição atômica p/ COMPLETED só se ainda não concluído/arquivado.
+   * Retorna null quando OUTRA chamada concorrente já concluiu (não reprocessa). */
+  markCompleted(id: string, completedAt: Date): Promise<Briefing | null>;
   updateProgress(id: string, progressPercent: number): Promise<void>;
   updateContact(id: string, contact: UpdateContactInput): Promise<void>;
   setPdfUrl(id: string, pdfUrl: string): Promise<void>;

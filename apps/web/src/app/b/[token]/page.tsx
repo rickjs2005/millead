@@ -95,6 +95,9 @@ export default function PublicBriefingPage() {
 
   const currentSection = sections[step]!;
   const isLastStep = step === sections.length - 1;
+  // Heurística de máscara/chips por nome do campo: só nos templates do seed;
+  // no personalizado (CUSTOM) a key vem do label do admin e não é confiável.
+  const keyHeuristics = briefing.template.kind !== "CUSTOM";
 
   async function handleComplete() {
     setCompleting(true);
@@ -153,6 +156,7 @@ export default function PublicBriefingPage() {
                     files={wizard.files}
                     registerFile={wizard.registerFile}
                     token={token}
+                    keyHeuristics={keyHeuristics}
                   />
                 </div>
               ) : (
@@ -171,6 +175,7 @@ export default function PublicBriefingPage() {
                     token={token}
                     files={wizard.files}
                     onFileRegistered={wizard.registerFile}
+                    keyHeuristics={keyHeuristics}
                   />
                 </div>
               ),

@@ -112,9 +112,22 @@ export class BriefingFileService {
       throw new ValidationError("Arquivo maior que o limite de 200MB.");
     }
 
-    // 4. A URL do Blob tem que terminar no pathname escopado (impede apontar
-    //    o registro pra um domínio/arquivo arbitrário).
-    if (!input.blobUrl.endsWith(input.pathname)) {
+    // 4. A URL do Blob tem que ser um host REAL do Vercel Blob E ter exatamente
+    //    o pathname escopado. `endsWith` sozinho não valida o host: aceitaria
+    //    https://atacante.interno/briefings/<org>/<id>/x.png (o arquivo depois
+    //    entra no PDF/admin -- vetor de SSRF/injeção). Aqui o host tem que ser
+    //    *.public.blob.vercel-storage.com e o caminho == input.pathname.
+    let parsedUrl: URL;
+    try {
+      parsedUrl = new URL(input.blobUrl);
+    } catch {
+      throw new ValidationError("URL do arquivo inválida.");
+    }
+    const isBlobHost =
+      parsedUrl.protocol === "https:" &&
+      parsedUrl.hostname.endsWith(".public.blob.vercel-storage.com");
+    const urlPath = decodeURIComponent(parsedUrl.pathname).replace(/^\/+/, "");
+    if (!isBlobHost || urlPath !== input.pathname) {
       throw new ValidationError("URL do arquivo não corresponde ao caminho enviado.");
     }
 

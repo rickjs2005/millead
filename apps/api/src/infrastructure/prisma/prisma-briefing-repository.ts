@@ -143,6 +143,18 @@ export class PrismaBriefingRepository implements BriefingRepository {
     return toDomain(row);
   }
 
+  async markCompleted(id: string, completedAt: Date): Promise<Briefing | null> {
+    // condição no WHERE = compare-and-set: duas chamadas concorrentes de
+    // `complete` só têm uma com count === 1; a outra sai com null.
+    const { count } = await prisma.briefing.updateMany({
+      where: { id, status: { notIn: ["COMPLETED", "ARCHIVED"] } },
+      data: { status: "COMPLETED", completedAt },
+    });
+    if (count === 0) return null;
+    const row = await prisma.briefing.findUniqueOrThrow({ where: { id }, select: baseSelect });
+    return toDomain(row);
+  }
+
   async updateProgress(id: string, progressPercent: number): Promise<void> {
     await prisma.briefing.update({ where: { id }, data: { progressPercent } });
   }

@@ -1,5 +1,10 @@
 import { NotFoundError, ValidationError } from "../../domain/errors/app-error.js";
-import type { BriefingField, BriefingTemplateDetail } from "../../domain/entities/briefing.js";
+import type {
+  BriefingAnswer,
+  BriefingDetail,
+  BriefingField,
+  BriefingTemplateDetail,
+} from "../../domain/entities/briefing.js";
 import type { BriefingAnswerRepository } from "../../domain/repositories/briefing-answer-repository.js";
 import type { BriefingRepository } from "../../domain/repositories/briefing-repository.js";
 
@@ -10,6 +15,26 @@ export interface SaveAnswerInput {
   valueText?: string | null;
   valueJson?: unknown;
 }
+
+/**
+ * Uma resposta só CONTA (pra progresso e pra checagem de obrigatório) quando
+ * tem valor de verdade -- não basta a linha existir. O autosave grava até
+ * `""`/array vazio (cliente digita e apaga), então contar só a presença da
+ * linha deixava obrigatório passar em branco e o progresso ir a 100% vazio.
+ */
+export function answerHasValue(a: Pick<BriefingAnswer, "valueText" | "valueJson">): boolean {
+  if (typeof a.valueText === "string" && a.valueText.trim() !== "") return true;
+  if (Array.isArray(a.valueJson)) return a.valueJson.length > 0;
+  return false;
+}
+
+/** Projeção pública do briefing (o que o wizard consome) -- sem organizationId,
+ * leadId, companyId, createdById, histórico nem contato: nada disso pertence a
+ * quem só tem o link público. */
+export type PublicBriefingView = Pick<
+  BriefingDetail,
+  "id" | "status" | "progressPercent" | "template" | "answers" | "files"
+>;
 
 /**
  * Autosave de campo individual (público, sem auth -- resolve tudo via
@@ -42,8 +67,16 @@ export class BriefingAnswerService {
     }
   }
 
-  async getByToken(token: string) {
-    return this.loadByToken(token);
+  async getByToken(token: string): Promise<PublicBriefingView> {
+    const briefing = await this.loadByToken(token);
+    return {
+      id: briefing.id,
+      status: briefing.status,
+      progressPercent: briefing.progressPercent,
+      template: briefing.template,
+      answers: briefing.answers,
+      files: briefing.files,
+    };
   }
 
   async saveAnswer(token: string, input: SaveAnswerInput) {
@@ -115,7 +148,7 @@ export class BriefingAnswerService {
     template: BriefingTemplateDetail,
   ) {
     const answers = await this.answers.listForBriefing(briefingId, organizationId);
-    const answeredFieldIds = new Set(answers.map((a) => a.fieldId));
+    const answeredFieldIds = new Set(answers.filter(answerHasValue).map((a) => a.fieldId));
 
     const topLevelFields = template.sections.flatMap((s) => s.fields);
     if (topLevelFields.length === 0) return;

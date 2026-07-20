@@ -12,7 +12,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import type { BriefingField, BriefingFile } from "@/types/api";
 import { FileField } from "./file-field";
-import { isMultiField, maskPhoneBR, normalizeUrl, pickMask } from "./field-utils";
+import { isMultiField, maskCEP, maskCNPJ, maskPhoneBR, normalizeUrl, pickMask } from "./field-utils";
 import { TagsInput } from "./tags-input";
 import type { LocalAnswer } from "./use-briefing-wizard";
 
@@ -23,15 +23,27 @@ interface FieldRendererProps {
   token: string;
   files: Record<string, BriefingFile>;
   onFileRegistered: (file: BriefingFile) => void;
+  /** Adivinhação de máscara/chips pelo NOME do campo -- só em templates do
+   * seed (keys controladas). Em briefing personalizado fica desligada, senão
+   * um texto chamado "Estado"/"CNPJ" viraria chips/máscara sem o admin querer. */
+  keyHeuristics?: boolean;
 }
 
 /** Renderiza UM campo (não-GROUP) a partir de `field.type` -- ver RepeatableGroupField pro caso GROUP. */
-export function FieldRenderer({ field, value, onChange, token, files, onFileRegistered }: FieldRendererProps) {
+export function FieldRenderer({
+  field,
+  value,
+  onChange,
+  token,
+  files,
+  onFileRegistered,
+  keyHeuristics = true,
+}: FieldRendererProps) {
   switch (field.type) {
     // Cidade/Estado (ou qualquer TEXT marcado como multi) viram chips: o
     // negócio pode atender mais de uma cidade/estado (ex.: Kavita Drones).
     case "TEXT": {
-      if (isMultiField(field.key, field.config)) {
+      if (isMultiField(field.key, field.config, keyHeuristics)) {
         return (
           <TagsInput
             value={value?.valueText}
@@ -40,10 +52,11 @@ export function FieldRenderer({ field, value, onChange, token, files, onFileRegi
           />
         );
       }
-      // CEP/CNPJ (ou config.mask) ganham máscara automática.
-      const mask = pickMask(field.key, field.config);
-      const isCep = field.key.toLowerCase().includes("cep");
-      const isCnpj = field.key.toLowerCase().includes("cnpj");
+      // CEP/CNPJ (ou config.mask) ganham máscara automática. Placeholder
+      // amarrado à máscara REAL escolhida -- não ao nome do campo.
+      const mask = pickMask(field.key, field.config, keyHeuristics);
+      const isCep = mask === maskCEP;
+      const isCnpj = mask === maskCNPJ;
       return (
         <Input
           inputMode={mask ? "numeric" : undefined}

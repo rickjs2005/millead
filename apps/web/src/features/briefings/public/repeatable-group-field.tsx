@@ -22,6 +22,7 @@ interface RepeatableGroupFieldProps {
   files: Record<string, BriefingFile>;
   registerFile: (file: BriefingFile) => void;
   token: string;
+  keyHeuristics?: boolean;
 }
 
 export function RepeatableGroupField({
@@ -34,6 +35,7 @@ export function RepeatableGroupField({
   files,
   registerFile,
   token,
+  keyHeuristics = true,
 }: RepeatableGroupFieldProps) {
   const config = field.config as { minItems?: number; maxItems?: number; itemLabel?: string } | null;
   const itemLabel = config?.itemLabel ?? "Item";
@@ -71,6 +73,7 @@ export function RepeatableGroupField({
                   token={token}
                   files={files}
                   onFileRegistered={registerFile}
+                  keyHeuristics={keyHeuristics}
                 />
               </div>
             ))}

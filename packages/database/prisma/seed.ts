@@ -85,6 +85,7 @@ async function seedBriefingTemplates() {
               type: child.type,
               order: childOrder,
               required: child.required ?? false,
+              helpText: child.helpText,
               config: child.config as Prisma.InputJsonValue | undefined,
               parentFieldId,
             },
@@ -96,6 +97,7 @@ async function seedBriefingTemplates() {
               type: child.type,
               order: childOrder,
               required: child.required ?? false,
+              helpText: child.helpText,
               config: child.config as Prisma.InputJsonValue | undefined,
             },
           });

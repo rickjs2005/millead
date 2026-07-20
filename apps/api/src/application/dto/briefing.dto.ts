@@ -34,15 +34,25 @@ const customFieldSchema = z
     maxFiles: z.coerce.number().int().min(1).max(30).optional(),
   })
   .superRefine((field, ctx) => {
-    if (
-      (field.type === "SELECT" || field.type === "MULTI_SELECT") &&
-      (field.options?.length ?? 0) < 2
-    ) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["options"],
-        message: "Campo de escolha precisa de pelo menos 2 opções.",
-      });
+    if (field.type === "SELECT" || field.type === "MULTI_SELECT") {
+      const options = field.options ?? [];
+      if (options.length < 2) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["options"],
+          message: "Campo de escolha precisa de pelo menos 2 opções.",
+        });
+      }
+      // opções repetidas quebram o render público (React key duplicada +
+      // toggle compartilhado no MULTI_SELECT) -- rejeita antes de gravar.
+      const seen = new Set(options.map((o) => o.trim().toLowerCase()));
+      if (seen.size !== options.length) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["options"],
+          message: "As opções não podem se repetir.",
+        });
+      }
     }
   });
 export type CustomFieldInput = z.infer<typeof customFieldSchema>;

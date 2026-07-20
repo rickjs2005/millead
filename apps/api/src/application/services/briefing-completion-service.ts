@@ -2,6 +2,7 @@ import { NotFoundError, ValidationError } from "../../domain/errors/app-error.js
 import type { BriefingAnswerRepository } from "../../domain/repositories/briefing-answer-repository.js";
 import type { BriefingRepository } from "../../domain/repositories/briefing-repository.js";
 import type { BriefingQueue } from "../../domain/services/briefing-queue.js";
+import { answerHasValue } from "./briefing-answer-service.js";
 import type { ActivityLogger } from "./activity-logger.js";
 
 /**
@@ -28,7 +29,11 @@ export class BriefingCompletionService {
     }
 
     const currentAnswers = await this.answers.listForBriefing(briefing.id, briefing.organizationId);
-    const answeredFieldIds = new Set(currentAnswers.map((a) => a.fieldId));
+    // só conta como preenchido quem tem valor de verdade (não a linha vazia
+    // que o autosave deixa quando o cliente digita e apaga) -- ver answerHasValue.
+    const answeredFieldIds = new Set(
+      currentAnswers.filter(answerHasValue).map((a) => a.fieldId),
+    );
     const missing = briefing.template.sections
       .flatMap((s) => s.fields)
       .filter((f) => f.required)
@@ -47,11 +52,13 @@ export class BriefingCompletionService {
     }
 
     const completedAt = new Date();
-    // reatribui `briefing`: o objeto carregado no topo ainda tem o status
-    // pré-conclusão -- devolver ele faria o caller (wizard) achar que o
-    // briefing continua IN_PROGRESS logo depois de "Finalizar".
-    const updated = await this.briefings.updateStatus(briefing.id, "COMPLETED", { completedAt });
-    if (!updated) throw new NotFoundError("Briefing não encontrado.");
+    // Transição atômica: só UMA chamada `complete` concorrente ganha a corrida
+    // (updateMany condicionado a status != COMPLETED). As demais recebem null
+    // e retornam sem re-enfileirar -- evita PDF/e-mail duplicados.
+    const updated = await this.briefings.markCompleted(briefing.id, completedAt);
+    if (!updated) {
+      return { ...briefing, status: "COMPLETED" as const, progressPercent: 100 };
+    }
     await this.briefings.updateProgress(briefing.id, 100);
     await this.briefings.addHistory(briefing.id, briefing.organizationId, "CONCLUIDO", "PUBLIC_FORM");
     if (briefing.leadId) {

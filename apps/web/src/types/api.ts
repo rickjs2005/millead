@@ -662,8 +662,17 @@ export interface BriefingDetail extends Briefing {
   history: BriefingHistoryEntry[];
 }
 
-/** Resposta pública do formulário (wizard) -- mesmo shape de BriefingDetail. */
-export type PublicBriefing = BriefingDetail;
+/** Resposta pública do formulário (wizard). Projeção enxuta de BriefingDetail:
+ * só o que o wizard precisa, SEM dados internos (organizationId, leadId,
+ * companyId, createdById, histórico) que não pertencem a quem tem o link. */
+export interface PublicBriefing {
+  id: string;
+  status: BriefingStatus;
+  progressPercent: number;
+  template: BriefingTemplateDetail;
+  answers: BriefingAnswer[];
+  files: BriefingFile[];
+}
 
 // ---------- Erros ----------
 

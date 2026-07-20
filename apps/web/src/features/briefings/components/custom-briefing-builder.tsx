@@ -49,21 +49,48 @@ export function emptyBuilderField(): BuilderField {
 
 const NEEDS_OPTIONS: CustomBriefingFieldType[] = ["SELECT", "MULTI_SELECT"];
 
+// Limites espelhados do DTO da API (createCustomBriefingSchema) -- validar
+// aqui evita o cliente montar tudo e receber só um "Erro ao criar" genérico.
+const MAX_FIELDS = 30;
+const MAX_OPTIONS = 30;
+const MAX_OPTION_LEN = 80;
+
 export function parseOptions(text: string): string[] {
-  return text
-    .split(",")
-    .map((o) => o.trim())
-    .filter(Boolean);
+  // dedup: opções repetidas quebram o render (React key duplicada + toggle
+  // compartilhado no MULTI_SELECT). Case-insensitive pra não passar
+  // "Bayer"/"bayer" como distintas.
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const raw of text.split(",")) {
+    const o = raw.trim();
+    if (!o) continue;
+    const k = o.toLowerCase();
+    if (seen.has(k)) continue;
+    seen.add(k);
+    out.push(o);
+  }
+  return out;
 }
 
 /** Erro de validação amigável ou null se o formulário está pronto. */
 export function validateBuilder(title: string, fields: BuilderField[]): string | null {
   if (title.trim().length < 3) return "Dê um nome pro formulário (mín. 3 letras).";
   if (fields.length === 0) return "Adicione pelo menos um campo.";
+  if (fields.length > MAX_FIELDS) return `Máximo de ${MAX_FIELDS} campos por formulário.`;
   for (const field of fields) {
     if (!field.label.trim()) return "Todo campo precisa de uma pergunta/título.";
-    if (NEEDS_OPTIONS.includes(field.type) && parseOptions(field.optionsText).length < 2) {
-      return `O campo "${field.label}" precisa de pelo menos 2 opções (separe por vírgula).`;
+    if (NEEDS_OPTIONS.includes(field.type)) {
+      const options = parseOptions(field.optionsText);
+      if (options.length < 2) {
+        return `O campo "${field.label}" precisa de pelo menos 2 opções (separe por vírgula).`;
+      }
+      if (options.length > MAX_OPTIONS) {
+        return `O campo "${field.label}" pode ter no máximo ${MAX_OPTIONS} opções.`;
+      }
+      const tooLong = options.find((o) => o.length > MAX_OPTION_LEN);
+      if (tooLong) {
+        return `A opção "${tooLong.slice(0, 24)}…" é muito longa (máx. ${MAX_OPTION_LEN} caracteres).`;
+      }
     }
   }
   return null;
@@ -110,6 +137,7 @@ export function CustomBriefingBuilder({
   }
 
   function addField() {
+    if (fields.length >= MAX_FIELDS) return;
     const field = emptyBuilderField();
     onFieldsChange([...fields, field]);
     setExpanded(field.id);
@@ -243,9 +271,18 @@ export function CustomBriefingBuilder({
           );
         })}
 
-        <Button variant="outline" size="sm" onClick={addField} className="self-start">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={addField}
+          disabled={fields.length >= MAX_FIELDS}
+          className="self-start"
+        >
           <Plus className="h-4 w-4" /> Adicionar campo
         </Button>
+        {fields.length >= MAX_FIELDS && (
+          <p className="text-xs text-muted-foreground">Máximo de {MAX_FIELDS} campos.</p>
+        )}
       </div>
     </div>
   );

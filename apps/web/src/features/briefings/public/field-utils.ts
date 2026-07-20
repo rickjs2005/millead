@@ -31,15 +31,28 @@ export function maskCNPJ(raw: string): string {
 /**
  * Escolhe a máscara de um campo TEXT: por `config.mask` ("cep"|"cnpj"|
  * "phone") ou por heurística da key. Retorna a função de máscara ou null.
+ *
+ * `allowKeyHeuristic` liga a adivinhação pelo NOME do campo -- válida só em
+ * templates do seed, onde as keys são controladas. Em briefing personalizado
+ * a key vem do slug do label que o admin digitou, então adivinhar máscara
+ * pelo nome ("CNPJ do fornecedor", "Telefone") apagaria a entrada do cliente:
+ * lá só vale `config.mask` explícito.
  */
-export function pickMask(key: string, config: unknown): ((v: string) => string) | null {
+export function pickMask(
+  key: string,
+  config: unknown,
+  allowKeyHeuristic = true,
+): ((v: string) => string) | null {
   const cfgMask =
     config && typeof config === "object" ? (config as { mask?: string }).mask : undefined;
+  if (cfgMask === "cep") return maskCEP;
+  if (cfgMask === "cnpj") return maskCNPJ;
+  if (cfgMask === "phone") return maskPhoneBR;
+  if (!allowKeyHeuristic) return null;
   const k = key.toLowerCase();
-  if (cfgMask === "cep" || k.includes("cep")) return maskCEP;
-  if (cfgMask === "cnpj" || k.includes("cnpj")) return maskCNPJ;
-  if (cfgMask === "phone" || k.includes("telefone") || k.includes("whatsapp") || k.includes("fone"))
-    return maskPhoneBR;
+  if (k.includes("cep")) return maskCEP;
+  if (k.includes("cnpj")) return maskCNPJ;
+  if (k.includes("telefone") || k.includes("whatsapp") || k.includes("fone")) return maskPhoneBR;
   return null;
 }
 
@@ -58,8 +71,9 @@ export function normalizeUrl(raw: string): string {
  */
 const MULTI_KEYS = new Set(["cidade", "estado", "cidades", "estados"]);
 
-export function isMultiField(key: string, config: unknown): boolean {
+export function isMultiField(key: string, config: unknown, allowKeyHeuristic = true): boolean {
   if (config && typeof config === "object" && (config as { multi?: boolean }).multi) return true;
+  if (!allowKeyHeuristic) return false;
   return MULTI_KEYS.has(key.toLowerCase());
 }
 
