@@ -325,12 +325,7 @@ export interface Proposal {
 export type AuditStatus = "QUEUED" | "RUNNING" | "COMPLETED" | "FAILED";
 export type AuditTrigger = "MANUAL" | "AUTOMATIC";
 export type AuditScoreCategory =
-  | "PERFORMANCE"
-  | "SEO"
-  | "ACCESSIBILITY"
-  | "SECURITY"
-  | "DESIGN"
-  | "MOBILE";
+  "PERFORMANCE" | "SEO" | "ACCESSIBILITY" | "SECURITY" | "DESIGN" | "MOBILE";
 
 /** Uma checagem individual dentro de AuditScore.details.checks. */
 export interface AuditCheck {
@@ -546,15 +541,7 @@ export interface LeadFinance {
 
 export type BriefingTemplateKind = "INSTITUCIONAL" | "ECOMMERCE" | "CUSTOM";
 export type BriefingFieldType =
-  | "TEXT"
-  | "TEXTAREA"
-  | "EMAIL"
-  | "PHONE"
-  | "URL"
-  | "SELECT"
-  | "MULTI_SELECT"
-  | "FILE"
-  | "GROUP";
+  "TEXT" | "TEXTAREA" | "EMAIL" | "PHONE" | "URL" | "SELECT" | "MULTI_SELECT" | "FILE" | "GROUP";
 export type BriefingStatus = "PENDING" | "IN_PROGRESS" | "COMPLETED" | "ARCHIVED";
 
 export interface BriefingTemplate {
@@ -599,6 +586,9 @@ export interface Briefing {
   id: string;
   organizationId: string;
   templateId: string;
+  /** Populado na listagem (o catálogo exclui CUSTOM, então a lista não
+   * conseguia derivar o kind do briefing personalizado sozinha). */
+  templateKind?: BriefingTemplateKind;
   leadId: string | null;
   companyId: string | null;
   createdById: string | null;
@@ -619,6 +609,8 @@ export interface BriefingLink {
   id: string;
   briefingId: string;
   token: string;
+  /** Link expira 24h após a criação; null só nos links antigos (sem expiração). */
+  expiresAt: string | null;
   revokedAt: string | null;
   createdAt: string;
 }

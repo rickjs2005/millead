@@ -23,6 +23,42 @@ const ALLOWED_EXTENSIONS = new Set([
 
 const MAX_SIZE_BYTES = 200 * 1024 * 1024; // 200MB (galeria aceita vídeo)
 
+/** MIME esperado por extensão. "application/octet-stream" é aceito como
+ * fallback universal (browsers mandam isso quando não reconhecem o tipo) --
+ * o controle primário continua sendo o allowlist de extensão. */
+const MIME_BY_EXT: Record<string, string[]> = {
+  ".pdf": ["application/pdf"],
+  ".doc": ["application/msword"],
+  ".docx": ["application/vnd.openxmlformats-officedocument.wordprocessingml.document"],
+  ".xls": ["application/vnd.ms-excel"],
+  ".xlsx": ["application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"],
+  ".zip": ["application/zip", "application/x-zip-compressed"],
+  ".svg": ["image/svg+xml"],
+  ".png": ["image/png"],
+  ".jpg": ["image/jpeg"],
+  ".jpeg": ["image/jpeg"],
+  ".webp": ["image/webp"],
+  ".mp4": ["video/mp4"],
+  ".mov": ["video/quicktime"],
+  ".webm": ["video/webm"],
+};
+
+function assertMimeMatchesExt(ext: string, mimeType: string): void {
+  const allowed = MIME_BY_EXT[ext] ?? [];
+  if (mimeType === "application/octet-stream") return;
+  if (!allowed.includes(mimeType.toLowerCase())) {
+    throw new ValidationError(`Tipo de conteúdo "${mimeType}" não corresponde à extensão ${ext}.`);
+  }
+}
+
+/** Nome exibido no admin/PDF vem do cliente: remove controle e <> (vetor de
+ * injeção caso alguma renderização não escape). */
+function sanitizeOriginalName(name: string): string {
+  // eslint-disable-next-line no-control-regex
+  const clean = name.replace(/[<>\u0000-\u001f]/g, "").trim();
+  return clean || "arquivo";
+}
+
 /**
  * Upload direto do browser pro Vercel Blob (ver domain/services/blob-storage
  * e o plano do módulo pro motivo de não fazer proxy pela API Express).
@@ -57,6 +93,7 @@ export class BriefingFileService {
     if (!ALLOWED_EXTENSIONS.has(ext)) {
       throw new ValidationError(`Tipo de arquivo não permitido: ${ext}`);
     }
+    assertMimeMatchesExt(ext, input.contentType);
     if (input.sizeBytes > MAX_SIZE_BYTES) {
       throw new ValidationError("Arquivo maior que o limite de 200MB.");
     }
@@ -106,6 +143,7 @@ export class BriefingFileService {
     if (!ALLOWED_EXTENSIONS.has(ext)) {
       throw new ValidationError(`Tipo de arquivo não permitido: ${ext}`);
     }
+    assertMimeMatchesExt(ext, input.mimeType);
 
     // 3. O tamanho declarado tem que respeitar o limite.
     if (input.sizeBytes > MAX_SIZE_BYTES) {
@@ -136,7 +174,7 @@ export class BriefingFileService {
       briefingId: briefing.id,
       blobUrl: input.blobUrl,
       pathname: input.pathname,
-      originalName: input.originalName,
+      originalName: sanitizeOriginalName(input.originalName),
       mimeType: input.mimeType,
       sizeBytes: input.sizeBytes,
     });

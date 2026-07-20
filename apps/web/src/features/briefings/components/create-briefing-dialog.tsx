@@ -169,7 +169,8 @@ export function CreateBriefingDialog() {
             <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/40 p-3">
               <Check className="h-4 w-4 shrink-0 text-emerald-500" />
               <p className="text-sm text-muted-foreground">
-                Link gerado — envie pro cliente preencher.
+                Link gerado — envie pro cliente preencher. Vale por 24 horas; depois disso, use
+                “Duplicar” pra gerar um link novo.
               </p>
             </div>
             <div className="flex items-center gap-2 rounded-lg border border-border p-2">

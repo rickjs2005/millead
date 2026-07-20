@@ -1236,6 +1236,9 @@ model BriefingLink {
   organizationId String    @map("organization_id")
   briefingId     String    @unique @map("briefing_id")
   token          String    @unique
+  /// Link expira 24h após a criação (null = sem expiração, só os links
+  /// antigos criados antes da regra). Checado em findByToken.
+  expiresAt      DateTime? @map("expires_at")
   revokedAt      DateTime? @map("revoked_at")
   createdAt      DateTime  @default(now()) @map("created_at")
 

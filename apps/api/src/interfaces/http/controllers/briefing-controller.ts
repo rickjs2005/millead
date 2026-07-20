@@ -67,7 +67,9 @@ export class BriefingController {
 
   resendWhatsapp = async (req: Request, res: Response): Promise<void> => {
     const auth = requireAuth(req);
-    res.status(200).json(await this.service.resend(auth.organizationId, req.params.id!, "whatsapp"));
+    res
+      .status(200)
+      .json(await this.service.resend(auth.organizationId, req.params.id!, "whatsapp"));
   };
 
   listTemplates = async (_req: Request, res: Response): Promise<void> => {
@@ -75,7 +77,8 @@ export class BriefingController {
   };
 
   getTemplate = async (req: Request, res: Response): Promise<void> => {
-    res.status(200).json(await this.service.getTemplate(req.params.key!));
+    const auth = requireAuth(req);
+    res.status(200).json(await this.service.getTemplate(auth.organizationId, req.params.key!));
   };
 
   // ---------- público (sem auth, resolve tudo via :token) ----------

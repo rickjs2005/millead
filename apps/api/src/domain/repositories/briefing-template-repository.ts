@@ -31,6 +31,8 @@ export interface BriefingTemplateRepository {
   /** Lista rasa (sem seções), pra tela "escolher tipo" e "Templates". Só catálogo global. */
   list(): Promise<BriefingTemplate[]>;
   findById(id: string): Promise<BriefingTemplateDetail | null>;
-  findByKey(key: string): Promise<BriefingTemplateDetail | null>;
+  /** Escopado: template CUSTOM só é visível pra própria organização
+   * (globais do seed são visíveis por todas). */
+  findByKey(key: string, organizationId: string): Promise<BriefingTemplateDetail | null>;
   createCustom(input: CreateCustomTemplateInput): Promise<BriefingTemplateDetail>;
 }

@@ -122,8 +122,8 @@ export default function PublicBriefingPage() {
           <Logo />
           <h1 className="text-2xl font-semibold tracking-tight">{briefing.template.name}</h1>
           <p className="max-w-lg text-sm text-muted-foreground">
-            Suas respostas são salvas automaticamente — pode fechar e voltar quando quiser
-            continuar de onde parou.
+            Suas respostas são salvas automaticamente — pode fechar e voltar para continuar de onde
+            parou. O link fica disponível por 24 horas.
           </p>
         </div>
 

@@ -52,11 +52,7 @@ function uniqueKey(base: string, used: Set<string>): string {
 }
 
 /** Config por tipo, no mesmo formato dos templates do seed. */
-function buildFieldConfig(field: {
-  type: string;
-  options?: string[];
-  maxFiles?: number;
-}): unknown {
+function buildFieldConfig(field: { type: string; options?: string[]; maxFiles?: number }): unknown {
   if (field.type === "SELECT" || field.type === "MULTI_SELECT") {
     return { options: field.options ?? [] };
   }
@@ -93,7 +89,7 @@ export class BriefingService {
     createdById: string | null,
     input: { templateKey: string; leadId?: string | null; companyId?: string | null },
   ) {
-    const template = await this.templates.findByKey(input.templateKey);
+    const template = await this.templates.findByKey(input.templateKey, organizationId);
     if (!template) throw new ValidationError(`Template "${input.templateKey}" não encontrado.`);
     // Template CUSTOM pertence a UMA organização e a UM briefing -- não pode
     // ser instanciado de novo via chave (nem por outra org).
@@ -247,7 +243,12 @@ export class BriefingService {
         pdfUrl: briefing.pdfUrl,
       });
     }
-    await this.briefings.addHistory(id, organizationId, `REENVIADO_${channel.toUpperCase()}`, "APP");
+    await this.briefings.addHistory(
+      id,
+      organizationId,
+      `REENVIADO_${channel.toUpperCase()}`,
+      "APP",
+    );
     return briefing;
   }
 
@@ -255,8 +256,8 @@ export class BriefingService {
     return this.templates.list();
   }
 
-  async getTemplate(key: string) {
-    const template = await this.templates.findByKey(key);
+  async getTemplate(organizationId: string, key: string) {
+    const template = await this.templates.findByKey(key, organizationId);
     if (!template) throw new NotFoundError("Template não encontrado.");
     return template;
   }

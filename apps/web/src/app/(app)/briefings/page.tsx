@@ -148,7 +148,7 @@ export default function BriefingsPage() {
       ) : (
         <div className="flex flex-col gap-2">
           {data.items.map((briefing) => {
-            const kind = templateKindByKey.get(briefing.templateId);
+            const kind = briefing.templateKind ?? templateKindByKey.get(briefing.templateId);
             return (
               <div
                 key={briefing.id}
@@ -194,7 +194,9 @@ export default function BriefingsPage() {
                     {briefing.status === "COMPLETED" && (
                       <>
                         <DropdownMenuItem
-                          onSelect={() => resendBriefing.mutate({ id: briefing.id, channel: "email" })}
+                          onSelect={() =>
+                            resendBriefing.mutate({ id: briefing.id, channel: "email" })
+                          }
                         >
                           <Send className="h-4 w-4" /> Reenviar e-mail
                         </DropdownMenuItem>

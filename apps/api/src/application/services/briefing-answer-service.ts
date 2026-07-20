@@ -28,6 +28,60 @@ export function answerHasValue(a: Pick<BriefingAnswer, "valueText" | "valueJson"
   return false;
 }
 
+function fieldOptions(config: unknown): string[] {
+  if (
+    config &&
+    typeof config === "object" &&
+    Array.isArray((config as { options?: unknown }).options)
+  ) {
+    return (config as { options: unknown[] }).options.filter(
+      (o): o is string => typeof o === "string",
+    );
+  }
+  return [];
+}
+
+/**
+ * Validação ESTRUTURAL do autosave -- só rejeita o que a UI legítima nunca
+ * produz (valueJson fora de MULTI_SELECT/FILE, arrays gigantes, opção fora
+ * da lista). Formato de EMAIL/URL/PHONE fica pro `complete()`: validar a cada
+ * tecla rejeitaria o valor parcial de quem ainda está digitando.
+ */
+function validateAnswerShape(field: BriefingField, input: SaveAnswerInput): void {
+  const json = input.valueJson;
+  if (json !== undefined && json !== null) {
+    if (field.type !== "MULTI_SELECT" && field.type !== "FILE") {
+      throw new ValidationError("Este campo não aceita valor estruturado.");
+    }
+    if (
+      !Array.isArray(json) ||
+      json.length > 60 ||
+      json.some((v) => typeof v !== "string" || v.length > 300)
+    ) {
+      throw new ValidationError("Valor inválido para este campo.");
+    }
+    if (field.type === "MULTI_SELECT") {
+      const options = fieldOptions(field.config);
+      if (options.length > 0 && json.some((v) => !options.includes(v))) {
+        throw new ValidationError("Opção fora da lista deste campo.");
+      }
+    }
+    if (field.type === "FILE") {
+      const maxFiles = (field.config as { maxFiles?: number } | null)?.maxFiles ?? 30;
+      if (json.length > maxFiles) {
+        throw new ValidationError(`Máximo de ${maxFiles} arquivo(s) neste campo.`);
+      }
+    }
+  }
+  const text = input.valueText?.trim();
+  if (text && field.type === "SELECT") {
+    const options = fieldOptions(field.config);
+    if (options.length > 0 && !options.includes(text)) {
+      throw new ValidationError("Opção fora da lista deste campo.");
+    }
+  }
+}
+
 /** Projeção pública do briefing (o que o wizard consome) -- sem organizationId,
  * leadId, companyId, createdById, histórico nem contato: nada disso pertence a
  * quem só tem o link público. */
@@ -93,6 +147,7 @@ export class BriefingAnswerService {
     if (field.parentFieldId && !groupItemId) {
       throw new ValidationError("groupItemId é obrigatório para campo dentro de um grupo.");
     }
+    validateAnswerShape(field, input);
 
     await this.answers.upsert({
       organizationId: briefing.organizationId,
@@ -106,7 +161,12 @@ export class BriefingAnswerService {
 
     if (briefing.status === "PENDING") {
       await this.briefings.updateStatus(briefing.id, "IN_PROGRESS", { startedAt: new Date() });
-      await this.briefings.addHistory(briefing.id, briefing.organizationId, "INICIADO", "PUBLIC_FORM");
+      await this.briefings.addHistory(
+        briefing.id,
+        briefing.organizationId,
+        "INICIADO",
+        "PUBLIC_FORM",
+      );
     }
 
     await this.syncContactFields(briefing, field, sectionKey, input);

@@ -43,6 +43,9 @@ export interface Briefing {
   id: string;
   organizationId: string;
   templateId: string;
+  /** Populado na LISTAGEM (o catálogo de templates exclui CUSTOM de
+   * propósito, então a lista admin não conseguia derivar o kind sozinha). */
+  templateKind?: BriefingTemplateKind;
   leadId: string | null;
   companyId: string | null;
   createdById: string | null;
@@ -63,6 +66,8 @@ export interface BriefingLink {
   id: string;
   briefingId: string;
   token: string;
+  /** Link expira 24h após a criação; null só nos links antigos (sem expiração). */
+  expiresAt: Date | null;
   revokedAt: Date | null;
   createdAt: Date;
 }

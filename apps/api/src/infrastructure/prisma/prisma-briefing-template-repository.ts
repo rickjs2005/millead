@@ -1,8 +1,5 @@
 import { prisma } from "@millead/database";
-import type {
-  BriefingTemplate,
-  BriefingTemplateDetail,
-} from "../../domain/entities/briefing.js";
+import type { BriefingTemplate, BriefingTemplateDetail } from "../../domain/entities/briefing.js";
 import type {
   BriefingTemplateRepository,
   CreateCustomTemplateInput,
@@ -60,9 +57,11 @@ export class PrismaBriefingTemplateRepository implements BriefingTemplateReposit
     return row ? toTemplateDetail(row) : null;
   }
 
-  async findByKey(key: string): Promise<BriefingTemplateDetail | null> {
-    const row = await prisma.briefingTemplate.findUnique({
-      where: { key },
+  async findByKey(key: string, organizationId: string): Promise<BriefingTemplateDetail | null> {
+    const row = await prisma.briefingTemplate.findFirst({
+      // CUSTOM pertence a UMA org -- outra org não enxerga nem sabendo a
+      // chave. Templates globais do seed (kind != CUSTOM) valem pra todas.
+      where: { key, OR: [{ kind: { not: "CUSTOM" } }, { organizationId }] },
       include: templateInclude,
     });
     return row ? toTemplateDetail(row) : null;

@@ -6,7 +6,12 @@ import type {
   CreateBriefingInput,
   UpdateContactInput,
 } from "../../domain/repositories/briefing-repository.js";
-import { paginate, toSkipTake, type PaginatedResult, type PaginationParams } from "../../shared/pagination.js";
+import {
+  paginate,
+  toSkipTake,
+  type PaginatedResult,
+  type PaginationParams,
+} from "../../shared/pagination.js";
 import { templateInclude, toTemplateDetail } from "./briefing-mappers.js";
 
 const baseSelect = {
@@ -29,6 +34,11 @@ const baseSelect = {
   updatedAt: true,
 } as const;
 
+/** Validade do link público: 24h após a criação (decisão de produto --
+ * o link circula por WhatsApp; expirar limita o estrago de um encaminhamento).
+ * Pra reabrir depois disso o admin usa "Duplicar" (gera link novo). */
+const LINK_TTL_MS = 24 * 60 * 60 * 1000;
+
 const detailInclude = {
   template: { include: templateInclude },
   link: true,
@@ -41,13 +51,15 @@ function toDomain(row: Briefing): Briefing {
   return row;
 }
 
-function toDetail(row: {
-  template: Parameters<typeof toTemplateDetail>[0];
-  link: BriefingLink | null;
-  answers: BriefingDetail["answers"];
-  files: BriefingDetail["files"];
-  history: BriefingDetail["history"];
-} & Briefing): BriefingDetail {
+function toDetail(
+  row: {
+    template: Parameters<typeof toTemplateDetail>[0];
+    link: BriefingLink | null;
+    answers: BriefingDetail["answers"];
+    files: BriefingDetail["files"];
+    history: BriefingDetail["history"];
+  } & Briefing,
+): BriefingDetail {
   const { template, link, answers, files, history, ...briefing } = row;
   return {
     ...briefing,
@@ -73,10 +85,20 @@ export class PrismaBriefingRepository implements BriefingRepository {
         select: baseSelect,
       });
       const link = await tx.briefingLink.create({
-        data: { organizationId: input.organizationId, briefingId: briefing.id, token: input.token },
+        data: {
+          organizationId: input.organizationId,
+          briefingId: briefing.id,
+          token: input.token,
+          expiresAt: new Date(Date.now() + LINK_TTL_MS),
+        },
       });
       await tx.briefingHistory.create({
-        data: { organizationId: input.organizationId, briefingId: briefing.id, tipo: "CRIADO", origem: "APP" },
+        data: {
+          organizationId: input.organizationId,
+          briefingId: briefing.id,
+          tipo: "CRIADO",
+          origem: "APP",
+        },
       });
       return { briefing, link };
     });
@@ -93,7 +115,14 @@ export class PrismaBriefingRepository implements BriefingRepository {
 
   async findByToken(token: string): Promise<BriefingDetail | null> {
     const row = await prisma.briefing.findFirst({
-      where: { link: { token, revokedAt: null } },
+      where: {
+        link: {
+          token,
+          revokedAt: null,
+          // expiresAt null = link antigo (antes da regra de 24h), segue válido.
+          OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+        },
+      },
       include: detailInclude,
     });
     return row ? toDetail(row) : null;
@@ -120,13 +149,19 @@ export class PrismaBriefingRepository implements BriefingRepository {
     const [rows, total] = await Promise.all([
       prisma.briefing.findMany({
         where,
-        select: baseSelect,
+        // kind do template embutido: o catálogo (listTemplates) exclui CUSTOM
+        // de propósito, então a lista admin precisa dele vindo daqui.
+        select: { ...baseSelect, template: { select: { kind: true } } },
         orderBy: { createdAt: "desc" },
         ...toSkipTake(pagination),
       }),
       prisma.briefing.count({ where }),
     ]);
-    return paginate(rows.map(toDomain), total, pagination);
+    const items = rows.map(({ template, ...row }) => ({
+      ...toDomain(row),
+      templateKind: template.kind,
+    }));
+    return paginate(items, total, pagination);
   }
 
   async updateStatus(
