@@ -33,19 +33,21 @@ export const BOTTOM_LIMIT = 70; // quebra de página quando y desce abaixo disto
 // Helvetica padrão (WinAnsi) não cobre alguns caracteres tipográficos.
 // Sanitiza para evitar erro de codificação mantendo a aparência próxima.
 export function sanitize(text: string): string {
-  return text
-    .replace(/[‘’]/g, "'")
-    .replace(/[“”]/g, '"')
-    .replace(/[–—]/g, "-")
-    .replace(/…/g, "...")
-    .replace(/ /g, " ")
-    .replace(/€/g, "EUR")
-    // Catch-all: substitui qualquer caractere fora do WinAnsi (CP1252)
-    // por "?" para evitar que drawText/widthOfTextAtSize lancem excecao
-    // com dados controlados pelo usuario (emoji, CJK, cirilico, bullets etc.).
-    // Mantem \n intacto pois wrapText separa paragrafos por newline.
-    // eslint-disable-next-line no-control-regex -- range WinAnsi intencional (preserva \n)
-    .replace(/[^\x00-\xff]/g, "?");
+  return (
+    text
+      .replace(/[‘’]/g, "'")
+      .replace(/[“”]/g, '"')
+      .replace(/[–—]/g, "-")
+      .replace(/…/g, "...")
+      .replace(/ /g, " ")
+      .replace(/€/g, "EUR")
+      // Catch-all: substitui qualquer caractere fora do WinAnsi (CP1252)
+      // por "?" para evitar que drawText/widthOfTextAtSize lancem excecao
+      // com dados controlados pelo usuario (emoji, CJK, cirilico, bullets etc.).
+      // Mantem \n intacto pois wrapText separa paragrafos por newline.
+      // eslint-disable-next-line no-control-regex -- range WinAnsi intencional (preserva \n)
+      .replace(/[^\x00-\xff]/g, "?")
+  );
 }
 
 export interface Fonts {
@@ -128,7 +130,13 @@ export function drawHeader(doc: Doc): number {
   const sealSize = 24;
   const sealX = MARGIN;
   const sealY = topY - sealSize + 6;
-  page.drawRectangle({ x: sealX, y: sealY, width: sealSize, height: sealSize, color: COLORS.brand });
+  page.drawRectangle({
+    x: sealX,
+    y: sealY,
+    width: sealSize,
+    height: sealSize,
+    color: COLORS.brand,
+  });
   const cx = sealX + sealSize / 2;
   const cy = sealY + sealSize / 2;
   page.drawLine({
@@ -214,14 +222,27 @@ export function ensureSpace(doc: Doc, needed: number): void {
 export function drawParagraph(
   doc: Doc,
   text: string,
-  opts: { size: number; font: PDFFont; color: RGB; lineHeight: number; x?: number; maxWidth?: number },
+  opts: {
+    size: number;
+    font: PDFFont;
+    color: RGB;
+    lineHeight: number;
+    x?: number;
+    maxWidth?: number;
+  },
 ): void {
   const x = opts.x ?? MARGIN;
   const maxWidth = opts.maxWidth ?? CONTENT_W;
   const lines = wrapText(text, opts.font, opts.size, maxWidth);
   for (const line of lines) {
     ensureSpace(doc, opts.lineHeight);
-    doc.page.drawText(line, { x, y: doc.y - opts.size, size: opts.size, font: opts.font, color: opts.color });
+    doc.page.drawText(line, {
+      x,
+      y: doc.y - opts.size,
+      size: opts.size,
+      font: opts.font,
+      color: opts.color,
+    });
     doc.y -= opts.lineHeight;
   }
 }
@@ -233,7 +254,12 @@ export function drawClause(doc: Doc, titulo: string, body: string): void {
   doc.y -= 11; // marginTop
   drawParagraph(doc, titulo, { size: 10, font: doc.fonts.bold, color: COLORS.ink, lineHeight: 14 });
   doc.y -= 1;
-  drawParagraph(doc, body, { size: 9.5, font: doc.fonts.regular, color: COLORS.body, lineHeight: 13 });
+  drawParagraph(doc, body, {
+    size: 9.5,
+    font: doc.fonts.regular,
+    color: COLORS.body,
+    lineHeight: 13,
+  });
 }
 
 /** Segundo passe: rodapé em todas as páginas com numeração final. */
@@ -255,7 +281,13 @@ export function drawFooters(
       thickness: 1,
       color: COLORS.border,
     });
-    page.drawText(left, { x: MARGIN, y: footY, size: 6.5, font: fonts.regular, color: COLORS.muted });
+    page.drawText(left, {
+      x: MARGIN,
+      y: footY,
+      size: 6.5,
+      font: fonts.regular,
+      color: COLORS.muted,
+    });
     const centerW = fonts.regular.widthOfTextAtSize(center, 6.5);
     page.drawText(center, {
       x: PAGE_W / 2 - centerW / 2,

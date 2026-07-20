@@ -99,7 +99,12 @@ export class BriefingProcessor {
             contactName: briefing.contactName,
             pdfUrl,
           });
-          await this.briefings.addHistory(briefing.id, organizationId, "WHATSAPP_ENVIADO", "WORKER");
+          await this.briefings.addHistory(
+            briefing.id,
+            organizationId,
+            "WHATSAPP_ENVIADO",
+            "WORKER",
+          );
         } catch (err) {
           await this.briefings.addHistory(briefing.id, organizationId, "FALHA_WHATSAPP", "WORKER", {
             erro: err instanceof Error ? err.message : "desconhecido",
@@ -108,9 +113,15 @@ export class BriefingProcessor {
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : "Falha desconhecida.";
-      await this.briefings.addHistory(briefing.id, organizationId, "FALHA_PROCESSAMENTO", "WORKER", {
-        erro: message,
-      });
+      await this.briefings.addHistory(
+        briefing.id,
+        organizationId,
+        "FALHA_PROCESSAMENTO",
+        "WORKER",
+        {
+          erro: message,
+        },
+      );
       throw err;
     }
   }

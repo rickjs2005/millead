@@ -47,10 +47,9 @@ export class ChangePasswordUseCase {
     // client é deslogado. O front força o re-login após sucesso.
     await this.refreshTokenRepository.revokeAllForUser(userId);
 
-    await this.auditLogger.log(
-      { organizationId, userId, ...meta },
-      "auth.password_changed",
-      { entityType: "User", entityId: userId },
-    );
+    await this.auditLogger.log({ organizationId, userId, ...meta }, "auth.password_changed", {
+      entityType: "User",
+      entityId: userId,
+    });
   }
 }

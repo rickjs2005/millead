@@ -8,15 +8,7 @@ export type FieldSeed = {
   key: string;
   label: string;
   type:
-    | "TEXT"
-    | "TEXTAREA"
-    | "EMAIL"
-    | "PHONE"
-    | "URL"
-    | "SELECT"
-    | "MULTI_SELECT"
-    | "FILE"
-    | "GROUP";
+    "TEXT" | "TEXTAREA" | "EMAIL" | "PHONE" | "URL" | "SELECT" | "MULTI_SELECT" | "FILE" | "GROUP";
   required?: boolean;
   helpText?: string;
   config?: Record<string, unknown>;
@@ -215,9 +207,7 @@ export function institutionalSections(): SectionSeed[] {
     {
       key: "observacoes",
       title: "Observações finais",
-      fields: [
-        { key: "observacoes", label: "Observações finais", type: "TEXTAREA" },
-      ],
+      fields: [{ key: "observacoes", label: "Observações finais", type: "TEXTAREA" }],
     },
   ];
 }

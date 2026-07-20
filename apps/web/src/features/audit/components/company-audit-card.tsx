@@ -51,10 +51,7 @@ export function CompanyAuditCard({
           <>
             <AuditCard audit={latest} hideCompany />
             {data && data.total > 1 && (
-              <Link
-                href="/audit"
-                className="text-xs font-medium text-primary hover:underline"
-              >
+              <Link href="/audit" className="text-xs font-medium text-primary hover:underline">
                 Ver histórico completo ({data.total})
               </Link>
             )}

@@ -53,7 +53,7 @@ export class ClaudeLandingPageGenerator implements LandingPageGenerator {
     const goal =
       context.kind === "DEMO_SITE"
         ? "Crie o SITE DEMONSTRATIVO da empresa descrita abaixo -- é o que a agência vai mostrar ao dono do negócio dizendo " +
-          "\"veja como o site de vocês poderia ficar\". A página vende os produtos/serviços DA EMPRESA para os clientes finais dela " +
+          '"veja como o site de vocês poderia ficar". A página vende os produtos/serviços DA EMPRESA para os clientes finais dela ' +
           "(hero forte, serviços, diferenciais, depoimentos genéricos plausíveis SEM inventar nomes reais, chamada pra contato/WhatsApp)."
         : `Crie uma PÁGINA DE PROPOSTA da agência "${context.organizationName}" endereçada à empresa descrita abaixo. ` +
           "A página convence o dono do negócio a contratar a agência: mostre o que a auditoria encontrou no site atual " +
@@ -69,13 +69,13 @@ export class ClaudeLandingPageGenerator implements LandingPageGenerator {
         "Você é um designer/desenvolvedor sênior que produz landing pages de altíssima qualidade em um único arquivo HTML. Regras obrigatórias:\n" +
         "- Responda SOMENTE com o documento HTML completo, começando em <!doctype html>. Nada antes nem depois, sem cerca de código.\n" +
         "- Tudo em português do Brasil.\n" +
-        "- 100% autocontido: CSS inline em <style>, ícones/ilustrações em SVG inline, NENHUM recurso externo (sem CDN, sem Google Fonts, sem <img src=\"http...\">, sem JavaScript).\n" +
+        '- 100% autocontido: CSS inline em <style>, ícones/ilustrações em SVG inline, NENHUM recurso externo (sem CDN, sem Google Fonts, sem <img src="http...">, sem JavaScript).\n' +
         "- Interações só com CSS (hover, :target, details/summary).\n" +
         "- Responsivo (mobile-first), com boa hierarquia, contraste acessível e meta viewport.\n" +
         "- Design distinto e profissional adequado ao segmento -- evite estética genérica: nada de gradientes roxos clichês; escolha uma paleta coerente com o negócio; capriche em tipografia (font stacks do sistema), espaçamento e micro-detalhes.\n" +
         "- Use apenas dados reais fornecidos (telefone, e-mail, cidade). Se faltar um dado, escreva a seção sem ele -- NUNCA invente telefone, endereço ou depoimento com nome de pessoa real.\n" +
         "- Se houver telefone, o botão principal de contato vira link de WhatsApp (https://wa.me/55 + números).\n" +
-        "- No rodapé, inclua um crédito discreto \"Feito por <nome da agência fornecida>\" -- é a assinatura comercial da agência.",
+        '- No rodapé, inclua um crédito discreto "Feito por <nome da agência fornecida>" -- é a assinatura comercial da agência.',
       messages: [
         {
           role: "user",

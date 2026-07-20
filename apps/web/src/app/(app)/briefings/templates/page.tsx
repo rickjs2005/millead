@@ -44,7 +44,10 @@ function TemplateCard({ templateKey }: { templateKey: string }) {
                   </span>
                 </span>
                 <ChevronDown
-                  className={cn("h-4 w-4 text-muted-foreground transition-transform", expanded && "rotate-180")}
+                  className={cn(
+                    "h-4 w-4 text-muted-foreground transition-transform",
+                    expanded && "rotate-180",
+                  )}
                 />
               </button>
               {expanded && (

@@ -77,8 +77,20 @@ function drawParty(doc: Doc, label: string, body: string): void {
   const topY = doc.y;
   const boxBottom = topY - blockH;
 
-  doc.page.drawRectangle({ x: MARGIN, y: boxBottom, width: CONTENT_W, height: blockH, color: COLORS.brandWeak });
-  doc.page.drawRectangle({ x: MARGIN, y: boxBottom, width: 3, height: blockH, color: COLORS.brand });
+  doc.page.drawRectangle({
+    x: MARGIN,
+    y: boxBottom,
+    width: CONTENT_W,
+    height: blockH,
+    color: COLORS.brandWeak,
+  });
+  doc.page.drawRectangle({
+    x: MARGIN,
+    y: boxBottom,
+    width: 3,
+    height: blockH,
+    color: COLORS.brand,
+  });
 
   let cy = topY - padY;
   doc.page.drawText(sanitize(label).toUpperCase(), {
@@ -90,7 +102,13 @@ function drawParty(doc: Doc, label: string, body: string): void {
   });
   cy -= labelLineH;
   for (const line of lines) {
-    doc.page.drawText(line, { x: MARGIN + padX, y: cy - 9.5, size: 9.5, font: doc.fonts.regular, color: COLORS.body });
+    doc.page.drawText(line, {
+      x: MARGIN + padX,
+      y: cy - 9.5,
+      size: 9.5,
+      font: doc.fonts.regular,
+      color: COLORS.body,
+    });
     cy -= bodyLineH;
   }
 
@@ -117,9 +135,21 @@ function drawFinancialCard(doc: Doc, projeto: ContratoPDFData["projeto"]): void 
   });
 
   let cy = topY - pad;
-  doc.page.drawText("RESUMO FINANCEIRO", { x: MARGIN + pad, y: cy - 7, size: 7, font: doc.fonts.bold, color: COLORS.brand });
+  doc.page.drawText("RESUMO FINANCEIRO", {
+    x: MARGIN + pad,
+    y: cy - 7,
+    size: 7,
+    font: doc.fonts.bold,
+    color: COLORS.brand,
+  });
   cy -= 13;
-  doc.page.drawText(sanitize(projeto.valorTotal), { x: MARGIN + pad, y: cy - 17, size: 17, font: doc.fonts.bold, color: COLORS.ink });
+  doc.page.drawText(sanitize(projeto.valorTotal), {
+    x: MARGIN + pad,
+    y: cy - 17,
+    size: 17,
+    font: doc.fonts.bold,
+    color: COLORS.ink,
+  });
   cy -= 30;
 
   const cells: Array<{ label: string; value: string }> = [
@@ -131,8 +161,20 @@ function drawFinancialCard(doc: Doc, projeto: ContratoPDFData["projeto"]): void 
   const cellW = (CONTENT_W - pad * 2) / 4;
   cells.forEach((cell, i) => {
     const cellX = MARGIN + pad + i * cellW;
-    doc.page.drawText(sanitize(cell.label), { x: cellX, y: cy - 6.5, size: 6.5, font: doc.fonts.regular, color: COLORS.muted });
-    doc.page.drawText(sanitize(cell.value), { x: cellX, y: cy - 18, size: 9, font: doc.fonts.bold, color: COLORS.ink });
+    doc.page.drawText(sanitize(cell.label), {
+      x: cellX,
+      y: cy - 6.5,
+      size: 6.5,
+      font: doc.fonts.regular,
+      color: COLORS.muted,
+    });
+    doc.page.drawText(sanitize(cell.value), {
+      x: cellX,
+      y: cy - 18,
+      size: 9,
+      font: doc.fonts.bold,
+      color: COLORS.ink,
+    });
   });
 
   doc.y = boxBottom - 12;
@@ -161,15 +203,38 @@ function drawSignatures(
   const lineY = doc.y;
   for (const col of cols) {
     const centerX = col.x + colW / 2;
-    doc.page.drawLine({ start: { x: col.x, y: lineY }, end: { x: col.x + colW, y: lineY }, thickness: 1, color: COLORS.muted });
+    doc.page.drawLine({
+      start: { x: col.x, y: lineY },
+      end: { x: col.x + colW, y: lineY },
+      thickness: 1,
+      color: COLORS.muted,
+    });
     const name = sanitize(col.name);
     const nameW = doc.fonts.bold.widthOfTextAtSize(name, 9.5);
-    doc.page.drawText(name, { x: centerX - nameW / 2, y: lineY - 13, size: 9.5, font: doc.fonts.bold, color: COLORS.ink });
+    doc.page.drawText(name, {
+      x: centerX - nameW / 2,
+      y: lineY - 13,
+      size: 9.5,
+      font: doc.fonts.bold,
+      color: COLORS.ink,
+    });
     const roleW = doc.fonts.regular.widthOfTextAtSize(col.role, 7.5);
-    doc.page.drawText(col.role, { x: centerX - roleW / 2, y: lineY - 24, size: 7.5, font: doc.fonts.regular, color: COLORS.muted });
+    doc.page.drawText(col.role, {
+      x: centerX - roleW / 2,
+      y: lineY - 24,
+      size: 7.5,
+      font: doc.fonts.regular,
+      color: COLORS.muted,
+    });
     const ae = "Assinatura eletronica";
     const aeW = doc.fonts.regular.widthOfTextAtSize(ae, 7);
-    doc.page.drawText(ae, { x: centerX - aeW / 2, y: lineY - 35, size: 7, font: doc.fonts.regular, color: COLORS.brand });
+    doc.page.drawText(ae, {
+      x: centerX - aeW / 2,
+      y: lineY - 35,
+      size: 7,
+      font: doc.fonts.regular,
+      color: COLORS.brand,
+    });
   }
 
   doc.y = lineY - blockH;
@@ -234,7 +299,12 @@ export async function renderContratoPDF(data: ContratoPDFData): Promise<Buffer> 
   // Seção Cláusulas.
   ensureSpace(doc, 24);
   doc.y -= 4;
-  drawParagraph(doc, "Cláusulas", { size: 10.5, font: fonts.bold, color: COLORS.ink, lineHeight: 18 });
+  drawParagraph(doc, "Cláusulas", {
+    size: 10.5,
+    font: fonts.bold,
+    color: COLORS.ink,
+    lineHeight: 18,
+  });
 
   // 15 cláusulas — cobre objeto, pagamento/mora, prazo, revisões, suporte,
   // cancelamento/rescisão, propriedade intelectual, domínio, confidencialidade,

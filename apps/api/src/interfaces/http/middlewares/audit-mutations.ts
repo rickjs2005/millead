@@ -53,11 +53,15 @@ export function createAuditMutationsMiddleware(auditLogger: AuditLogger): Reques
       const entityId = typeof req.params.id === "string" ? req.params.id : undefined;
 
       void auditLogger
-        .log({ organizationId: auth.organizationId, userId: auth.userId, ...getRequestMeta(req) }, `${resource}.${verb}`, {
-          entityType: resource,
-          entityId,
-          metadata: { method: req.method, path, status: res.statusCode },
-        })
+        .log(
+          { organizationId: auth.organizationId, userId: auth.userId, ...getRequestMeta(req) },
+          `${resource}.${verb}`,
+          {
+            entityType: resource,
+            entityId,
+            metadata: { method: req.method, path, status: res.statusCode },
+          },
+        )
         .catch(() => {
           // best-effort -- a resposta já foi enviada.
         });

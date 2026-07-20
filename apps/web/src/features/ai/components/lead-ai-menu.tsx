@@ -93,9 +93,7 @@ export function LeadAiMenu({ lead }: { lead: LeadDetail }) {
               >
                 {scoreResult.score}
               </span>
-              <p className="text-center text-sm text-muted-foreground">
-                {scoreResult.rationale}
-              </p>
+              <p className="text-center text-sm text-muted-foreground">{scoreResult.rationale}</p>
               <p className="text-xs text-muted-foreground">
                 A justificativa também ficou registrada no histórico do lead.
               </p>

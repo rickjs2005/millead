@@ -86,7 +86,6 @@ export function useReprocessContract() {
       invalidateAll(queryClient);
       toast.success("Reprocessamento na fila.");
     },
-    onError: (err) =>
-      toast.error(err instanceof ApiError ? err.message : "Erro ao reprocessar."),
+    onError: (err) => toast.error(err instanceof ApiError ? err.message : "Erro ao reprocessar."),
   });
 }

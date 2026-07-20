@@ -1,10 +1,5 @@
 import { api } from "./api-client";
-import type {
-  LandingPage,
-  LandingPageKind,
-  LandingPageStatus,
-  PaginatedResult,
-} from "@/types/api";
+import type { LandingPage, LandingPageKind, LandingPageStatus, PaginatedResult } from "@/types/api";
 
 export interface CreateLandingPagePayload {
   companyId: string;

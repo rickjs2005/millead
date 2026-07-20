@@ -47,7 +47,9 @@ function GroupItems({ field, answers }: { field: BriefingField; answers: Briefin
             {children.map((child) => (
               <div key={child.id}>
                 <dt className="text-xs text-muted-foreground">{child.label}</dt>
-                <dd className="text-sm">{formatValue(child, answerFor(answers, child.id, groupItemId))}</dd>
+                <dd className="text-sm">
+                  {formatValue(child, answerFor(answers, child.id, groupItemId))}
+                </dd>
               </div>
             ))}
           </dl>

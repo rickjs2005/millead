@@ -99,7 +99,11 @@ export function TemplateFormDialog({
             <div className="grid grid-cols-2 gap-4">
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor="template-name">Nome</Label>
-                <Input id="template-name" placeholder="Ex.: Primeiro contato" {...register("name")} />
+                <Input
+                  id="template-name"
+                  placeholder="Ex.: Primeiro contato"
+                  {...register("name")}
+                />
                 {errors.name && <p className="text-xs text-destructive">{errors.name.message}</p>}
               </div>
               <div className="flex flex-col gap-1.5">

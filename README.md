@@ -67,12 +67,12 @@ pnpm --filter @millead/api dev:worker
 
 ## Scripts principais
 
-| Comando                         | O que faz                               |
-| ------------------------------- | --------------------------------------- |
-| `pnpm dev`                      | api + web em modo watch (via Turborepo) |
-| `pnpm build`                    | build de produção de tudo               |
-| `pnpm lint` / `pnpm type-check` | qualidade em todo o monorepo            |
-| `pnpm db:studio`                | GUI do Prisma pra inspecionar o banco   |
+| Comando                          | O que faz                                                                       |
+| -------------------------------- | ------------------------------------------------------------------------------- |
+| `pnpm dev`                       | api + web em modo watch (via Turborepo)                                         |
+| `pnpm build`                     | build de produção de tudo                                                       |
+| `pnpm lint` / `pnpm type-check`  | qualidade em todo o monorepo                                                    |
+| `pnpm db:studio`                 | GUI do Prisma pra inspecionar o banco                                           |
 | `pnpm docker:up` / `docker:down` | sobe/derruba a infra local alternativa (opcional — o padrão é Supabase+Upstash) |
 
 ## Roadmap de fases
@@ -136,20 +136,20 @@ Todas as rotas abaixo exigem `Authorization: Bearer <accessToken>` (ver
 RBAC. Listagens aceitam `?page=&pageSize=` (paginação) e devolvem
 `{ items, page, pageSize, total, totalPages }`.
 
-| Recurso   | Rotas                                                                                                                                                                                |
-| --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Empresas  | `POST/GET /api/v1/companies`, `GET/PATCH /:id`, `POST/DELETE /:id/websites[/:websiteId]`, `POST/DELETE /:id/socials[/:socialId]`                                                     |
-| Leads     | `POST/GET /api/v1/leads`, `GET/PATCH /:id`, `PATCH /:id/stage`, `POST/DELETE /:id/contacts[/:contactId]`, `POST /:id/notes`, `POST/DELETE /:id/tags[/:tagId]`, `GET /:id/activities` |
-| Etiquetas | `GET/POST /api/v1/tags`                                                                                                                                                              |
-| Pipelines | `GET/POST /api/v1/pipelines`, `GET /:id`, `POST /:id/stages`                                                                                                                         |
-| Tarefas   | `POST/GET /api/v1/tasks`, `GET/PATCH/DELETE /:id`                                                                                                                                    |
-| Reuniões  | `POST/GET /api/v1/meetings`, `GET/PATCH /:id`, `POST/DELETE /:id/attendees[/:attendeeId]`                                                                                            |
-| Propostas | `POST/GET /api/v1/proposals`, `GET/PATCH /:id`                                                                                                                                       |
-| Auditorias | `POST /api/v1/audits` (202 -- processa via worker), `GET /api/v1/audits[?companyId=&status=]`, `GET /:id`                                                                           |
-| IA        | `GET /api/v1/ai/status`, `POST /api/v1/ai/leads/:id/score`, `POST .../report`, `POST .../message` (503 sem `ANTHROPIC_API_KEY`)                                                      |
-| Mensagens | `GET /api/v1/messages[?leadId=&status=&channel=]`, `PATCH /:id`, `GET/POST /api/v1/messages/templates`, `PATCH /templates/:id`                                                       |
-| Landing pages | `POST/GET /api/v1/landing-pages`, `GET /:id`, `POST /:id/regenerate`, `POST /:id/publish`, `DELETE /:id` -- pública: `GET /p/:slug`                                              |
-| Contratos | `POST/GET /api/v1/contracts`, `GET /kpis`, `GET /:id[/pdf]`, `PATCH /:id/status`, `POST /:id/reprocess` -- públicas: `POST /api/v1/public/contracts`, `POST /api/v1/webhooks/signature` |
+| Recurso       | Rotas                                                                                                                                                                                   |
+| ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Empresas      | `POST/GET /api/v1/companies`, `GET/PATCH /:id`, `POST/DELETE /:id/websites[/:websiteId]`, `POST/DELETE /:id/socials[/:socialId]`                                                        |
+| Leads         | `POST/GET /api/v1/leads`, `GET/PATCH /:id`, `PATCH /:id/stage`, `POST/DELETE /:id/contacts[/:contactId]`, `POST /:id/notes`, `POST/DELETE /:id/tags[/:tagId]`, `GET /:id/activities`    |
+| Etiquetas     | `GET/POST /api/v1/tags`                                                                                                                                                                 |
+| Pipelines     | `GET/POST /api/v1/pipelines`, `GET /:id`, `POST /:id/stages`                                                                                                                            |
+| Tarefas       | `POST/GET /api/v1/tasks`, `GET/PATCH/DELETE /:id`                                                                                                                                       |
+| Reuniões      | `POST/GET /api/v1/meetings`, `GET/PATCH /:id`, `POST/DELETE /:id/attendees[/:attendeeId]`                                                                                               |
+| Propostas     | `POST/GET /api/v1/proposals`, `GET/PATCH /:id`                                                                                                                                          |
+| Auditorias    | `POST /api/v1/audits` (202 -- processa via worker), `GET /api/v1/audits[?companyId=&status=]`, `GET /:id`                                                                               |
+| IA            | `GET /api/v1/ai/status`, `POST /api/v1/ai/leads/:id/score`, `POST .../report`, `POST .../message` (503 sem `ANTHROPIC_API_KEY`)                                                         |
+| Mensagens     | `GET /api/v1/messages[?leadId=&status=&channel=]`, `PATCH /:id`, `GET/POST /api/v1/messages/templates`, `PATCH /templates/:id`                                                          |
+| Landing pages | `POST/GET /api/v1/landing-pages`, `GET /:id`, `POST /:id/regenerate`, `POST /:id/publish`, `DELETE /:id` -- pública: `GET /p/:slug`                                                     |
+| Contratos     | `POST/GET /api/v1/contracts`, `GET /kpis`, `GET /:id[/pdf]`, `PATCH /:id/status`, `POST /:id/reprocess` -- públicas: `POST /api/v1/public/contracts`, `POST /api/v1/webhooks/signature` |
 
 Detalhes de design que valem saber antes de consumir essa API:
 

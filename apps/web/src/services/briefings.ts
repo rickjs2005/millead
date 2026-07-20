@@ -15,14 +15,7 @@ export interface CreateBriefingPayload {
 }
 
 export type CustomBriefingFieldType =
-  | "TEXT"
-  | "TEXTAREA"
-  | "EMAIL"
-  | "PHONE"
-  | "URL"
-  | "SELECT"
-  | "MULTI_SELECT"
-  | "FILE";
+  "TEXT" | "TEXTAREA" | "EMAIL" | "PHONE" | "URL" | "SELECT" | "MULTI_SELECT" | "FILE";
 
 export interface CustomBriefingFieldInput {
   label: string;

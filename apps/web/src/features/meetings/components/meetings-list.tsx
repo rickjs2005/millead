@@ -1,14 +1,6 @@
 "use client";
 
-import {
-  Ban,
-  CheckCircle2,
-  MoreHorizontal,
-  Pencil,
-  UserX,
-  Users,
-  Video,
-} from "lucide-react";
+import { Ban, CheckCircle2, MoreHorizontal, Pencil, UserX, Users, Video } from "lucide-react";
 import { useState } from "react";
 import { EmptyState } from "@/components/empty-state";
 import { useConfirmDialog } from "@/components/confirm-dialog";

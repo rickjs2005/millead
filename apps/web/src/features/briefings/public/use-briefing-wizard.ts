@@ -31,9 +31,9 @@ export function useBriefingWizard(token: string) {
   // Patches ainda no debounce (não gravados). Usado pra dar flush antes de
   // concluir -- senão digitar e clicar "Finalizar" em <500ms perde a última
   // resposta (ou o servidor acusa obrigatório que o cliente acabou de preencher).
-  const pending = useRef<Record<string, { fieldId: string; groupItemId: string; patch: LocalAnswer }>>(
-    {},
-  );
+  const pending = useRef<
+    Record<string, { fieldId: string; groupItemId: string; patch: LocalAnswer }>
+  >({});
 
   useEffect(() => {
     if (!query.data || hydrated.current) return;

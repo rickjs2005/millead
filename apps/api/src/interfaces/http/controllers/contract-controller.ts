@@ -23,9 +23,7 @@ export class ContractController {
   list = async (req: Request, res: Response): Promise<void> => {
     const auth = requireAuth(req);
     const { page, pageSize, ...filters } = req.validatedQuery as ListContractsQuery;
-    res
-      .status(200)
-      .json(await this.service.list(auth.organizationId, filters, { page, pageSize }));
+    res.status(200).json(await this.service.list(auth.organizationId, filters, { page, pageSize }));
   };
 
   kpis = async (req: Request, res: Response): Promise<void> => {

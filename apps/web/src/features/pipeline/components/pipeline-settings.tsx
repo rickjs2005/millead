@@ -174,8 +174,7 @@ function AddStageDialog({ pipeline }: { pipeline: PipelineWithStages }) {
                   )}
                 />
                 <Label htmlFor="stage-won" className="font-normal">
-                  Estágio de ganho (lead vira <Badge variant="success">Ganho</Badge> ao chegar
-                  aqui)
+                  Estágio de ganho (lead vira <Badge variant="success">Ganho</Badge> ao chegar aqui)
                 </Label>
               </div>
               <div className="flex items-center gap-2">

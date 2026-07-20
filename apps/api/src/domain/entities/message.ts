@@ -1,8 +1,4 @@
-import type {
-  MessageChannel,
-  MessageDirection,
-  MessageStatus,
-} from "@millead/database";
+import type { MessageChannel, MessageDirection, MessageStatus } from "@millead/database";
 
 export interface Message {
   id: string;

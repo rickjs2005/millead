@@ -55,10 +55,19 @@ export interface ContractRepository {
     pagination: PaginationParams,
   ): Promise<PaginatedResult<Contract>>;
   kpis(organizationId: string): Promise<ContractKpis>;
-  updateStatus(id: string, organizationId: string, status: ContractStatus): Promise<Contract | null>;
+  updateStatus(
+    id: string,
+    organizationId: string,
+    status: ContractStatus,
+  ): Promise<Contract | null>;
   savePdfOriginal(id: string, pdf: Buffer): Promise<void>;
   setSignatureDoc(id: string, docId: string, signUrl: string): Promise<void>;
-  markSigned(id: string, assinadoEm: Date, pdfAssinado?: Buffer | null, ip?: string | null): Promise<Contract | null>;
+  markSigned(
+    id: string,
+    assinadoEm: Date,
+    pdfAssinado?: Buffer | null,
+    ip?: string | null,
+  ): Promise<Contract | null>;
   addEvent(
     contractId: string,
     organizationId: string,
@@ -66,5 +75,9 @@ export interface ContractRepository {
     origem: string,
     payload?: unknown,
   ): Promise<void>;
-  getPdf(id: string, organizationId: string, versao: "original" | "assinado"): Promise<Buffer | null>;
+  getPdf(
+    id: string,
+    organizationId: string,
+    versao: "original" | "assinado",
+  ): Promise<Buffer | null>;
 }

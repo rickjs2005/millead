@@ -19,7 +19,10 @@ export class PrismaBriefingAnswerRepository implements BriefingAnswerRepository 
       update: {
         groupItemOrder: input.groupItemOrder ?? null,
         valueText: input.valueText ?? null,
-        valueJson: input.valueJson === undefined ? Prisma.JsonNull : (input.valueJson as Prisma.InputJsonValue),
+        valueJson:
+          input.valueJson === undefined
+            ? Prisma.JsonNull
+            : (input.valueJson as Prisma.InputJsonValue),
       },
       create: {
         organizationId: input.organizationId,
@@ -28,7 +31,10 @@ export class PrismaBriefingAnswerRepository implements BriefingAnswerRepository 
         groupItemId,
         groupItemOrder: input.groupItemOrder ?? null,
         valueText: input.valueText ?? null,
-        valueJson: input.valueJson === undefined ? Prisma.JsonNull : (input.valueJson as Prisma.InputJsonValue),
+        valueJson:
+          input.valueJson === undefined
+            ? Prisma.JsonNull
+            : (input.valueJson as Prisma.InputJsonValue),
       },
     });
   }
@@ -37,7 +43,11 @@ export class PrismaBriefingAnswerRepository implements BriefingAnswerRepository 
     return prisma.briefingAnswer.findMany({ where: { briefingId, organizationId } });
   }
 
-  async removeGroupItem(briefingId: string, organizationId: string, groupItemId: string): Promise<void> {
+  async removeGroupItem(
+    briefingId: string,
+    organizationId: string,
+    groupItemId: string,
+  ): Promise<void> {
     if (!groupItemId) return; // nunca apaga campos de topo (groupItemId === "")
     await prisma.briefingAnswer.deleteMany({ where: { briefingId, organizationId, groupItemId } });
   }

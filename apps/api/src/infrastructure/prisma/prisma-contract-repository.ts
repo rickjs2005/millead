@@ -1,8 +1,5 @@
 import { prisma, Prisma } from "@millead/database";
-import type {
-  Contract,
-  ContractDetail,
-} from "../../domain/entities/contract.js";
+import type { Contract, ContractDetail } from "../../domain/entities/contract.js";
 import type {
   ContractFilters,
   ContractKpis,

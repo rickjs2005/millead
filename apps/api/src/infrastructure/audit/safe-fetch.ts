@@ -12,7 +12,8 @@ import net from "node:net";
 
 function ipv4ToParts(ip: string): number[] | null {
   const parts = ip.split(".").map((p) => Number(p));
-  if (parts.length !== 4 || parts.some((n) => !Number.isInteger(n) || n < 0 || n > 255)) return null;
+  if (parts.length !== 4 || parts.some((n) => !Number.isInteger(n) || n < 0 || n > 255))
+    return null;
   return parts;
 }
 

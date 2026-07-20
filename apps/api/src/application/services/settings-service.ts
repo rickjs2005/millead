@@ -49,8 +49,7 @@ export class SettingsService {
         key: "email",
         name: "E-mail (SMTP)",
         status: env.SMTP_HOST ? "connected" : "not_configured",
-        description:
-          "E-mails transacionais: convite e confirmação de assinatura de contratos.",
+        description: "E-mails transacionais: convite e confirmação de assinatura de contratos.",
         detail: null,
       },
       {
@@ -70,7 +69,11 @@ export class SettingsService {
       {
         key: "signature",
         name: "Assinatura eletrônica",
-        status: usesZapsign ? (env.ZAPSIGN_API_TOKEN ? "connected" : "not_configured") : "connected",
+        status: usesZapsign
+          ? env.ZAPSIGN_API_TOKEN
+            ? "connected"
+            : "not_configured"
+          : "connected",
         description: "Assinatura eletrônica de contratos pelos clientes.",
         detail: usesZapsign ? "Provedor: ZapSign" : "Modo simulado (mock)",
       },

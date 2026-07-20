@@ -30,13 +30,18 @@ export function SidebarNav({
   return (
     <nav className="flex flex-col px-2">
       {sections.map((section, i) => (
-        <div key={section.title ?? `sec-${i}`} className={cn("flex flex-col gap-1", i > 0 && "mt-4")}>
+        <div
+          key={section.title ?? `sec-${i}`}
+          className={cn("flex flex-col gap-1", i > 0 && "mt-4")}
+        >
           {section.title && !collapsed ? (
             <span className="px-3 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
               {section.title}
             </span>
           ) : null}
-          {section.title && collapsed ? <span className="mx-2 border-t border-border" aria-hidden /> : null}
+          {section.title && collapsed ? (
+            <span className="mx-2 border-t border-border" aria-hidden />
+          ) : null}
           {section.items.map((item) =>
             item.children?.length ? (
               <NavItemWithChildren
@@ -185,7 +190,13 @@ function NavItemWithChildren({
               ? pathname === childPath && currentSearch === childQuery
               : pathname === childPath;
             return (
-              <NavLink key={child.href} item={child} active={active} onNavigate={onNavigate} indent />
+              <NavLink
+                key={child.href}
+                item={child}
+                active={active}
+                onNavigate={onNavigate}
+                indent
+              />
             );
           })}
         </div>

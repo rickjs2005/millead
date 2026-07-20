@@ -54,8 +54,4 @@ export const CONTRACT_EVENT_LABELS: Record<string, string> = {
 };
 
 /** Status em que o worker ainda está trabalhando (a UI faz polling). */
-export const CONTRACT_PENDING_STATUSES: ContractStatus[] = [
-  "RASCUNHO",
-  "VALIDADO",
-  "PDF_GERADO",
-];
+export const CONTRACT_PENDING_STATUSES: ContractStatus[] = ["RASCUNHO", "VALIDADO", "PDF_GERADO"];

@@ -39,9 +39,7 @@ export function GenerateMessageDialog({ leadId }: { leadId: string }) {
   const draftMessage = useDraftMessage(leadId);
 
   const aiEnabled = aiStatus?.enabled ?? false;
-  const activeTemplates = (templates ?? []).filter(
-    (t) => t.isActive && t.channel === channel,
-  );
+  const activeTemplates = (templates ?? []).filter((t) => t.isActive && t.channel === channel);
 
   async function handleGenerate() {
     await draftMessage.mutateAsync({
@@ -69,8 +67,8 @@ export function GenerateMessageDialog({ leadId }: { leadId: string }) {
         <DialogHeader>
           <DialogTitle>Gerar mensagem com IA</DialogTitle>
           <DialogDescription>
-            A IA escreve um rascunho personalizado com os dados do lead, da empresa e da
-            auditoria do site. Nada é enviado automaticamente.
+            A IA escreve um rascunho personalizado com os dados do lead, da empresa e da auditoria
+            do site. Nada é enviado automaticamente.
           </DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-4 py-2">

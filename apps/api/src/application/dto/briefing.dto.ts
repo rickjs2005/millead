@@ -97,7 +97,11 @@ export type RemoveGroupItemRequest = z.infer<typeof removeGroupItemSchema>;
 export const uploadTokenSchema = z.object({
   filename: z.string().min(1).max(255),
   contentType: z.string().min(1).max(120),
-  sizeBytes: z.coerce.number().int().positive().max(200 * 1024 * 1024), // 200MB
+  sizeBytes: z.coerce
+    .number()
+    .int()
+    .positive()
+    .max(200 * 1024 * 1024), // 200MB
 });
 export type UploadTokenRequest = z.infer<typeof uploadTokenSchema>;
 

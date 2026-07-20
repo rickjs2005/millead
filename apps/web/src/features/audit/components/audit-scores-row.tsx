@@ -14,7 +14,12 @@ export function AuditScoresRow({ scores, compact }: { scores: AuditScore[]; comp
   const byCategory = new Map(scores.map((s) => [s.category, s]));
 
   return (
-    <div className={cn("grid gap-2", compact ? "grid-cols-3 sm:grid-cols-6" : "grid-cols-2 sm:grid-cols-3 lg:grid-cols-6")}>
+    <div
+      className={cn(
+        "grid gap-2",
+        compact ? "grid-cols-3 sm:grid-cols-6" : "grid-cols-2 sm:grid-cols-3 lg:grid-cols-6",
+      )}
+    >
       {AUDIT_CATEGORY_ORDER.map((category) => {
         const score = byCategory.get(category);
         const Icon = AUDIT_CATEGORY_ICONS[category];

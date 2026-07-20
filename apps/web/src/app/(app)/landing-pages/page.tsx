@@ -110,10 +110,7 @@ export default function PromptBuilderPage() {
       ...prev,
       businessName: prev.businessName || company.name,
       segment: prev.segment || company.segment || "",
-      location:
-        prev.location ||
-        [company.city, company.state].filter(Boolean).join(" / ") ||
-        "",
+      location: prev.location || [company.city, company.state].filter(Boolean).join(" / ") || "",
       description: prev.description || company.notes || "",
       contact: prev.contact || company.phone || company.email || "",
     }));
@@ -182,7 +179,10 @@ export default function PromptBuilderPage() {
                 <CompanyCombobox value={companyId} onChange={(id) => setCompanyId(id)} />
               </Field>
               <Field label="Nome do negócio">
-                <Input value={form.businessName} onChange={(e) => set("businessName", e.target.value)} />
+                <Input
+                  value={form.businessName}
+                  onChange={(e) => set("businessName", e.target.value)}
+                />
               </Field>
               <div className="grid gap-4 sm:grid-cols-2">
                 <Field label="Segmento / nicho">
@@ -193,13 +193,21 @@ export default function PromptBuilderPage() {
                 </Field>
               </div>
               <Field label="O que o negócio faz / oferece">
-                <Textarea rows={2} value={form.description} onChange={(e) => set("description", e.target.value)} />
+                <Textarea
+                  rows={2}
+                  value={form.description}
+                  onChange={(e) => set("description", e.target.value)}
+                />
               </Field>
               <Field label="Público-alvo">
                 <Input value={form.audience} onChange={(e) => set("audience", e.target.value)} />
               </Field>
               <Field label="Diferenciais">
-                <Textarea rows={2} value={form.differentials} onChange={(e) => set("differentials", e.target.value)} />
+                <Textarea
+                  rows={2}
+                  value={form.differentials}
+                  onChange={(e) => set("differentials", e.target.value)}
+                />
               </Field>
               <Field label="Contato (WhatsApp / e-mail)">
                 <Input value={form.contact} onChange={(e) => set("contact", e.target.value)} />
@@ -213,22 +221,33 @@ export default function PromptBuilderPage() {
               <Field label="Objetivo da página">
                 <OptionSelect value={form.goal} onChange={(v) => set("goal", v)} options={GOALS} />
               </Field>
-              <Field
-                label="Estilo visual"
-                hint={styleRef ? `Referências: ${styleRef}` : undefined}
-              >
-                <OptionSelect value={form.designStyle} onChange={(v) => set("designStyle", v)} options={DESIGN_STYLES} />
+              <Field label="Estilo visual" hint={styleRef ? `Referências: ${styleRef}` : undefined}>
+                <OptionSelect
+                  value={form.designStyle}
+                  onChange={(v) => set("designStyle", v)}
+                  options={DESIGN_STYLES}
+                />
               </Field>
               <div className="grid gap-4 sm:grid-cols-2">
                 <Field label="Paleta / cores" hint="Opcional">
-                  <Input value={form.palette} onChange={(e) => set("palette", e.target.value)} placeholder="ex.: verde e branco" />
+                  <Input
+                    value={form.palette}
+                    onChange={(e) => set("palette", e.target.value)}
+                    placeholder="ex.: verde e branco"
+                  />
                 </Field>
                 <Field label="Idioma do conteúdo">
-                  <Input value={form.contentLanguage} onChange={(e) => set("contentLanguage", e.target.value)} />
+                  <Input
+                    value={form.contentLanguage}
+                    onChange={(e) => set("contentLanguage", e.target.value)}
+                  />
                 </Field>
               </div>
               <Field label="Referências" hint="Opcional — sites ou marcas de inspiração.">
-                <Input value={form.references} onChange={(e) => set("references", e.target.value)} />
+                <Input
+                  value={form.references}
+                  onChange={(e) => set("references", e.target.value)}
+                />
               </Field>
             </CardContent>
           </Card>
@@ -238,14 +257,26 @@ export default function PromptBuilderPage() {
               <p className="text-sm font-semibold">3. Stack técnica</p>
               <div className="grid gap-4 sm:grid-cols-2">
                 <Field label="Framework / biblioteca">
-                  <OptionSelect value={form.framework} onChange={(v) => set("framework", v)} options={FRAMEWORKS} />
+                  <OptionSelect
+                    value={form.framework}
+                    onChange={(v) => set("framework", v)}
+                    options={FRAMEWORKS}
+                  />
                 </Field>
                 <Field label="Linguagem">
-                  <OptionSelect value={form.language} onChange={(v) => set("language", v)} options={LANGUAGES} />
+                  <OptionSelect
+                    value={form.language}
+                    onChange={(v) => set("language", v)}
+                    options={LANGUAGES}
+                  />
                 </Field>
               </div>
               <Field label="Animações">
-                <OptionSelect value={form.animation} onChange={(v) => set("animation", v)} options={ANIMATIONS} />
+                <OptionSelect
+                  value={form.animation}
+                  onChange={(v) => set("animation", v)}
+                  options={ANIMATIONS}
+                />
               </Field>
               <Field
                 label="Recursos avançados"
@@ -300,8 +331,15 @@ export default function PromptBuilderPage() {
                   );
                 })}
               </div>
-              <Field label="Observações adicionais" hint="Opcional — qualquer instrução extra pra IA.">
-                <Textarea rows={2} value={form.notes} onChange={(e) => set("notes", e.target.value)} />
+              <Field
+                label="Observações adicionais"
+                hint="Opcional — qualquer instrução extra pra IA."
+              >
+                <Textarea
+                  rows={2}
+                  value={form.notes}
+                  onChange={(e) => set("notes", e.target.value)}
+                />
               </Field>
             </CardContent>
           </Card>

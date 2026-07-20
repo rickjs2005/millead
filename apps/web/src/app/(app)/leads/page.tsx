@@ -152,7 +152,9 @@ export default function LeadsPage() {
               disabled={!data || data.items.length === 0 || exporting}
             >
               <Download />{" "}
-              {exporting ? "Exportando…" : `Exportar${selected.size > 0 ? ` (${selected.size})` : ""}`}
+              {exporting
+                ? "Exportando…"
+                : `Exportar${selected.size > 0 ? ` (${selected.size})` : ""}`}
             </Button>
           )}
           <CreateLeadDialog />
@@ -163,68 +165,68 @@ export default function LeadsPage() {
         <KanbanBoard />
       ) : (
         <>
-      <Card className="p-4">
-        <LeadFilters
-          search={search}
-          onSearchChange={(v) => {
-            setSearch(v);
-            setPage(1);
-          }}
-          status={status}
-          onStatusChange={(v) => {
-            setStatus(v);
-            setPage(1);
-          }}
-          stageId={stageId}
-          onStageChange={(v) => {
-            setStageId(v);
-            setPage(1);
-          }}
-          pipeline={defaultPipeline}
-        />
-      </Card>
+          <Card className="p-4">
+            <LeadFilters
+              search={search}
+              onSearchChange={(v) => {
+                setSearch(v);
+                setPage(1);
+              }}
+              status={status}
+              onStatusChange={(v) => {
+                setStatus(v);
+                setPage(1);
+              }}
+              stageId={stageId}
+              onStageChange={(v) => {
+                setStageId(v);
+                setPage(1);
+              }}
+              pipeline={defaultPipeline}
+            />
+          </Card>
 
-      {selected.size > 0 && (
-        <div className="flex items-center justify-between rounded-lg border border-primary/30 bg-primary/5 px-4 py-2 text-sm">
-          <span>
-            <span className="font-medium">{selected.size}</span> selecionado
-            {selected.size === 1 ? "" : "s"}
-          </span>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setSelected(new Set())}
-            className="gap-1"
-          >
-            <X className="h-3.5 w-3.5" /> Limpar seleção
-          </Button>
-        </div>
-      )}
+          {selected.size > 0 && (
+            <div className="flex items-center justify-between rounded-lg border border-primary/30 bg-primary/5 px-4 py-2 text-sm">
+              <span>
+                <span className="font-medium">{selected.size}</span> selecionado
+                {selected.size === 1 ? "" : "s"}
+              </span>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setSelected(new Set())}
+                className="gap-1"
+              >
+                <X className="h-3.5 w-3.5" /> Limpar seleção
+              </Button>
+            </div>
+          )}
 
-      {isError ? (
-        <ErrorState onRetry={() => refetch()} />
-      ) : (
-        <Card className="overflow-hidden p-0">
-          <LeadsTable
-            leads={data?.items ?? []}
-            isLoading={isLoading}
-            stagesById={stagesById}
-            selected={selected}
-            onToggleSelect={toggleSelect}
-            onToggleSelectAll={toggleSelectAll}
-          />
-        </Card>
-      )}
+          {isError ? (
+            <ErrorState onRetry={() => refetch()} />
+          ) : (
+            <Card className="overflow-hidden p-0">
+              <LeadsTable
+                leads={data?.items ?? []}
+                isLoading={isLoading}
+                stagesById={stagesById}
+                selected={selected}
+                onToggleSelect={toggleSelect}
+                onToggleSelectAll={toggleSelectAll}
+              />
+            </Card>
+          )}
 
-      {data && data.total > 0 && (
-        <Pagination
-          page={data.page}
-          pageSize={data.pageSize}
-          total={data.total}
-          totalPages={data.totalPages}
-          onPageChange={setPage}
-        />
-      )}
+          {data && data.total > 0 && (
+            <Pagination
+              page={data.page}
+              pageSize={data.pageSize}
+              total={data.total}
+              totalPages={data.totalPages}
+              onPageChange={setPage}
+            />
+          )}
         </>
       )}
     </div>

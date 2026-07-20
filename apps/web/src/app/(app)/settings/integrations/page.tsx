@@ -15,7 +15,10 @@ const ICON_BY_KEY: Record<IntegrationStatus["key"], LucideIcon> = {
   ai: Bot,
 };
 
-const STATUS_STYLE: Record<IntegrationStatusLevel, { label: string; className: string; dot: string }> = {
+const STATUS_STYLE: Record<
+  IntegrationStatusLevel,
+  { label: string; className: string; dot: string }
+> = {
   connected: {
     label: "Conectado",
     className: "bg-emerald-500/10 text-emerald-500 ring-1 ring-inset ring-emerald-500/20",
@@ -90,7 +93,10 @@ export default function IntegrationsSettingsPage() {
       {isLoading && (
         <div className="flex flex-col gap-3">
           {[0, 1, 2, 3].map((i) => (
-            <div key={i} className="h-[74px] animate-pulse rounded-xl border border-border bg-muted/40" />
+            <div
+              key={i}
+              className="h-[74px] animate-pulse rounded-xl border border-border bg-muted/40"
+            />
           ))}
         </div>
       )}
@@ -99,7 +105,9 @@ export default function IntegrationsSettingsPage() {
         <Card>
           <CardContent className="flex flex-col items-center gap-3 p-8 text-center">
             <Plug className="h-8 w-8 text-muted-foreground" />
-            <p className="text-sm text-muted-foreground">Não foi possível carregar as integrações.</p>
+            <p className="text-sm text-muted-foreground">
+              Não foi possível carregar as integrações.
+            </p>
             <button
               onClick={() => refetch()}
               className="text-sm font-medium text-primary hover:underline"

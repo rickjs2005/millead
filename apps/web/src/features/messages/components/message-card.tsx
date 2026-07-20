@@ -99,11 +99,7 @@ export function MessageCard({ message, showLead }: { message: Message; showLead?
           <DialogHeader>
             <DialogTitle>Editar rascunho</DialogTitle>
           </DialogHeader>
-          <Textarea
-            rows={8}
-            value={draftBody}
-            onChange={(e) => setDraftBody(e.target.value)}
-          />
+          <Textarea rows={8} value={draftBody} onChange={(e) => setDraftBody(e.target.value)} />
           <DialogFooter>
             <Button
               disabled={updateMessage.isPending || draftBody.trim().length === 0}

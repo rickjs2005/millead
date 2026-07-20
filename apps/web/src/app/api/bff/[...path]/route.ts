@@ -21,9 +21,17 @@ import { INTERNAL_API_URL } from "@/lib/bff-server";
 
 // Headers hop-by-hop: o fetch já descomprimiu/rechunkou, então repassá-los
 // quebraria o cliente.
-const HOP_BY_HOP = new Set(["content-encoding", "content-length", "transfer-encoding", "connection"]);
+const HOP_BY_HOP = new Set([
+  "content-encoding",
+  "content-length",
+  "transfer-encoding",
+  "connection",
+]);
 
-async function handle(req: NextRequest, ctx: { params: Promise<{ path: string[] }> }): Promise<NextResponse> {
+async function handle(
+  req: NextRequest,
+  ctx: { params: Promise<{ path: string[] }> },
+): Promise<NextResponse> {
   const { path } = await ctx.params;
   const target = `${INTERNAL_API_URL}/${path.join("/")}${req.nextUrl.search}`;
 
@@ -52,10 +60,4 @@ async function handle(req: NextRequest, ctx: { params: Promise<{ path: string[] 
   return new NextResponse(apiRes.body, { status: apiRes.status, headers: resHeaders });
 }
 
-export {
-  handle as GET,
-  handle as POST,
-  handle as PATCH,
-  handle as PUT,
-  handle as DELETE,
-};
+export { handle as GET, handle as POST, handle as PATCH, handle as PUT, handle as DELETE };

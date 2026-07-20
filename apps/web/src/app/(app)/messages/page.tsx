@@ -20,15 +20,8 @@ import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { MessageCard } from "@/features/messages/components/message-card";
 import { TemplateFormDialog } from "@/features/messages/components/template-form-dialog";
-import {
-  useMessages,
-  useMessageTemplates,
-  useUpdateTemplate,
-} from "@/features/messages/hooks";
-import {
-  MESSAGE_CHANNEL_LABELS,
-  MESSAGE_STATUS_LABELS,
-} from "@/features/messages/message-labels";
+import { useMessages, useMessageTemplates, useUpdateTemplate } from "@/features/messages/hooks";
+import { MESSAGE_CHANNEL_LABELS, MESSAGE_STATUS_LABELS } from "@/features/messages/message-labels";
 import type { MessageChannel, MessageStatus, MessageTemplate } from "@/types/api";
 
 function MessagesTab() {

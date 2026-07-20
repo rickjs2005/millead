@@ -112,7 +112,6 @@ export function useResendBriefing() {
       invalidateAll(queryClient);
       toast.success("Reenviado com sucesso.");
     },
-    onError: (err) =>
-      toast.error(err instanceof ApiError ? err.message : "Erro ao reenviar."),
+    onError: (err) => toast.error(err instanceof ApiError ? err.message : "Erro ao reenviar."),
   });
 }

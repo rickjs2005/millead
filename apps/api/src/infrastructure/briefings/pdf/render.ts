@@ -79,7 +79,9 @@ export async function renderBriefingPDF(data: BriefingPdfData): Promise<Buffer> 
   }
 
   // Índice de respostas por fieldId (topo) e por groupItemId (itens de GROUP).
-  const byFieldId = new Map(data.answers.filter((a) => a.groupItemId === "").map((a) => [a.fieldId, a]));
+  const byFieldId = new Map(
+    data.answers.filter((a) => a.groupItemId === "").map((a) => [a.fieldId, a]),
+  );
   const byChild = new Map<string, typeof data.answers>();
   for (const a of data.answers) {
     if (a.groupItemId === "") continue;
@@ -102,7 +104,9 @@ export async function renderBriefingPDF(data: BriefingPdfData): Promise<Buffer> 
     for (const field of section.fields) {
       if (field.type === "GROUP") {
         const children = field.children ?? [];
-        const itemIds = [...new Set(children.flatMap((c) => (byChild.get(c.id) ?? []).map((a) => a.groupItemId)))];
+        const itemIds = [
+          ...new Set(children.flatMap((c) => (byChild.get(c.id) ?? []).map((a) => a.groupItemId))),
+        ];
         if (itemIds.length === 0) {
           drawClause(doc, field.label, `Nenhum item adicionado.`);
           continue;
@@ -135,14 +139,20 @@ export async function renderBriefingPDF(data: BriefingPdfData): Promise<Buffer> 
       if (field.type === "FILE") {
         const answer = byFieldId.get(field.id);
         const names = Array.isArray(answer?.valueJson)
-          ? (answer.valueJson as string[]).map((fid) => filesById.get(fid)?.originalName).filter(Boolean)
+          ? (answer.valueJson as string[])
+              .map((fid) => filesById.get(fid)?.originalName)
+              .filter(Boolean)
           : [];
         drawClause(doc, field.label, names.length ? names.join(", ") : "Nenhum arquivo enviado.");
         continue;
       }
 
       const answer = byFieldId.get(field.id);
-      drawClause(doc, field.label, displayValue(field, answer?.valueText ?? null, answer?.valueJson));
+      drawClause(
+        doc,
+        field.label,
+        displayValue(field, answer?.valueText ?? null, answer?.valueJson),
+      );
     }
   }
 

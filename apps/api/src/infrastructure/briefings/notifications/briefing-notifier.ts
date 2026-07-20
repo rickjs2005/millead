@@ -25,10 +25,17 @@ export class DefaultBriefingNotifier implements BriefingNotifier {
     pdfBuffer?: Buffer | null;
   }): Promise<void> {
     if (!env.OWNER_EMAIL) {
-      logger.info({ briefingTitle: input.briefingTitle }, "OWNER_EMAIL não configurado -- notificação pulada");
+      logger.info(
+        { briefingTitle: input.briefingTitle },
+        "OWNER_EMAIL não configurado -- notificação pulada",
+      );
       return;
     }
-    const { subject, html } = emailConclusaoAdmin(input.briefingTitle, input.contactName, input.pdfUrl);
+    const { subject, html } = emailConclusaoAdmin(
+      input.briefingTitle,
+      input.contactName,
+      input.pdfUrl,
+    );
     await sendEmail({
       to: env.OWNER_EMAIL,
       subject,

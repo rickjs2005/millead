@@ -12,7 +12,14 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import type { BriefingField, BriefingFile } from "@/types/api";
 import { FileField } from "./file-field";
-import { isMultiField, maskCEP, maskCNPJ, maskPhoneBR, normalizeUrl, pickMask } from "./field-utils";
+import {
+  isMultiField,
+  maskCEP,
+  maskCNPJ,
+  maskPhoneBR,
+  normalizeUrl,
+  pickMask,
+} from "./field-utils";
 import { TagsInput } from "./tags-input";
 import type { LocalAnswer } from "./use-briefing-wizard";
 
@@ -102,7 +109,8 @@ export function FieldRenderer({
           onChange={(e) => onChange({ valueText: e.target.value })}
           onBlur={(e) => {
             const normalized = normalizeUrl(e.target.value);
-            if (normalized !== e.target.value) onChange({ valueText: normalized }, { debounce: false });
+            if (normalized !== e.target.value)
+              onChange({ valueText: normalized }, { debounce: false });
           }}
         />
       );
@@ -151,9 +159,7 @@ export function FieldRenderer({
                   onCheckedChange={(c) =>
                     onChange(
                       {
-                        valueJson: c
-                          ? [...selected, option]
-                          : selected.filter((s) => s !== option),
+                        valueJson: c ? [...selected, option] : selected.filter((s) => s !== option),
                       },
                       { debounce: false },
                     )

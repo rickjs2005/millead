@@ -128,7 +128,8 @@ export default function BriefingDetailPage() {
                 onClick={() =>
                   confirm({
                     title: "Arquivar briefing?",
-                    description: "O link público deixa de funcionar. Essa ação não pode ser desfeita.",
+                    description:
+                      "O link público deixa de funcionar. Essa ação não pode ser desfeita.",
                     confirmLabel: "Arquivar",
                     onConfirm: () => archiveBriefing.mutate(briefing.id),
                   })

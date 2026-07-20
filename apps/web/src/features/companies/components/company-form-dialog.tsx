@@ -48,13 +48,7 @@ function toPayload(values: FormValues) {
 }
 
 /** Dialog compartilhado de criar/editar: passe `company` pra entrar em modo edição. */
-export function CompanyFormDialog({
-  company,
-  trigger,
-}: {
-  company?: Company;
-  trigger: ReactNode;
-}) {
+export function CompanyFormDialog({ company, trigger }: { company?: Company; trigger: ReactNode }) {
   const [open, setOpen] = useState(false);
   const createCompany = useCreateCompany();
   const updateCompany = useUpdateCompany(company?.id ?? "");
@@ -112,13 +106,21 @@ export function CompanyFormDialog({
               </div>
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor="company-segment">Segmento</Label>
-                <Input id="company-segment" placeholder="Ex.: Restaurante" {...register("segment")} />
+                <Input
+                  id="company-segment"
+                  placeholder="Ex.: Restaurante"
+                  {...register("segment")}
+                />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor="company-size">Porte estimado</Label>
-                <Input id="company-size" placeholder="Ex.: 1-10 funcionários" {...register("sizeEstimate")} />
+                <Input
+                  id="company-size"
+                  placeholder="Ex.: 1-10 funcionários"
+                  {...register("sizeEstimate")}
+                />
               </div>
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor="company-phone">Telefone</Label>

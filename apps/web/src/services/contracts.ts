@@ -85,8 +85,7 @@ export async function createPublicContract(
     body: JSON.stringify({ organizationSlug, ...payload }),
   });
   const body = (await res.json()) as
-    | { numero: string; status: ContractStatus }
-    | { error?: { message?: string } };
+    { numero: string; status: ContractStatus } | { error?: { message?: string } };
   if (!res.ok) {
     throw new Error(
       ("error" in body && body.error?.message) || "Não foi possível enviar o contrato.",

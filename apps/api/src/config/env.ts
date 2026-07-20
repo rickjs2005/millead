@@ -105,7 +105,8 @@ const productionEnvSchema = envSchema.superRefine((val, ctx) => {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
       path: ["CORS_ORIGIN"],
-      message: "CORS_ORIGIN deve ser definida explicitamente em produção (não pode ser o default localhost).",
+      message:
+        "CORS_ORIGIN deve ser definida explicitamente em produção (não pode ser o default localhost).",
     });
   }
 });

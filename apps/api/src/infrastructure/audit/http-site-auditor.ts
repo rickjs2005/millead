@@ -22,9 +22,7 @@ class CategoryBuilder {
 
   build(category: AuditCategoryResult["category"]): AuditCategoryResult {
     const totalWeight = this.checks.reduce((sum, c) => sum + c.weight, 0);
-    const passedWeight = this.checks
-      .filter((c) => c.passed)
-      .reduce((sum, c) => sum + c.weight, 0);
+    const passedWeight = this.checks.filter((c) => c.passed).reduce((sum, c) => sum + c.weight, 0);
     const score = totalWeight === 0 ? 0 : Math.round((passedWeight / totalWeight) * 100);
     return { category, score, checks: this.checks };
   }
@@ -116,9 +114,7 @@ export class HttpSiteAuditor implements SiteAuditor {
     const canonical = $('link[rel="canonical"]').attr("href");
     const htmlBytes = Buffer.byteLength(html, "utf8");
     const deprecatedTags = $("font, marquee, center, blink").length;
-    const mixedContent = isHttps
-      ? $('[src^="http://"], link[href^="http://"]').length
-      : 0;
+    const mixedContent = isHttps ? $('[src^="http://"], link[href^="http://"]').length : 0;
 
     // ---- PERFORMANCE ----
     const performance = new CategoryBuilder();
@@ -171,9 +167,7 @@ export class HttpSiteAuditor implements SiteAuditor {
       "Meta description",
       metaDescription.length >= 50 && metaDescription.length <= 160,
       2,
-      metaDescription
-        ? `${metaDescription.length} chars (bom: 50-160)`
-        : "ausente",
+      metaDescription ? `${metaDescription.length} chars (bom: 50-160)` : "ausente",
     );
     seo.add("h1", "Um único H1 na página", h1Count === 1, 1, `${h1Count} encontrado(s)`);
     seo.add("canonical", "URL canônica declarada", !!canonical, 1);
@@ -221,7 +215,12 @@ export class HttpSiteAuditor implements SiteAuditor {
     // ---- SEGURANÇA ----
     const security = new CategoryBuilder();
     security.add("https", "HTTPS", isHttps, 3, isHttps ? "ok" : "site servido em HTTP");
-    security.add("hsts", "HSTS (Strict-Transport-Security)", !!headers.get("strict-transport-security"), 2);
+    security.add(
+      "hsts",
+      "HSTS (Strict-Transport-Security)",
+      !!headers.get("strict-transport-security"),
+      2,
+    );
     security.add(
       "content-type-options",
       "X-Content-Type-Options: nosniff",
@@ -235,12 +234,7 @@ export class HttpSiteAuditor implements SiteAuditor {
         (headers.get("content-security-policy") ?? "").includes("frame-ancestors"),
       1,
     );
-    security.add(
-      "csp",
-      "Content-Security-Policy",
-      !!headers.get("content-security-policy"),
-      2,
-    );
+    security.add("csp", "Content-Security-Policy", !!headers.get("content-security-policy"), 2);
     security.add(
       "mixed-content",
       "Sem conteúdo misto (http:// em página https)",
@@ -274,12 +268,7 @@ export class HttpSiteAuditor implements SiteAuditor {
 
     // ---- DESIGN ----
     const design = new CategoryBuilder();
-    design.add(
-      "doctype",
-      "DOCTYPE HTML5",
-      /^\s*<!doctype html>/i.test(html),
-      1,
-    );
+    design.add("doctype", "DOCTYPE HTML5", /^\s*<!doctype html>/i.test(html), 1);
     design.add("favicon", "Favicon", hasFaviconTag || (faviconRes?.ok ?? false), 2);
     design.add("og-image", "Imagem de compartilhamento (og:image)", !!ogImage, 1);
     design.add(
@@ -289,12 +278,7 @@ export class HttpSiteAuditor implements SiteAuditor {
       2,
       deprecatedTags > 0 ? `${deprecatedTags} encontrada(s)` : "ok",
     );
-    design.add(
-      "styles",
-      "CSS presente",
-      $('link[rel="stylesheet"], style').length > 0,
-      1,
-    );
+    design.add("styles", "CSS presente", $('link[rel="stylesheet"], style').length > 0, 1);
 
     const categories: AuditCategoryResult[] = [
       performance.build("PERFORMANCE"),
@@ -305,9 +289,7 @@ export class HttpSiteAuditor implements SiteAuditor {
       design.build("DESIGN"),
     ];
 
-    const overall = Math.round(
-      categories.reduce((sum, c) => sum + c.score, 0) / categories.length,
-    );
+    const overall = Math.round(categories.reduce((sum, c) => sum + c.score, 0) / categories.length);
     const sorted = [...categories].sort((a, b) => b.score - a.score);
     const best = sorted[0]!;
     const worst = sorted[sorted.length - 1]!;

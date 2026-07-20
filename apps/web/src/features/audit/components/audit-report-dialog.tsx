@@ -49,7 +49,10 @@ export function AuditReportDialog({ audit, trigger }: { audit: Audit; trigger: R
                   <div className="flex items-center gap-2">
                     <Icon className="h-4 w-4 text-muted-foreground" />
                     <h3 className="text-sm font-semibold">{AUDIT_CATEGORY_LABELS[category]}</h3>
-                    <Badge variant="outline" className={cn("ml-auto tabular-nums", scoreColorClass(score.score))}>
+                    <Badge
+                      variant="outline"
+                      className={cn("ml-auto tabular-nums", scoreColorClass(score.score))}
+                    >
                       {score.score}/100
                     </Badge>
                   </div>

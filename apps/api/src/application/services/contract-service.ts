@@ -1,9 +1,6 @@
 import type { ContractStatus } from "@millead/database";
 import { env } from "../../config/env.js";
-import type {
-  ContractedSnapshot,
-  ContractorSnapshot,
-} from "../../domain/entities/contract.js";
+import type { ContractedSnapshot, ContractorSnapshot } from "../../domain/entities/contract.js";
 import {
   NotFoundError,
   UnauthorizedError,
@@ -100,8 +97,7 @@ export class ContractService {
       nomeEmpresa: input.nomeEmpresa ?? null,
     };
 
-    const numeroPrefix =
-      organization.slug.replace(/[^a-zA-Z0-9]/g, "").toUpperCase() || "CONTRATO";
+    const numeroPrefix = organization.slug.replace(/[^a-zA-Z0-9]/g, "").toUpperCase() || "CONTRATO";
 
     const contract = await this.contracts.create({
       organizationId,

@@ -29,9 +29,7 @@ export function useAudit(id: string | undefined) {
     queryFn: () => auditsService.get(id!),
     enabled: !!id,
     refetchInterval: (query) =>
-      query.state.data && PENDING_STATUSES.has(query.state.data.status)
-        ? POLL_INTERVAL_MS
-        : false,
+      query.state.data && PENDING_STATUSES.has(query.state.data.status) ? POLL_INTERVAL_MS : false,
   });
 }
 

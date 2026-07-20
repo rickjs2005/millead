@@ -1,7 +1,4 @@
-import type {
-  ContractedSnapshot,
-  ContractorSnapshot,
-} from "../../domain/entities/contract.js";
+import type { ContractedSnapshot, ContractorSnapshot } from "../../domain/entities/contract.js";
 import type { ContractRepository } from "../../domain/repositories/contract-repository.js";
 import type { ContractNotifier } from "../../domain/services/contract-notifier.js";
 import type { ContractSignatureGateway } from "../../domain/services/contract-signature.js";

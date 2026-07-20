@@ -50,8 +50,7 @@ export function useCreateTemplate() {
       queryClient.invalidateQueries({ queryKey: queryKeys.messages.templates() });
       toast.success("Modelo criado.");
     },
-    onError: (err) =>
-      toast.error(err instanceof ApiError ? err.message : "Erro ao criar modelo."),
+    onError: (err) => toast.error(err instanceof ApiError ? err.message : "Erro ao criar modelo."),
   });
 }
 

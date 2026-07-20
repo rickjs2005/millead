@@ -26,8 +26,8 @@ export default function PublicClosingPage() {
           <Logo />
           <h1 className="text-2xl font-semibold tracking-tight">Fechamento de contrato</h1>
           <p className="max-w-lg text-sm text-muted-foreground">
-            Preencha seus dados e as condições combinadas. Você recebe o contrato em PDF e o
-            link de assinatura eletrônica por e-mail.
+            Preencha seus dados e as condições combinadas. Você recebe o contrato em PDF e o link de
+            assinatura eletrônica por e-mail.
           </p>
         </div>
 
@@ -38,8 +38,8 @@ export default function PublicClosingPage() {
                 <CheckCircle2 className="h-12 w-12 text-success" />
                 <h2 className="text-lg font-semibold">Contrato {numero} criado!</h2>
                 <p className="max-w-md text-sm text-muted-foreground">
-                  Estamos gerando o PDF e o link de assinatura. Fique de olho no seu e-mail —
-                  o convite pra assinar chega em instantes.
+                  Estamos gerando o PDF e o link de assinatura. Fique de olho no seu e-mail — o
+                  convite pra assinar chega em instantes.
                 </p>
               </div>
             ) : (

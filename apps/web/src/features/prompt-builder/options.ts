@@ -150,12 +150,20 @@ export const FRAMEWORKS: Option[] = [
 ];
 
 export const LANGUAGES: Option[] = [
-  { value: "typescript", label: "TypeScript", guidance: "TypeScript, com tipagem onde fizer sentido." },
+  {
+    value: "typescript",
+    label: "TypeScript",
+    guidance: "TypeScript, com tipagem onde fizer sentido.",
+  },
   { value: "javascript", label: "JavaScript", guidance: "JavaScript moderno (ES modules)." },
 ];
 
 export const ANIMATIONS: Option[] = [
-  { value: "none", label: "Nenhuma (estático)", guidance: "sem animações; foco em performance e clareza." },
+  {
+    value: "none",
+    label: "Nenhuma (estático)",
+    guidance: "sem animações; foco em performance e clareza.",
+  },
   {
     value: "subtle",
     label: "Sutis (hover/transições CSS)",
@@ -231,32 +239,101 @@ export const EFFECTS: Option[] = [
 ];
 
 export const SECTIONS: Option[] = [
-  { value: "nav", label: "Header / Navegação", guidance: "cabeçalho fixo com logo e navegação (âncoras)." },
-  { value: "hero", label: "Hero", guidance: "hero com título forte, subtítulo e CTA principal em destaque." },
+  {
+    value: "nav",
+    label: "Header / Navegação",
+    guidance: "cabeçalho fixo com logo e navegação (âncoras).",
+  },
+  {
+    value: "hero",
+    label: "Hero",
+    guidance: "hero com título forte, subtítulo e CTA principal em destaque.",
+  },
   { value: "sobre", label: "Sobre", guidance: "quem é o negócio e por que confiar nele." },
-  { value: "servicos", label: "Serviços / Produtos", guidance: "grade de serviços ou produtos, cada um com ícone/foto e descrição curta." },
-  { value: "diferenciais", label: "Diferenciais", guidance: "por que escolher este negócio — 3 a 6 pontos." },
-  { value: "numeros", label: "Números / Resultados", guidance: "estatísticas de impacto (anos, clientes, projetos)." },
-  { value: "depoimentos", label: "Depoimentos", guidance: "prova social com depoimentos de clientes." },
-  { value: "galeria", label: "Galeria / Portfólio", guidance: "grade de imagens de trabalhos/produtos." },
-  { value: "precos", label: "Planos / Preços", guidance: "tabela de planos ou faixa de preço com CTA em cada." },
+  {
+    value: "servicos",
+    label: "Serviços / Produtos",
+    guidance: "grade de serviços ou produtos, cada um com ícone/foto e descrição curta.",
+  },
+  {
+    value: "diferenciais",
+    label: "Diferenciais",
+    guidance: "por que escolher este negócio — 3 a 6 pontos.",
+  },
+  {
+    value: "numeros",
+    label: "Números / Resultados",
+    guidance: "estatísticas de impacto (anos, clientes, projetos).",
+  },
+  {
+    value: "depoimentos",
+    label: "Depoimentos",
+    guidance: "prova social com depoimentos de clientes.",
+  },
+  {
+    value: "galeria",
+    label: "Galeria / Portfólio",
+    guidance: "grade de imagens de trabalhos/produtos.",
+  },
+  {
+    value: "precos",
+    label: "Planos / Preços",
+    guidance: "tabela de planos ou faixa de preço com CTA em cada.",
+  },
   { value: "faq", label: "FAQ", guidance: "perguntas frequentes em acordeão." },
   { value: "cta", label: "CTA final", guidance: "chamada final forte, tela limpa, botão grande." },
-  { value: "contato", label: "Contato / Formulário", guidance: "formulário de contato e/ou botão de WhatsApp." },
+  {
+    value: "contato",
+    label: "Contato / Formulário",
+    guidance: "formulário de contato e/ou botão de WhatsApp.",
+  },
   { value: "mapa", label: "Mapa / Localização", guidance: "endereço e mapa embutido." },
   { value: "footer", label: "Footer", guidance: "rodapé com contato, redes sociais e copyright." },
 ];
 
 export const GOALS: Option[] = [
-  { value: "whatsapp", label: "Gerar contato no WhatsApp", guidance: "converter o visitante em uma conversa no WhatsApp; botões de WhatsApp bem visíveis, com mensagem pré-preenchida." },
-  { value: "lead", label: "Capturar leads (formulário)", guidance: "capturar dados do visitante num formulário curto e objetivo." },
-  { value: "venda", label: "Vender um produto/serviço", guidance: "levar à compra; destaque de oferta, benefícios e prova social, com CTA de compra." },
-  { value: "agendamento", label: "Agendar reunião/consulta", guidance: "levar o visitante a agendar um horário; CTA de agendamento em destaque." },
-  { value: "institucional", label: "Apresentar a empresa", guidance: "passar credibilidade e apresentar a empresa (institucional), com contato ao fim." },
-  { value: "evento", label: "Divulgar um evento", guidance: "divulgar um evento com data, local e inscrição/CTA." },
+  {
+    value: "whatsapp",
+    label: "Gerar contato no WhatsApp",
+    guidance:
+      "converter o visitante em uma conversa no WhatsApp; botões de WhatsApp bem visíveis, com mensagem pré-preenchida.",
+  },
+  {
+    value: "lead",
+    label: "Capturar leads (formulário)",
+    guidance: "capturar dados do visitante num formulário curto e objetivo.",
+  },
+  {
+    value: "venda",
+    label: "Vender um produto/serviço",
+    guidance: "levar à compra; destaque de oferta, benefícios e prova social, com CTA de compra.",
+  },
+  {
+    value: "agendamento",
+    label: "Agendar reunião/consulta",
+    guidance: "levar o visitante a agendar um horário; CTA de agendamento em destaque.",
+  },
+  {
+    value: "institucional",
+    label: "Apresentar a empresa",
+    guidance: "passar credibilidade e apresentar a empresa (institucional), com contato ao fim.",
+  },
+  {
+    value: "evento",
+    label: "Divulgar um evento",
+    guidance: "divulgar um evento com data, local e inscrição/CTA.",
+  },
 ];
 
-export const DEFAULT_SECTIONS = ["nav", "hero", "sobre", "servicos", "diferenciais", "contato", "footer"];
+export const DEFAULT_SECTIONS = [
+  "nav",
+  "hero",
+  "sobre",
+  "servicos",
+  "diferenciais",
+  "contato",
+  "footer",
+];
 
 export function findOption(list: Option[], value: string): Option | undefined {
   return list.find((o) => o.value === value);

@@ -1,14 +1,6 @@
 "use client";
 
-import {
-  ArrowLeft,
-  Ban,
-  Copy,
-  Download,
-  FileSignature,
-  Loader2,
-  RefreshCw,
-} from "lucide-react";
+import { ArrowLeft, Ban, Copy, Download, FileSignature, Loader2, RefreshCw } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { toast } from "sonner";
@@ -55,8 +47,7 @@ export default function ContractDetailPage() {
 
   const c = contract.contractorSnapshot;
   const pending = CONTRACT_PENDING_STATUSES.includes(contract.status);
-  const entrada =
-    (Number(contract.valorTotal) * Number(contract.percentualEntrada)) / 100;
+  const entrada = (Number(contract.valorTotal) * Number(contract.percentualEntrada)) / 100;
 
   async function openPdf(versao: "original" | "assinado") {
     try {
@@ -151,7 +142,9 @@ export default function ContractDetailPage() {
               <p className="text-muted-foreground">
                 {c.tipoPessoa === "PJ" ? "CNPJ" : "CPF"}: {c.documento}
               </p>
-              <p className="text-muted-foreground">{c.email} · {c.telefone}</p>
+              <p className="text-muted-foreground">
+                {c.email} · {c.telefone}
+              </p>
               <p className="text-muted-foreground">{c.endereco}</p>
               <Link
                 href={`/companies/${contract.companyId}`}
@@ -188,8 +181,8 @@ export default function ContractDetailPage() {
                   {formatCurrency(entrada)}
                 </p>
                 <p>
-                  <span className="text-muted-foreground">Prazo:</span>{" "}
-                  {contract.prazoEntregaDias} dias
+                  <span className="text-muted-foreground">Prazo:</span> {contract.prazoEntregaDias}{" "}
+                  dias
                 </p>
               </div>
               {contract.assinadoEm && (

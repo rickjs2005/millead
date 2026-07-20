@@ -20,11 +20,9 @@ export interface DraftMessagePayload {
 export const aiService = {
   status: () => api.get<AiStatus>("/api/v1/ai/status"),
 
-  scoreLead: (leadId: string) =>
-    api.post<LeadScoreResponse>(`/api/v1/ai/leads/${leadId}/score`),
+  scoreLead: (leadId: string) => api.post<LeadScoreResponse>(`/api/v1/ai/leads/${leadId}/score`),
 
-  reportLead: (leadId: string) =>
-    api.post<LeadReportResponse>(`/api/v1/ai/leads/${leadId}/report`),
+  reportLead: (leadId: string) => api.post<LeadReportResponse>(`/api/v1/ai/leads/${leadId}/report`),
 
   draftMessage: (leadId: string, payload: DraftMessagePayload) =>
     api.post<Message>(`/api/v1/ai/leads/${leadId}/message`, payload),

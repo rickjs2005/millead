@@ -25,7 +25,10 @@ const schema = z.object({
   nome: z.string().min(2, "Informe o nome completo."),
   documento: z
     .string()
-    .refine((v) => [11, 14].includes(v.replace(/\D/g, "").length), "CPF (11) ou CNPJ (14 dígitos)."),
+    .refine(
+      (v) => [11, 14].includes(v.replace(/\D/g, "").length),
+      "CPF (11) ou CNPJ (14 dígitos).",
+    ),
   email: z.string().email("E-mail inválido."),
   telefone: z.string().min(8, "Informe um telefone válido."),
   endereco: z.string().min(5, "Informe o endereço completo."),
@@ -133,7 +136,11 @@ export function ContractForm({
         </div>
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="ct-endereco">Endereço completo</Label>
-          <Input id="ct-endereco" placeholder="Rua, número, bairro, cidade - UF" {...register("endereco")} />
+          <Input
+            id="ct-endereco"
+            placeholder="Rua, número, bairro, cidade - UF"
+            {...register("endereco")}
+          />
           {err(errors.endereco?.message)}
         </div>
       </div>
@@ -202,12 +209,24 @@ export function ContractForm({
           </div>
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="ct-entrada">Entrada (%)</Label>
-            <Input id="ct-entrada" type="number" min="0" max="100" {...register("percentualEntrada")} />
+            <Input
+              id="ct-entrada"
+              type="number"
+              min="0"
+              max="100"
+              {...register("percentualEntrada")}
+            />
             {err(errors.percentualEntrada?.message)}
           </div>
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="ct-prazo">Prazo (dias)</Label>
-            <Input id="ct-prazo" type="number" min="1" max="365" {...register("prazoEntregaDias")} />
+            <Input
+              id="ct-prazo"
+              type="number"
+              min="1"
+              max="365"
+              {...register("prazoEntregaDias")}
+            />
             {err(errors.prazoEntregaDias?.message)}
           </div>
           <div className="flex flex-col justify-end">

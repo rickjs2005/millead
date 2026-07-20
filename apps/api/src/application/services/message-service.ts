@@ -64,7 +64,10 @@ export class MessageService {
     return this.templates.listForOrg(organizationId);
   }
 
-  createTemplate(organizationId: string, input: Omit<CreateMessageTemplateInput, "organizationId">) {
+  createTemplate(
+    organizationId: string,
+    input: Omit<CreateMessageTemplateInput, "organizationId">,
+  ) {
     return this.templates.create({ organizationId, ...input });
   }
 

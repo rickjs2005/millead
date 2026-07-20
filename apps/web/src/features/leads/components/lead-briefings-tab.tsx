@@ -6,7 +6,10 @@ import { EmptyState } from "@/components/empty-state";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
-import { BRIEFING_STATUS_LABELS, BRIEFING_STATUS_VARIANT } from "@/features/briefings/briefing-labels";
+import {
+  BRIEFING_STATUS_LABELS,
+  BRIEFING_STATUS_VARIANT,
+} from "@/features/briefings/briefing-labels";
 import { useBriefings } from "@/features/briefings/hooks";
 import { formatDate } from "@/utils/format";
 

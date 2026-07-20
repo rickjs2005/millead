@@ -37,7 +37,11 @@ export function RepeatableGroupField({
   token,
   keyHeuristics = true,
 }: RepeatableGroupFieldProps) {
-  const config = field.config as { minItems?: number; maxItems?: number; itemLabel?: string } | null;
+  const config = field.config as {
+    minItems?: number;
+    maxItems?: number;
+    itemLabel?: string;
+  } | null;
   const itemLabel = config?.itemLabel ?? "Item";
   const maxItems = config?.maxItems ?? 20;
 

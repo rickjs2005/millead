@@ -5,11 +5,7 @@ interface AuthState {
   user: PublicUser | null;
   organization: OrganizationRef | null;
   role: RoleRef | null;
-  setSession: (session: {
-    user: PublicUser;
-    organization: OrganizationRef;
-    role: RoleRef;
-  }) => void;
+  setSession: (session: { user: PublicUser; organization: OrganizationRef; role: RoleRef }) => void;
   /** Atualiza campos do usuário em cache após edição de perfil. */
   patchUser: (patch: Partial<PublicUser>) => void;
   /** Atualiza campos da organização em cache após edição em settings. */

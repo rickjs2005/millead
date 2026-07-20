@@ -186,14 +186,21 @@ export function buildContainer(): Container {
     new DefaultBriefingNotifier(),
     activityLogger,
   );
-  const briefingAnswerService = new BriefingAnswerService(briefingRepository, briefingAnswerRepository);
+  const briefingAnswerService = new BriefingAnswerService(
+    briefingRepository,
+    briefingAnswerRepository,
+  );
   const briefingCompletionService = new BriefingCompletionService(
     briefingRepository,
     briefingAnswerRepository,
     new BullBriefingQueue(),
     activityLogger,
   );
-  const briefingFileService = new BriefingFileService(briefingRepository, briefingFileRepository, blobStorage);
+  const briefingFileService = new BriefingFileService(
+    briefingRepository,
+    briefingFileRepository,
+    blobStorage,
+  );
   const aiService = new AiService(
     leadAi,
     leadRepository,

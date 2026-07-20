@@ -5,7 +5,12 @@ import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { AUDIT_STATUS_LABELS, AUDIT_STATUS_VARIANT, overallScore, scoreColorClass } from "@/features/audit/audit-labels";
+import {
+  AUDIT_STATUS_LABELS,
+  AUDIT_STATUS_VARIANT,
+  overallScore,
+  scoreColorClass,
+} from "@/features/audit/audit-labels";
 import { AuditReportDialog } from "@/features/audit/components/audit-report-dialog";
 import { AuditScoresRow } from "@/features/audit/components/audit-scores-row";
 import { useCompany } from "@/features/companies/hooks";

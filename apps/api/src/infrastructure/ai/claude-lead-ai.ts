@@ -138,7 +138,10 @@ export class ClaudeLeadAi implements LeadAi {
     }
     const text = response.content.find((b) => b.type === "text")?.text ?? "";
     const parsed = JSON.parse(text) as LeadScoreResult;
-    return { score: Math.max(0, Math.min(100, Math.round(parsed.score))), rationale: parsed.rationale };
+    return {
+      score: Math.max(0, Math.min(100, Math.round(parsed.score))),
+      rationale: parsed.rationale,
+    };
   }
 
   async draftMessage(context: LeadAiContext, input: MessageDraftInput): Promise<string> {
@@ -149,7 +152,11 @@ export class ClaudeLeadAi implements LeadAi {
       renderContext(context),
     ];
     if (input.templateBody) {
-      parts.push("", "Use este modelo como ponto de partida (adapte com os dados do lead):", input.templateBody);
+      parts.push(
+        "",
+        "Use este modelo como ponto de partida (adapte com os dados do lead):",
+        input.templateBody,
+      );
     }
     if (input.instructions) {
       parts.push("", `Instruções adicionais do vendedor: ${input.instructions}`);

@@ -39,13 +39,7 @@ const schema = z.object({
 });
 type FormValues = z.infer<typeof schema>;
 
-export function EditLeadDialog({
-  lead,
-  companyName,
-}: {
-  lead: LeadDetail;
-  companyName?: string;
-}) {
+export function EditLeadDialog({ lead, companyName }: { lead: LeadDetail; companyName?: string }) {
   const [open, setOpen] = useState(false);
   const updateLead = useUpdateLead(lead.id);
 

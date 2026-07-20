@@ -170,7 +170,10 @@ async function main() {
   const targetsLocalDb = /@(localhost|127\.0\.0\.1|host\.docker\.internal|db|postgres)[:/]/.test(
     dbUrl,
   );
-  if (!process.env.SEED_OWNER_PASSWORD && (process.env.NODE_ENV === "production" || !targetsLocalDb)) {
+  if (
+    !process.env.SEED_OWNER_PASSWORD &&
+    (process.env.NODE_ENV === "production" || !targetsLocalDb)
+  ) {
     throw new Error(
       "SEED_OWNER_PASSWORD é obrigatória quando o banco alvo não é local -- recusando criar um " +
         "owner com a senha padrão de dev (pública no repositório) num banco de nuvem/produção.",

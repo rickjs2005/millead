@@ -17,7 +17,14 @@ interface FileFieldProps {
   onFileRegistered: (file: BriefingFile) => void;
 }
 
-export function FileField({ field, value, files, token, onChange, onFileRegistered }: FileFieldProps) {
+export function FileField({
+  field,
+  value,
+  files,
+  token,
+  onChange,
+  onFileRegistered,
+}: FileFieldProps) {
   const [uploading, setUploading] = useState(false);
   const ids = Array.isArray(value?.valueJson) ? (value!.valueJson as string[]) : [];
   const config = field.config as { accept?: string[]; maxFiles?: number } | null;
@@ -93,7 +100,9 @@ export function FileField({ field, value, files, token, onChange, onFileRegister
                 <span className="truncate">{file.originalName}</span>
                 <button
                   type="button"
-                  onClick={() => onChange({ valueJson: ids.filter((i) => i !== id) }, { debounce: false })}
+                  onClick={() =>
+                    onChange({ valueJson: ids.filter((i) => i !== id) }, { debounce: false })
+                  }
                   className="shrink-0 text-muted-foreground hover:text-destructive"
                   aria-label="Remover arquivo"
                 >
