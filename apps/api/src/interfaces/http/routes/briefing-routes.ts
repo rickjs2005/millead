@@ -4,6 +4,7 @@ import rateLimit from "express-rate-limit";
 import {
   confirmFileSchema,
   createBriefingSchema,
+  createCustomBriefingSchema,
   listBriefingsQuerySchema,
   removeGroupItemSchema,
   saveAnswerSchema,
@@ -32,6 +33,12 @@ export function createBriefingRoutes(
   router.get("/templates/:key", read, asyncHandler(controller.getTemplate));
 
   router.post("/", write, validateBody(createBriefingSchema), asyncHandler(controller.create));
+  router.post(
+    "/custom",
+    write,
+    validateBody(createCustomBriefingSchema),
+    asyncHandler(controller.createCustom),
+  );
   router.get("/", read, validateQuery(listBriefingsQuerySchema), asyncHandler(controller.list));
   router.get("/:id", read, asyncHandler(controller.get));
   router.post("/:id/archive", write, asyncHandler(controller.archive));

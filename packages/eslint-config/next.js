@@ -6,6 +6,9 @@ const compat = new FlatCompat({ baseDirectory: import.meta.dirname });
 
 /** @type {import('eslint').Linter.Config[]} */
 export default [
+  // `next-env.d.ts` é gerado pelo Next (inclui triple-slash reference pro
+  // .next/types) -- não é código nosso, não deve ser lintado.
+  { ignores: ["next-env.d.ts"] },
   ...base,
   ...compat.extends("next/core-web-vitals"),
   // `next/core-web-vitals` reafirma o PRÓPRIO parser TS por cima do nosso

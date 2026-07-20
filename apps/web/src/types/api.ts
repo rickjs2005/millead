@@ -544,7 +544,7 @@ export interface LeadFinance {
 
 // ---------- Briefings ----------
 
-export type BriefingTemplateKind = "INSTITUCIONAL" | "ECOMMERCE";
+export type BriefingTemplateKind = "INSTITUCIONAL" | "ECOMMERCE" | "CUSTOM";
 export type BriefingFieldType =
   | "TEXT"
   | "TEXTAREA"

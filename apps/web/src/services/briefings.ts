@@ -14,6 +14,34 @@ export interface CreateBriefingPayload {
   companyId?: string;
 }
 
+export type CustomBriefingFieldType =
+  | "TEXT"
+  | "TEXTAREA"
+  | "EMAIL"
+  | "PHONE"
+  | "URL"
+  | "SELECT"
+  | "MULTI_SELECT"
+  | "FILE";
+
+export interface CustomBriefingFieldInput {
+  label: string;
+  type: CustomBriefingFieldType;
+  required?: boolean;
+  helpText?: string;
+  options?: string[];
+  maxFiles?: number;
+}
+
+export interface CreateCustomBriefingPayload {
+  title: string;
+  description?: string;
+  leadId?: string;
+  companyId?: string;
+  includeContact?: boolean;
+  fields: CustomBriefingFieldInput[];
+}
+
 export interface ListBriefingsParams {
   page?: number;
   pageSize?: number;
@@ -30,6 +58,9 @@ export const briefingsService = {
 
   create: (payload: CreateBriefingPayload) =>
     api.post<Briefing & { link: { token: string } }>("/api/v1/briefings", payload),
+
+  createCustom: (payload: CreateCustomBriefingPayload) =>
+    api.post<Briefing & { link: { token: string } }>("/api/v1/briefings/custom", payload),
 
   archive: (id: string) => api.post<Briefing>(`/api/v1/briefings/${id}/archive`),
 

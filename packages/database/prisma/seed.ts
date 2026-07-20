@@ -1,5 +1,5 @@
 import bcrypt from "bcryptjs";
-import { PrismaClient } from "../src/generated/client/index.js";
+import { PrismaClient, type Prisma } from "../src/generated/client/index.js";
 import { ALL_PERMISSIONS, SYSTEM_ROLES } from "../src/permissions.js";
 import { BRIEFING_TEMPLATES, type FieldSeed } from "./seed-data/briefing-templates.js";
 
@@ -48,7 +48,7 @@ async function seedBriefingTemplates() {
             order: fieldOrder,
             required: field.required ?? false,
             helpText: field.helpText,
-            config: field.config,
+            config: field.config as Prisma.InputJsonValue | undefined,
           },
           create: {
             sectionId: dbSection.id,
@@ -58,7 +58,7 @@ async function seedBriefingTemplates() {
             order: fieldOrder,
             required: field.required ?? false,
             helpText: field.helpText,
-            config: field.config,
+            config: field.config as Prisma.InputJsonValue | undefined,
           },
         });
 
@@ -85,7 +85,7 @@ async function seedBriefingTemplates() {
               type: child.type,
               order: childOrder,
               required: child.required ?? false,
-              config: child.config,
+              config: child.config as Prisma.InputJsonValue | undefined,
               parentFieldId,
             },
             create: {
@@ -96,7 +96,7 @@ async function seedBriefingTemplates() {
               type: child.type,
               order: childOrder,
               required: child.required ?? false,
-              config: child.config,
+              config: child.config as Prisma.InputJsonValue | undefined,
             },
           });
         }
@@ -165,7 +165,7 @@ async function main() {
   // com uma senha pública do repositório num banco alcançável pela API de
   // produção. A URL do banco é a fonte de verdade do alvo.
   const dbUrl = process.env.DATABASE_URL ?? "";
-  const targetsLocalDb = /@(localhost|127\.0\.0\.1|host\.docker\.internal|db|postgres)[:\/]/.test(
+  const targetsLocalDb = /@(localhost|127\.0\.0\.1|host\.docker\.internal|db|postgres)[:/]/.test(
     dbUrl,
   );
   if (!process.env.SEED_OWNER_PASSWORD && (process.env.NODE_ENV === "production" || !targetsLocalDb)) {

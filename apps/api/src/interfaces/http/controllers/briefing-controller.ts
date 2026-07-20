@@ -2,6 +2,7 @@ import type { Request, Response } from "express";
 import type {
   ConfirmFileRequest,
   CreateBriefingRequest,
+  CreateCustomBriefingRequest,
   ListBriefingsQuery,
   RemoveGroupItemRequest,
   SaveAnswerRequest,
@@ -27,6 +28,13 @@ export class BriefingController {
     const auth = requireAuth(req);
     const body = req.body as CreateBriefingRequest;
     const briefing = await this.service.create(auth.organizationId, auth.userId, body);
+    res.status(201).json(briefing);
+  };
+
+  createCustom = async (req: Request, res: Response): Promise<void> => {
+    const auth = requireAuth(req);
+    const body = req.body as CreateCustomBriefingRequest;
+    const briefing = await this.service.createCustom(auth.organizationId, auth.userId, body);
     res.status(201).json(briefing);
   };
 

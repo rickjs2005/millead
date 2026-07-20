@@ -9,6 +9,57 @@ export const createBriefingSchema = z.object({
 });
 export type CreateBriefingRequest = z.infer<typeof createBriefingSchema>;
 
+/** Tipos de campo que o usuário pode montar num briefing personalizado
+ * (GROUP fica de fora de propósito -- complexidade de UI sem demanda). */
+const customFieldTypeSchema = z.enum([
+  "TEXT",
+  "TEXTAREA",
+  "EMAIL",
+  "PHONE",
+  "URL",
+  "SELECT",
+  "MULTI_SELECT",
+  "FILE",
+]);
+
+const customFieldSchema = z
+  .object({
+    label: z.string().min(1).max(120),
+    type: customFieldTypeSchema,
+    required: z.boolean().optional().default(false),
+    helpText: z.string().max(300).optional(),
+    /** SELECT/MULTI_SELECT: opções que o cliente escolhe. */
+    options: z.array(z.string().min(1).max(80)).max(30).optional(),
+    /** FILE: limite de arquivos (fotos/vídeos). */
+    maxFiles: z.coerce.number().int().min(1).max(30).optional(),
+  })
+  .superRefine((field, ctx) => {
+    if (
+      (field.type === "SELECT" || field.type === "MULTI_SELECT") &&
+      (field.options?.length ?? 0) < 2
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["options"],
+        message: "Campo de escolha precisa de pelo menos 2 opções.",
+      });
+    }
+  });
+export type CustomFieldInput = z.infer<typeof customFieldSchema>;
+
+/** Admin: cria um briefing PERSONALIZADO (template sob medida + link). */
+export const createCustomBriefingSchema = z.object({
+  title: z.string().min(3).max(80),
+  description: z.string().max(300).optional(),
+  leadId: z.string().min(1).optional(),
+  companyId: z.string().min(1).optional(),
+  /** Prefixa a seção "Seus dados" (nome/WhatsApp/e-mail) -- alimenta a
+   * denormalização de contato da lista admin. */
+  includeContact: z.boolean().optional().default(true),
+  fields: z.array(customFieldSchema).min(1).max(30),
+});
+export type CreateCustomBriefingRequest = z.infer<typeof createCustomBriefingSchema>;
+
 export const listBriefingsQuerySchema = paginationSchema.extend({
   status: z.enum(["PENDING", "IN_PROGRESS", "COMPLETED", "ARCHIVED"]).optional(),
   search: z.string().max(120).optional(),

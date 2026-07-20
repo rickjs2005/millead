@@ -105,6 +105,7 @@ model Organization {
   briefingLinks    BriefingLink[]
   briefingAnswers  BriefingAnswer[]
   briefingFiles    BriefingFile[]
+  briefingTemplates BriefingTemplate[]
   briefingHistory  BriefingHistory[]
 
   @@map("organizations")
@@ -1087,6 +1088,8 @@ model Subscription {
 enum BriefingTemplateKind {
   INSTITUCIONAL
   ECOMMERCE
+  /// Formulário montado à mão pelo usuário pra UM envio (org-scoped).
+  CUSTOM
 
   @@map("briefing_template_kind")
 }
@@ -1114,23 +1117,27 @@ enum BriefingStatus {
   @@map("briefing_status")
 }
 
-/// Catálogo GLOBAL de templates de briefing -- não é dado de tenant (sem
-/// organizationId), mesmo padrão do model `Permission`. Populado via seed
-/// (packages/database/prisma/seed-data/briefing-templates.ts); sem editor
-/// de template nesta fase, a aplicação não cria templates em runtime.
+/// Catálogo de templates de briefing. Os do seed são GLOBAIS
+/// (organizationId nulo, mesmo padrão do model `Permission`); templates
+/// `CUSTOM` são criados em runtime pelo usuário (formulário sob medida pra
+/// um envio) e ficam escopados na organização dona -- nunca aparecem no
+/// catálogo de escolha, só existem pra render do wizard/PDF do briefing.
 model BriefingTemplate {
-  id          String               @id @default(cuid())
-  key         String               @unique
-  kind        BriefingTemplateKind
-  name        String
-  description String?
-  isActive    Boolean              @default(true) @map("is_active")
-  createdAt   DateTime             @default(now()) @map("created_at")
-  updatedAt   DateTime             @updatedAt @map("updated_at")
+  id             String               @id @default(cuid())
+  organizationId String?              @map("organization_id")
+  key            String               @unique
+  kind           BriefingTemplateKind
+  name           String
+  description    String?
+  isActive       Boolean              @default(true) @map("is_active")
+  createdAt      DateTime             @default(now()) @map("created_at")
+  updatedAt      DateTime             @updatedAt @map("updated_at")
 
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   sections  BriefingSection[]
   briefings Briefing[]
 
+  @@index([organizationId])
   @@map("briefing_templates")
 }
 

@@ -1,12 +1,16 @@
-import { randomInt } from "node:crypto";
+import { randomBytes, randomInt } from "node:crypto";
 import { NotFoundError, ValidationError } from "../../domain/errors/app-error.js";
 import type {
   BriefingFilters,
   BriefingRepository,
 } from "../../domain/repositories/briefing-repository.js";
-import type { BriefingTemplateRepository } from "../../domain/repositories/briefing-template-repository.js";
+import type {
+  BriefingTemplateRepository,
+  CreateCustomTemplateInput,
+} from "../../domain/repositories/briefing-template-repository.js";
 import type { BriefingNotifier } from "../../domain/services/briefing-notifier.js";
 import type { PaginationParams } from "../../shared/pagination.js";
+import type { CreateCustomBriefingRequest } from "../dto/briefing.dto.js";
 import type { ActivityLogger } from "./activity-logger.js";
 
 // Sem O/0/I/1 -- evita confusão caso o cliente precise ler o código.
@@ -25,6 +29,44 @@ function generatePublicToken(length = 20): string {
     token += TOKEN_ALPHABET[randomInt(TOKEN_ALPHABET.length)];
   }
   return token;
+}
+
+/** "Quais marcas você trabalha?" → "quais_marcas_voce_trabalha". */
+function slugify(label: string): string {
+  const slug = label
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 40);
+  return slug || "campo";
+}
+
+function uniqueKey(base: string, used: Set<string>): string {
+  let key = base;
+  let suffix = 2;
+  while (used.has(key)) key = `${base}_${suffix++}`;
+  used.add(key);
+  return key;
+}
+
+/** Config por tipo, no mesmo formato dos templates do seed. */
+function buildFieldConfig(field: {
+  type: string;
+  options?: string[];
+  maxFiles?: number;
+}): unknown {
+  if (field.type === "SELECT" || field.type === "MULTI_SELECT") {
+    return { options: field.options ?? [] };
+  }
+  if (field.type === "FILE") {
+    return {
+      accept: [".png", ".jpg", ".jpeg", ".webp", ".svg", ".mp4", ".mov", ".webm", ".pdf"],
+      maxFiles: field.maxFiles ?? 10,
+    };
+  }
+  return undefined;
 }
 
 export class BriefingService {
@@ -53,7 +95,79 @@ export class BriefingService {
   ) {
     const template = await this.templates.findByKey(input.templateKey);
     if (!template) throw new ValidationError(`Template "${input.templateKey}" não encontrado.`);
+    // Template CUSTOM pertence a UMA organização e a UM briefing -- não pode
+    // ser instanciado de novo via chave (nem por outra org).
+    if (template.kind === "CUSTOM") {
+      throw new ValidationError("Template personalizado não pode ser reutilizado por chave.");
+    }
 
+    return this.instantiate(organizationId, createdById, template, input);
+  }
+
+  /**
+   * Briefing PERSONALIZADO: o usuário monta os campos na hora (ex.: só
+   * "quais marcas trabalha" pra um cliente específico). Vira um template
+   * kind CUSTOM escopado na organização + um briefing normal apontando pra
+   * ele -- o wizard público, o autosave, o PDF e a lista admin funcionam
+   * sem mudar nada, porque só enxergam "um template com seções e campos".
+   */
+  async createCustom(
+    organizationId: string,
+    createdById: string | null,
+    input: CreateCustomBriefingRequest,
+  ) {
+    const sections: CreateCustomTemplateInput["sections"] = [];
+
+    // Seção de contato compacta: as keys "empresa"/nome/whatsapp/email são
+    // as que o BriefingAnswerService usa pra denormalizar Briefing.contact*.
+    if (input.includeContact) {
+      sections.push({
+        key: "empresa",
+        title: "Seus dados",
+        description: "Pra sabermos quem está respondendo.",
+        order: 0,
+        fields: [
+          { key: "nome", label: "Seu nome", type: "TEXT", order: 0, required: true },
+          { key: "whatsapp", label: "WhatsApp", type: "PHONE", order: 1, required: false },
+          { key: "email", label: "E-mail", type: "EMAIL", order: 2, required: false },
+        ],
+      });
+    }
+
+    const usedKeys = new Set<string>();
+    sections.push({
+      key: "personalizado",
+      title: input.title,
+      description: input.description ?? null,
+      order: sections.length,
+      fields: input.fields.map((field, index) => ({
+        key: uniqueKey(slugify(field.label), usedKeys),
+        label: field.label,
+        type: field.type,
+        order: index,
+        required: field.required ?? false,
+        helpText: field.helpText ?? null,
+        config: buildFieldConfig(field),
+      })),
+    });
+
+    const template = await this.templates.createCustom({
+      organizationId,
+      key: `custom-${randomBytes(6).toString("hex")}`,
+      name: input.title,
+      description: input.description ?? null,
+      sections,
+    });
+
+    return this.instantiate(organizationId, createdById, template, input);
+  }
+
+  private async instantiate(
+    organizationId: string,
+    createdById: string | null,
+    template: { id: string; kind: string },
+    input: { leadId?: string | null; companyId?: string | null },
+  ) {
     const token = await this.generateUniqueToken();
     const briefing = await this.briefings.create({
       organizationId,

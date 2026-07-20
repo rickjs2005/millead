@@ -6,6 +6,7 @@ import { ApiError } from "@/services/api-client";
 import {
   briefingsService,
   type CreateBriefingPayload,
+  type CreateCustomBriefingPayload,
   type ListBriefingsParams,
 } from "@/services/briefings";
 
@@ -63,6 +64,16 @@ export function useCreateBriefing() {
     onSuccess: () => invalidateAll(queryClient),
     onError: (err) =>
       toast.error(err instanceof ApiError ? err.message : "Erro ao criar briefing."),
+  });
+}
+
+export function useCreateCustomBriefing() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: CreateCustomBriefingPayload) => briefingsService.createCustom(payload),
+    onSuccess: () => invalidateAll(queryClient),
+    onError: (err) =>
+      toast.error(err instanceof ApiError ? err.message : "Erro ao criar briefing personalizado."),
   });
 }
 

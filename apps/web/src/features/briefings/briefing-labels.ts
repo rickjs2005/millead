@@ -20,6 +20,7 @@ export const BRIEFING_STATUS_VARIANT: Record<
 export const BRIEFING_TEMPLATE_KIND_LABELS: Record<BriefingTemplateKind, string> = {
   INSTITUCIONAL: "Site Institucional",
   ECOMMERCE: "Loja Virtual",
+  CUSTOM: "Personalizado",
 };
 
 /** Status em que o cliente ainda pode estar preenchendo -- a UI faz polling. */
