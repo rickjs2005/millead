@@ -1,0 +1,28 @@
+name: keep-api-awake
+
+# Mantém a API do MilLead (Render free tier) acordada. O plano free do Render
+# "dorme" após ~15min ocioso e leva ~50-90s pra acordar no próximo request --
+# o que fazia o app parecer travado/em branco ao abrir. Este ping a cada 10min
+# garante que ela nunca durma durante o dia. Actions é ilimitado em repo
+# público, então o custo é zero.
+#
+# Se um dia migrar pra Render pago (sem sleep) ou pra outro host que não dorme,
+# é só deletar este arquivo.
+
+on:
+  schedule:
+    - cron: "*/10 * * * *" # a cada 10 minutos (GitHub roda em UTC)
+  workflow_dispatch: {} # permite disparar manualmente pela aba Actions
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping /health (aguenta o cold start do Render)
+        run: |
+          # --max-time 120: se a API estava dormindo, o próprio ping a acorda
+          #   (pode levar ~90s). --retry cobre uma falha pontual de rede.
+          curl -fsS --max-time 120 --retry 2 --retry-delay 10 \
+            https://millead-api.onrender.com/health \
+            && echo "API respondeu OK" \
+            || { echo "API não respondeu ao ping"; exit 1; }
