@@ -16,7 +16,11 @@ const csp = [
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob: https:",
   "font-src 'self' data:",
-  `connect-src 'self' ${API_URL} https://*.public.blob.vercel-storage.com https://blob.vercel-storage.com`,
+  // `https://vercel.com` é obrigatório: o upload com clientToken do
+  // @vercel/blob/client NÃO fala direto com o storage -- ele faz o PUT via
+  // `https://vercel.com/api/blob/...`. Sem essa origem o CSP bloqueia o
+  // upload do briefing silenciosamente (fetch recusado antes de sair).
+  `connect-src 'self' ${API_URL} https://vercel.com https://*.public.blob.vercel-storage.com https://blob.vercel-storage.com`,
   "frame-ancestors 'none'",
   "object-src 'none'",
   "base-uri 'self'",

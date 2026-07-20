@@ -39,6 +39,16 @@ export const errorHandler: ErrorRequestHandler = (err, req, res, _next) => {
     return;
   }
 
+  // JSON malformado no body: o body-parser lança SyntaxError com status 400
+  // antes de qualquer rota rodar. Sem este ramo, cai no 500 genérico e polui
+  // o log de erro com o que é só um request inválido do cliente.
+  if (err instanceof SyntaxError && "status" in err && err.status === 400 && "body" in err) {
+    res.status(400).json({
+      error: { code: "INVALID_JSON", message: "Corpo da requisição não é um JSON válido." },
+    });
+    return;
+  }
+
   logger.error({ err, path: req.path, method: req.method }, "erro não tratado");
   res.status(500).json({ error: { code: "INTERNAL_ERROR", message: "Erro interno do servidor." } });
 };
