@@ -7,27 +7,11 @@ import { queueConnection } from "./connection.js";
  * strings soltas espalhadas pelo código.
  */
 export const QUEUE_NAMES = {
-  PING: "ping", // fila de exemplo, só pra provar que a infra funciona
   AUDIT_SITE: "audit-site", // Fase 6 -- auditoria de site de prospect
   LANDING_PAGE: "landing-page", // Fase 8 -- geração de landing page por IA
   CONTRACT_PROCESS: "contract-process", // Fase 9 -- PDF + doc de assinatura
   BRIEFING_PROCESS: "briefing-process", // Fase 10 -- PDF + notificações de briefing
 } as const;
-
-export interface PingJobData {
-  message: string;
-  requestedAt: string;
-}
-
-export const pingQueue = new Queue<PingJobData>(QUEUE_NAMES.PING, {
-  connection: queueConnection,
-  defaultJobOptions: {
-    attempts: 3,
-    backoff: { type: "exponential", delay: 2000 },
-    removeOnComplete: 100,
-    removeOnFail: 500,
-  },
-});
 
 export interface AuditJobData {
   auditId: string;

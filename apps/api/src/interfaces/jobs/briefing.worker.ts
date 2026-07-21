@@ -5,7 +5,7 @@ import { VercelBlobStorage } from "../../infrastructure/blob/vercel-blob-storage
 import { DefaultBriefingNotifier } from "../../infrastructure/briefings/notifications/briefing-notifier.js";
 import { renderBriefingPDF } from "../../infrastructure/briefings/pdf/render.js";
 import { PrismaBriefingRepository } from "../../infrastructure/prisma/prisma-briefing-repository.js";
-import { queueConnection } from "../../infrastructure/queue/connection.js";
+import { economyWorkerOptions, queueConnection } from "../../infrastructure/queue/connection.js";
 import { QUEUE_NAMES, type BriefingJobData } from "../../infrastructure/queue/queues.js";
 
 /** Worker da fila de briefings (Fase 10): PDF -> Blob -> e-mail -> WhatsApp. */
@@ -22,7 +22,7 @@ const worker = new Worker<BriefingJobData>(
     logger.info({ jobId: job.id, briefingId: job.data.briefingId }, "processando briefing");
     await processor.run(job.data.briefingId, job.data.organizationId);
   },
-  { connection: queueConnection, concurrency: 2 },
+  { connection: queueConnection, concurrency: 2, ...economyWorkerOptions },
 );
 
 worker.on("completed", (job) => {
@@ -31,6 +31,11 @@ worker.on("completed", (job) => {
 
 worker.on("failed", (job, err) => {
   logger.error({ jobId: job?.id, briefingId: job?.data.briefingId, err }, "briefing falhou");
+});
+
+// Erro de infra (conexão Redis etc.) sem listener derruba o processo — logar e seguir.
+worker.on("error", (err) => {
+  logger.error({ err }, "briefing worker: erro de infra (segue vivo)");
 });
 
 logger.info("briefing worker no ar, aguardando jobs...");

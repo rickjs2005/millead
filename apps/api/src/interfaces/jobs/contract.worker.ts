@@ -6,7 +6,7 @@ import { DefaultContractNotifier } from "../../infrastructure/contracts/notifica
 import { renderContratoPDF } from "../../infrastructure/contracts/pdf/render.js";
 import { createSignatureGateway } from "../../infrastructure/contracts/signature/factory.js";
 import { PrismaContractRepository } from "../../infrastructure/prisma/prisma-contract-repository.js";
-import { queueConnection } from "../../infrastructure/queue/connection.js";
+import { economyWorkerOptions, queueConnection } from "../../infrastructure/queue/connection.js";
 import { QUEUE_NAMES, type ContractJobData } from "../../infrastructure/queue/queues.js";
 
 /** Worker da fila de contratos (Fase 9): PDF -> assinatura -> convite. */
@@ -24,7 +24,7 @@ const worker = new Worker<ContractJobData>(
     logger.info({ jobId: job.id, contractId: job.data.contractId }, "processando contrato");
     await processor.run(job.data.contractId, job.data.organizationId);
   },
-  { connection: queueConnection, concurrency: 2 },
+  { connection: queueConnection, concurrency: 2, ...economyWorkerOptions },
 );
 
 worker.on("completed", (job) => {
@@ -33,6 +33,11 @@ worker.on("completed", (job) => {
 
 worker.on("failed", (job, err) => {
   logger.error({ jobId: job?.id, contractId: job?.data.contractId, err }, "contrato falhou");
+});
+
+// Erro de infra (conexão Redis etc.) sem listener derruba o processo — logar e seguir.
+worker.on("error", (err) => {
+  logger.error({ err }, "contract worker: erro de infra (segue vivo)");
 });
 
 logger.info("contract worker no ar, aguardando jobs...");

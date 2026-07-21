@@ -3,7 +3,7 @@ import { AuditRunner } from "../../application/services/audit-runner.js";
 import { logger } from "../../config/logger.js";
 import { HttpSiteAuditor } from "../../infrastructure/audit/http-site-auditor.js";
 import { PrismaAuditRepository } from "../../infrastructure/prisma/prisma-audit-repository.js";
-import { queueConnection } from "../../infrastructure/queue/connection.js";
+import { economyWorkerOptions, queueConnection } from "../../infrastructure/queue/connection.js";
 import { QUEUE_NAMES, type AuditJobData } from "../../infrastructure/queue/queues.js";
 
 /**
@@ -25,6 +25,7 @@ const worker = new Worker<AuditJobData>(
     // Auditoria é I/O-bound (espera resposta do site) -- 3 em paralelo é
     // seguro e mantém o consumo de comandos Redis baixo (Upstash free).
     concurrency: 3,
+    ...economyWorkerOptions,
   },
 );
 
@@ -34,6 +35,11 @@ worker.on("completed", (job) => {
 
 worker.on("failed", (job, err) => {
   logger.error({ jobId: job?.id, auditId: job?.data.auditId, err }, "auditoria falhou");
+});
+
+// Erro de infra (conexão Redis etc.) sem listener derruba o processo — logar e seguir.
+worker.on("error", (err) => {
+  logger.error({ err }, "audit worker: erro de infra (segue vivo)");
 });
 
 logger.info("audit worker no ar, aguardando jobs...");

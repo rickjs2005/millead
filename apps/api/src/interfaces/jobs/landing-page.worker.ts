@@ -7,7 +7,7 @@ import { PrismaAuditRepository } from "../../infrastructure/prisma/prisma-audit-
 import { PrismaCompanyRepository } from "../../infrastructure/prisma/prisma-company-repository.js";
 import { PrismaLandingPageRepository } from "../../infrastructure/prisma/prisma-landing-page-repository.js";
 import { PrismaOrganizationRepository } from "../../infrastructure/prisma/prisma-organization-repository.js";
-import { queueConnection } from "../../infrastructure/queue/connection.js";
+import { economyWorkerOptions, queueConnection } from "../../infrastructure/queue/connection.js";
 import { QUEUE_NAMES, type LandingPageJobData } from "../../infrastructure/queue/queues.js";
 
 /**
@@ -36,8 +36,14 @@ const worker = new Worker<LandingPageJobData>(
     // Geração é cara (tokens) e demorada -- uma por vez evita estourar
     // rate limit da API da Anthropic e o plano free do Upstash.
     concurrency: 1,
+    ...economyWorkerOptions,
   },
 );
+
+// Erro de infra (conexão Redis etc.) sem listener derruba o processo — logar e seguir.
+worker.on("error", (err) => {
+  logger.error({ err }, "landing page worker: erro de infra (segue vivo)");
+});
 
 worker.on("completed", (job) => {
   logger.info({ jobId: job.id, landingPageId: job.data.landingPageId }, "landing page pronta");
