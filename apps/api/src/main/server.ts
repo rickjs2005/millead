@@ -1,7 +1,7 @@
 import { prisma } from "@millead/database";
 import { env } from "../config/env.js";
 import { logger } from "../config/logger.js";
-import { redis } from "../infrastructure/redis/redis-client.js";
+import { stopBoss } from "../infrastructure/queue/boss.js";
 import { buildContainer } from "./container.js";
 import { createApp } from "./app.js";
 
@@ -25,7 +25,7 @@ if (env.START_WORKERS) {
 async function shutdown(signal: string) {
   logger.info(`${signal} recebido, encerrando com calma...`);
   server.close(async () => {
-    await Promise.allSettled([prisma.$disconnect(), redis.quit()]);
+    await Promise.allSettled([prisma.$disconnect(), stopBoss()]);
     logger.info("desligado.");
     process.exit(0);
   });

@@ -23,7 +23,6 @@ const envSchema = z.object({
    */
   TRUST_PROXY_HOPS: z.coerce.number().int().min(0).default(1),
   DATABASE_URL: z.string().min(1),
-  REDIS_URL: z.string().min(1),
   // 32+ chars (256 bits) é o mínimo razoável pra um segredo HMAC (HS256) --
   // refresh tokens não usam JWT/segredo nenhum (são opacos, ver
   // infrastructure/auth/refresh-token-generator.ts), só o access token.

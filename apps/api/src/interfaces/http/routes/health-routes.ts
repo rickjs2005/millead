@@ -1,6 +1,5 @@
 import { prisma } from "@millead/database";
 import { Router } from "express";
-import { redis } from "../../../infrastructure/redis/redis-client.js";
 import { asyncHandler } from "../async-handler.js";
 
 export function createHealthRoutes(): Router {
@@ -14,7 +13,7 @@ export function createHealthRoutes(): Router {
   router.get(
     "/health/ready",
     asyncHandler(async (_req, res) => {
-      const checks = { database: false, redis: false };
+      const checks = { database: false };
 
       try {
         await prisma.$queryRaw`SELECT 1`;
@@ -23,13 +22,7 @@ export function createHealthRoutes(): Router {
         checks.database = false;
       }
 
-      try {
-        checks.redis = (await redis.ping()) === "PONG";
-      } catch {
-        checks.redis = false;
-      }
-
-      const ready = checks.database && checks.redis;
+      const ready = checks.database;
       res.status(ready ? 200 : 503).json({ status: ready ? "ready" : "not-ready", checks });
     }),
   );

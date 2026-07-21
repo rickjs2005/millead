@@ -24,8 +24,6 @@ services:
         value: "true" # workers BullMQ no mesmo processo (1 serviço só)
       - key: DATABASE_URL
         sync: false # cole a connection string do Supabase (session pooler)
-      - key: REDIS_URL
-        sync: false # cole a URL rediss:// do Upstash
       - key: JWT_ACCESS_SECRET
         generateValue: true # o Render gera um segredo forte
       - key: CORS_ORIGIN

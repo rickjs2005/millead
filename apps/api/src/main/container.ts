@@ -33,10 +33,10 @@ import { VercelBlobStorage } from "../infrastructure/blob/vercel-blob-storage.js
 import { DefaultBriefingNotifier } from "../infrastructure/briefings/notifications/briefing-notifier.js";
 import { DefaultContractNotifier } from "../infrastructure/contracts/notifications/contract-notifier.js";
 import { createSignatureGateway } from "../infrastructure/contracts/signature/factory.js";
-import { BullAuditQueue } from "../infrastructure/queue/bull-audit-queue.js";
-import { BullBriefingQueue } from "../infrastructure/queue/bull-briefing-queue.js";
-import { BullContractQueue } from "../infrastructure/queue/bull-contract-queue.js";
-import { BullLandingPageQueue } from "../infrastructure/queue/bull-landing-page-queue.js";
+import { PgBossAuditQueue } from "../infrastructure/queue/pg-audit-queue.js";
+import { PgBossBriefingQueue } from "../infrastructure/queue/pg-briefing-queue.js";
+import { PgBossContractQueue } from "../infrastructure/queue/pg-contract-queue.js";
+import { PgBossLandingPageQueue } from "../infrastructure/queue/pg-landing-page-queue.js";
 import { PrismaActivityRepository } from "../infrastructure/prisma/prisma-activity-repository.js";
 import { PrismaAuditLogRepository } from "../infrastructure/prisma/prisma-audit-log-repository.js";
 import { PrismaAuditRepository } from "../infrastructure/prisma/prisma-audit-repository.js";
@@ -155,7 +155,7 @@ export function buildContainer(): Container {
     new DefaultProposalNotifier(),
   );
   const settingsService = new SettingsService(userRepository, organizationRepository);
-  const auditService = new AuditService(auditRepository, companyRepository, new BullAuditQueue());
+  const auditService = new AuditService(auditRepository, companyRepository, new PgBossAuditQueue());
   const messageService = new MessageService(
     messageRepository,
     messageTemplateRepository,
@@ -168,14 +168,14 @@ export function buildContainer(): Container {
   const landingPageService = new LandingPageService(
     landingPageRepository,
     companyRepository,
-    new BullLandingPageQueue(),
+    new PgBossLandingPageQueue(),
     !!env.ANTHROPIC_API_KEY,
   );
   const contractService = new ContractService(
     contractRepository,
     companyRepository,
     organizationRepository,
-    new BullContractQueue(),
+    new PgBossContractQueue(),
     createSignatureGateway(),
     new DefaultContractNotifier(),
   );
@@ -193,7 +193,7 @@ export function buildContainer(): Container {
   const briefingCompletionService = new BriefingCompletionService(
     briefingRepository,
     briefingAnswerRepository,
-    new BullBriefingQueue(),
+    new PgBossBriefingQueue(),
     activityLogger,
   );
   const briefingFileService = new BriefingFileService(

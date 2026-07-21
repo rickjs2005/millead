@@ -1,28 +1,15 @@
 import type { Request } from "express";
 import rateLimit from "express-rate-limit";
-import { RedisStore } from "rate-limit-redis";
-import { redis } from "../../../infrastructure/redis/redis-client.js";
 
 /**
- * Store compartilhado no Redis (Upstash) pros limiters. O MemoryStore default
- * do express-rate-limit zera a cada restart/deploy e NÃO é compartilhado entre
- * instâncias/processos -- com >1 instância (ou autoscaling) o limite viraria
- * N× maior e inconsistente. Reusa a conexão ioredis de uso geral do app.
- *
- * Cada limiter recebe um `prefix` próprio pra não misturar baldes (o de auth
- * conta por IP; o de IA, por usuário). Tradeoff: se o Redis cair, os limiters
- * passam a rejeitar (o app já depende de Redis pra health check e BullMQ, mas
- * vale monitorar).
+ * Limiters no MemoryStore default do express-rate-limit. O store Redis foi
+ * REMOVIDO em 21/07/2026 junto com o resto do Redis (incidente da cota do
+ * Upstash — e com o Redis fora, os limiters rejeitavam TUDO, login incluso).
+ * Tradeoff conhecido: o balde zera a cada restart/deploy e não é
+ * compartilhado entre instâncias — irrelevante hoje (1 instância no Render
+ * free). Se um dia houver múltiplas instâncias/autoscaling, reintroduzir um
+ * store compartilhado (ex.: rate-limit-postgres na mesma base do pg-boss).
  */
-function redisStore(prefix: string): RedisStore {
-  return new RedisStore({
-    prefix,
-    // ioredis: `call(cmd, ...args)`. O retorno é `unknown`; o store espera
-    // `RedisReply` (primitivo ou array de primitivos) -- cast seguro só em tipo.
-    sendCommand: (...args: string[]) =>
-      redis.call(args[0]!, ...args.slice(1)) as Promise<number | string | Array<number | string>>,
-  });
-}
 
 /**
  * Chave por usuário autenticado (cai pro IP se, por algum motivo, `req.auth`
@@ -48,7 +35,6 @@ export const authRateLimit = rateLimit({
   max: 20,
   standardHeaders: true,
   legacyHeaders: false,
-  store: redisStore("rl:auth:"),
   message: {
     error: { code: "TOO_MANY_REQUESTS", message: "Muitas tentativas. Tente novamente mais tarde." },
   },
@@ -64,7 +50,6 @@ export const publicRateLimit = rateLimit({
   max: 300,
   standardHeaders: true,
   legacyHeaders: false,
-  store: redisStore("rl:public:"),
   message: {
     error: {
       code: "TOO_MANY_REQUESTS",
@@ -87,7 +72,6 @@ export const aiRateLimit = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: authUserKey,
-  store: redisStore("rl:ai:"),
   message: {
     error: {
       code: "TOO_MANY_REQUESTS",
