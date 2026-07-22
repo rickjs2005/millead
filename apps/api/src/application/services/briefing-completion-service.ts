@@ -4,6 +4,7 @@ import type { BriefingRepository } from "../../domain/repositories/briefing-repo
 import type { BriefingQueue } from "../../domain/services/briefing-queue.js";
 import { answerHasValue } from "./briefing-answer-service.js";
 import type { ActivityLogger } from "./activity-logger.js";
+import type { PushSender } from "../../domain/services/push-sender.js";
 
 function isHttpUrl(text: string): boolean {
   try {
@@ -25,6 +26,7 @@ export class BriefingCompletionService {
     private readonly answers: BriefingAnswerRepository,
     private readonly queue: BriefingQueue,
     private readonly activityLogger: ActivityLogger,
+    private readonly push: PushSender,
   ) {}
 
   async complete(token: string) {
@@ -142,6 +144,15 @@ export class BriefingCompletionService {
         { briefingId: briefing.id, templateKind: briefing.template.kind },
       );
     }
+    // Notificação push pro time (PWA) — best-effort, nunca trava a conclusão.
+    const quem = updated.contactName ?? briefing.template.name;
+    void this.push
+      .sendToOrg(briefing.organizationId, {
+        title: "📋 Briefing concluído!",
+        body: `${quem} finalizou o briefing — as respostas já estão no MilLead.`,
+        url: `/briefings/${briefing.id}`,
+      })
+      .catch(() => null);
     await this.queue.enqueue({ briefingId: briefing.id, organizationId: briefing.organizationId });
 
     return { ...updated, progressPercent: 100 };

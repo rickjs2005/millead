@@ -9,6 +9,7 @@ import { createAuditMutationsMiddleware } from "../interfaces/http/middlewares/a
 import { errorHandler } from "../interfaces/http/middlewares/error-handler.js";
 import { createAiRoutes } from "../interfaces/http/routes/ai-routes.js";
 import { createAuditRoutes } from "../interfaces/http/routes/audit-routes.js";
+import { createNotificationRoutes } from "../interfaces/http/routes/notification-routes.js";
 import { createAuthRoutes } from "../interfaces/http/routes/auth-routes.js";
 import {
   createBriefingRoutes,
@@ -87,6 +88,7 @@ export function createApp(container: Container): Express {
     "/api/v1/briefings",
     createBriefingRoutes(container.briefingController, container.authenticate),
   );
+  app.use("/api/v1/notifications", createNotificationRoutes(container.authenticate));
   // Formulário público de fechamento (rate-limit por IP, sem login).
   app.use(
     "/api/v1/public",

@@ -74,6 +74,10 @@ const envSchema = z.object({
   SMTP_PASS: z.string().optional(),
   SMTP_FROM: z.string().optional(),
   OWNER_EMAIL: z.string().optional(),
+  // ===== Web Push (PWA) — opcional; sem as chaves a feature fica muda =====
+  VAPID_PUBLIC_KEY: z.string().optional(),
+  VAPID_PRIVATE_KEY: z.string().optional(),
+  VAPID_SUBJECT: z.string().default("mailto:contato@milweb.com.br"),
   // WhatsApp próprio (Meta Cloud API -- opcional)
   WHATSAPP_ENABLED: z.coerce.boolean().default(false),
   WHATSAPP_PHONE_ID: z.string().optional(),

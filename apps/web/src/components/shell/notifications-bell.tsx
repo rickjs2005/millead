@@ -1,15 +1,17 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { Bell } from "lucide-react";
+import { Bell, BellRing } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ACTIVITY_ICON, describeActivity } from "@/features/leads/activity-labels";
 import { leadsService } from "@/services/leads";
+import { notificationsService } from "@/services/notifications";
 import { useAuthStore } from "@/stores/auth-store";
 import { formatDateTime } from "@/utils/format";
+import { toast } from "sonner";
 
 const SEEN_KEY = "millead-notifications-seen";
 
@@ -25,11 +27,78 @@ function getLastSeen(): number {
  * abertura do popover (persistida em localStorage -- suficiente pra um
  * único usuário por browser, sem precisar de estado read/unread no banco).
  */
+/** base64url (VAPID) → Uint8Array exigido pelo pushManager.subscribe. */
+function urlBase64ToUint8Array(base64: string): Uint8Array {
+  const padding = "=".repeat((4 - (base64.length % 4)) % 4);
+  const raw = window.atob((base64 + padding).replace(/-/g, "+").replace(/_/g, "/"));
+  return Uint8Array.from(raw, (c) => c.charCodeAt(0));
+}
+
+/** Push suportado + já inscrito neste navegador? */
+function usePushState() {
+  const [state, setState] = useState<"unsupported" | "off" | "on" | "denied">("unsupported");
+
+  useEffect(() => {
+    if (!("serviceWorker" in navigator) || !("PushManager" in window)) return;
+    if (Notification.permission === "denied") {
+      setState("denied");
+      return;
+    }
+    navigator.serviceWorker.ready
+      .then((reg) => reg.pushManager.getSubscription())
+      .then((sub) => setState(sub ? "on" : "off"))
+      .catch(() => setState("off"));
+  }, []);
+
+  return [state, setState] as const;
+}
+
 export function NotificationsBell() {
   const hasPermission = useAuthStore((s) => s.hasPermission);
   const canRead = hasPermission("leads:read");
   const [open, setOpen] = useState(false);
   const [lastSeen, setLastSeen] = useState(getLastSeen);
+  const [pushState, setPushState] = usePushState();
+
+  async function enablePush() {
+    try {
+      const permission = await Notification.requestPermission();
+      if (permission !== "granted") {
+        setPushState(permission === "denied" ? "denied" : "off");
+        return;
+      }
+      const { key } = await notificationsService.pushPublicKey();
+      const reg = await navigator.serviceWorker.ready;
+      const sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(key) as BufferSource,
+      });
+      const json = sub.toJSON();
+      await notificationsService.subscribePush({
+        endpoint: sub.endpoint,
+        keys: { p256dh: json.keys!.p256dh!, auth: json.keys!.auth! },
+      });
+      setPushState("on");
+      toast.success("Notificações ativadas neste dispositivo.");
+    } catch {
+      toast.error("Não foi possível ativar as notificações.");
+    }
+  }
+
+  async function disablePush() {
+    try {
+      const reg = await navigator.serviceWorker.ready;
+      const sub = await reg.pushManager.getSubscription();
+      if (sub) {
+        await notificationsService.unsubscribePush(sub.endpoint).catch(() => null);
+        await sub.unsubscribe();
+      }
+      setPushState("off");
+      toast.success("Notificações desativadas neste dispositivo.");
+    } catch {
+      toast.error("Não foi possível desativar.");
+    }
+  }
 
   const { data: activities } = useQuery({
     queryKey: ["notifications", "recent"],
@@ -98,6 +167,27 @@ export function NotificationsBell() {
             })
           )}
         </div>
+        {pushState !== "unsupported" && (
+          <div className="border-t border-border px-4 py-2.5">
+            {pushState === "denied" ? (
+              <p className="text-xs text-muted-foreground">
+                Notificações bloqueadas pelo navegador — libere nas permissões do site.
+              </p>
+            ) : (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="w-full justify-start gap-2 px-0 text-xs"
+                onClick={pushState === "on" ? disablePush : enablePush}
+              >
+                <BellRing className="h-3.5 w-3.5" />
+                {pushState === "on"
+                  ? "Desativar notificações neste dispositivo"
+                  : "Ativar notificações neste dispositivo"}
+              </Button>
+            )}
+          </div>
+        )}
       </PopoverContent>
     </Popover>
   );

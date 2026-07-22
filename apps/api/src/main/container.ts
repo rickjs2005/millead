@@ -29,6 +29,7 @@ import { env } from "../config/env.js";
 import { BcryptPasswordHasher } from "../infrastructure/auth/bcrypt-password-hasher.js";
 import { JwtAccessTokenService } from "../infrastructure/auth/jwt-access-token-service.js";
 import { ClaudeLeadAi } from "../infrastructure/ai/claude-lead-ai.js";
+import { WebPushSender } from "../infrastructure/push/web-push-sender.js";
 import { VercelBlobStorage } from "../infrastructure/blob/vercel-blob-storage.js";
 import { DefaultBriefingNotifier } from "../infrastructure/briefings/notifications/briefing-notifier.js";
 import { DefaultContractNotifier } from "../infrastructure/contracts/notifications/contract-notifier.js";
@@ -197,6 +198,7 @@ export function buildContainer(): Container {
     briefingAnswerRepository,
     new PgBossBriefingQueue(),
     activityLogger,
+    new WebPushSender(),
   );
   const briefingFileService = new BriefingFileService(
     briefingRepository,

@@ -43,20 +43,21 @@ model User {
   createdAt    DateTime  @default(now()) @map("created_at")
   updatedAt    DateTime  @updatedAt @map("updated_at")
 
-  memberships      Membership[]
-  refreshTokens    RefreshToken[]
-  auditLogs        AuditLog[]
-  leadNotes        LeadNote[]
-  assignedLeads    Lead[]            @relation("LeadOwner")
-  assignedTasks    Task[]            @relation("TaskAssignee")
-  activities       Activity[]
-  createdMeetings  Meeting[]         @relation("MeetingCreatedBy")
-  meetingAttendees MeetingAttendee[]
-  createdProposals Proposal[]        @relation("ProposalCreatedBy")
-  requestedAudits  Audit[]           @relation("AuditRequestedBy")
-  landingPages     LandingPage[]     @relation("LandingPageCreatedBy")
-  contracts        Contract[]        @relation("ContractCreatedBy")
-  createdBriefings Briefing[]        @relation("BriefingCreatedBy")
+  memberships       Membership[]
+  refreshTokens     RefreshToken[]
+  auditLogs         AuditLog[]
+  leadNotes         LeadNote[]
+  assignedLeads     Lead[]             @relation("LeadOwner")
+  assignedTasks     Task[]             @relation("TaskAssignee")
+  activities        Activity[]
+  createdMeetings   Meeting[]          @relation("MeetingCreatedBy")
+  meetingAttendees  MeetingAttendee[]
+  createdProposals  Proposal[]         @relation("ProposalCreatedBy")
+  requestedAudits   Audit[]            @relation("AuditRequestedBy")
+  landingPages      LandingPage[]      @relation("LandingPageCreatedBy")
+  contracts         Contract[]         @relation("ContractCreatedBy")
+  createdBriefings  Briefing[]         @relation("BriefingCreatedBy")
+  pushSubscriptions PushSubscription[]
 
   @@map("users")
 }
@@ -71,42 +72,43 @@ model Organization {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  memberships      Membership[]
-  roles            Role[]
-  refreshTokens    RefreshToken[]
-  auditLogs        AuditLog[]
-  companies        Company[]
-  companyWebsites  CompanyWebsite[]
-  companySocials   CompanySocial[]
-  leads            Lead[]
-  leadContacts     LeadContact[]
-  leadNotes        LeadNote[]
-  tags             Tag[]
-  pipelines        Pipeline[]
-  pipelineStages   PipelineStage[]
-  tasks            Task[]
-  activities       Activity[]
-  meetings         Meeting[]
-  meetingAttendees MeetingAttendee[]
-  proposals        Proposal[]
-  audits           Audit[]
-  auditReports     AuditReport[]
-  auditScores      AuditScore[]
-  messageTemplates MessageTemplate[]
-  messages         Message[]
-  messageLogs      MessageLog[]
-  landingPages     LandingPage[]
+  memberships       Membership[]
+  roles             Role[]
+  refreshTokens     RefreshToken[]
+  auditLogs         AuditLog[]
+  companies         Company[]
+  companyWebsites   CompanyWebsite[]
+  companySocials    CompanySocial[]
+  leads             Lead[]
+  leadContacts      LeadContact[]
+  leadNotes         LeadNote[]
+  tags              Tag[]
+  pipelines         Pipeline[]
+  pipelineStages    PipelineStage[]
+  tasks             Task[]
+  activities        Activity[]
+  meetings          Meeting[]
+  meetingAttendees  MeetingAttendee[]
+  proposals         Proposal[]
+  audits            Audit[]
+  auditReports      AuditReport[]
+  auditScores       AuditScore[]
+  messageTemplates  MessageTemplate[]
+  messages          Message[]
+  messageLogs       MessageLog[]
+  landingPages      LandingPage[]
   contracts         Contract[]
   contractSigners   ContractSigner[]
   contractEvents    ContractEvent[]
   contractSequences ContractSequence[]
-  subscription     Subscription?
-  briefings        Briefing[]
-  briefingLinks    BriefingLink[]
-  briefingAnswers  BriefingAnswer[]
-  briefingFiles    BriefingFile[]
+  subscription      Subscription?
+  briefings         Briefing[]
+  briefingLinks     BriefingLink[]
+  briefingAnswers   BriefingAnswer[]
+  briefingFiles     BriefingFile[]
   briefingTemplates BriefingTemplate[]
-  briefingHistory  BriefingHistory[]
+  briefingHistory   BriefingHistory[]
+  pushSubscriptions PushSubscription[]
 
   @@map("organizations")
 }
@@ -355,17 +357,17 @@ model Lead {
   pipelineStage PipelineStage? @relation(fields: [pipelineStageId], references: [id], onDelete: SetNull)
   owner         User?          @relation("LeadOwner", fields: [ownerId], references: [id], onDelete: SetNull)
 
-  contacts   LeadContact[]
-  notes      LeadNote[]
-  tags       LeadTag[]
-  tasks      Task[]
-  activities Activity[]
+  contacts     LeadContact[]
+  notes        LeadNote[]
+  tags         LeadTag[]
+  tasks        Task[]
+  activities   Activity[]
   // Reunião/mensagem/proposta são registros comerciais -- apagar um Lead
   // não pode destruir isso em cascata sem querer. Restrict: primeiro
   // resolve/arquiva o que está pendurado, depois apaga o lead.
-  meetings  Meeting[]
-  proposals Proposal[]
-  messages  Message[]
+  meetings     Meeting[]
+  proposals    Proposal[]
+  messages     Message[]
   landingPages LandingPage[]
   contracts    Contract[]
   briefings    Briefing[]
@@ -679,9 +681,9 @@ model Audit {
   completedAt    DateTime?    @map("completed_at")
   createdAt      DateTime     @default(now()) @map("created_at")
 
-  organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  company      Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  requestedBy  User?         @relation("AuditRequestedBy", fields: [requestedById], references: [id], onDelete: SetNull)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  company      Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  requestedBy  User?        @relation("AuditRequestedBy", fields: [requestedById], references: [id], onDelete: SetNull)
   report       AuditReport?
   scores       AuditScore[]
 
@@ -943,14 +945,14 @@ enum ContractSignatureProvider {
 /// MOMENTO do contrato ficam em `contractorSnapshot` (imutabilidade
 /// jurídica), assim como os da contratada em `contractedSnapshot`.
 model Contract {
-  id             String                    @id @default(cuid())
-  organizationId String                    @map("organization_id")
-  companyId      String                    @map("company_id")
-  leadId         String?                   @map("lead_id")
-  createdById    String?                   @map("created_by_id")
+  id             String         @id @default(cuid())
+  organizationId String         @map("organization_id")
+  companyId      String         @map("company_id")
+  leadId         String?        @map("lead_id")
+  createdById    String?        @map("created_by_id")
   numero         String
-  tipo           ContractType              @default(SITE)
-  status         ContractStatus            @default(RASCUNHO)
+  tipo           ContractType   @default(SITE)
+  status         ContractStatus @default(RASCUNHO)
 
   descricaoProjeto  String                @map("descricao_projeto")
   valorTotal        Decimal               @map("valor_total") @db.Decimal(12, 2)
@@ -978,10 +980,10 @@ model Contract {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  company      Company      @relation(fields: [companyId], references: [id], onDelete: Restrict)
-  lead         Lead?        @relation(fields: [leadId], references: [id], onDelete: SetNull)
-  createdBy    User?        @relation("ContractCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  organization Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  company      Company          @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  lead         Lead?            @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  createdBy    User?            @relation("ContractCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
   signers      ContractSigner[]
   events       ContractEvent[]
 
@@ -1133,9 +1135,9 @@ model BriefingTemplate {
   createdAt      DateTime             @default(now()) @map("created_at")
   updatedAt      DateTime             @updatedAt @map("updated_at")
 
-  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  sections  BriefingSection[]
-  briefings Briefing[]
+  organization Organization?     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  sections     BriefingSection[]
+  briefings    Briefing[]
 
   @@index([organizationId])
   @@map("briefing_templates")
@@ -1317,4 +1319,22 @@ model BriefingHistory {
 
   @@index([briefingId, createdAt])
   @@map("briefing_history")
+}
+
+/// Inscrições de Web Push (PWA): cada navegador/dispositivo em que um
+/// usuário ativou notificações. Endpoint é único global (spec do Push API).
+model PushSubscription {
+  id             String   @id @default(cuid())
+  organizationId String   @map("organization_id")
+  userId         String   @map("user_id")
+  endpoint       String   @unique
+  p256dh         String
+  auth           String
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@map("push_subscriptions")
 }
