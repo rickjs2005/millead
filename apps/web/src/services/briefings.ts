@@ -1,5 +1,6 @@
 import { api } from "./api-client";
 import type {
+  Company,
   Briefing,
   BriefingDetail,
   BriefingStatus,
@@ -48,6 +49,11 @@ export const briefingsService = {
     api.get<PaginatedResult<Briefing>>("/api/v1/briefings", params),
 
   get: (id: string) => api.get<BriefingDetail>(`/api/v1/briefings/${id}`),
+
+  applyCompany: (id: string) =>
+    api.post<{ company: Company | null; created: boolean }>(
+      `/api/v1/briefings/${id}/apply-company`,
+    ),
 
   create: (payload: CreateBriefingPayload) =>
     api.post<Briefing & { link: { token: string } }>("/api/v1/briefings", payload),

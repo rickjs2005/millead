@@ -115,3 +115,22 @@ export function useResendBriefing() {
     onError: (err) => toast.error(err instanceof ApiError ? err.message : "Erro ao reenviar."),
   });
 }
+
+export function useApplyBriefingCompany() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => briefingsService.applyCompany(id),
+    onSuccess: (result) => {
+      invalidateAll(queryClient);
+      void queryClient.invalidateQueries({ queryKey: ["companies"] });
+      void queryClient.invalidateQueries({ queryKey: ["leads"] });
+      toast.success(
+        result.created
+          ? "Empresa criada a partir do briefing."
+          : "Empresa atualizada com as respostas do briefing.",
+      );
+    },
+    onError: (err) =>
+      toast.error(err instanceof ApiError ? err.message : "Erro ao aplicar briefing na empresa."),
+  });
+}

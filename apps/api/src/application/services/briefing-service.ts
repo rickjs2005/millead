@@ -8,6 +8,9 @@ import type {
   BriefingTemplateRepository,
   CreateCustomTemplateInput,
 } from "../../domain/repositories/briefing-template-repository.js";
+import type { CompanyRepository } from "../../domain/repositories/company-repository.js";
+import type { LeadRepository } from "../../domain/repositories/lead-repository.js";
+import { extractCompanyData } from "./briefing-company-extractor.js";
 import type { BriefingNotifier } from "../../domain/services/briefing-notifier.js";
 import type { PaginationParams } from "../../shared/pagination.js";
 import type { CreateCustomBriefingRequest } from "../dto/briefing.dto.js";
@@ -71,6 +74,8 @@ export class BriefingService {
     private readonly templates: BriefingTemplateRepository,
     private readonly notifier: BriefingNotifier,
     private readonly activityLogger: ActivityLogger,
+    private readonly companies: CompanyRepository,
+    private readonly leads: LeadRepository,
   ) {}
 
   /** Token único: gera e tenta de novo na (agora improvável) colisão. */
@@ -192,6 +197,94 @@ export class BriefingService {
     const briefing = await this.briefings.findByIdForOrg(id, organizationId);
     if (!briefing) throw new NotFoundError("Briefing não encontrado.");
     return briefing;
+  }
+
+  /**
+   * Cria OU atualiza a Empresa a partir das respostas do briefing concluído
+   * — e costura o grafo: briefing.companyId e lead.companyId (se o lead
+   * ainda não tinha empresa) passam a apontar pra ela. Update é fill-empty:
+   * nunca sobrescreve o que já foi preenchido à mão no cadastro.
+   */
+  async applyToCompany(organizationId: string, userId: string | null, id: string) {
+    const briefing = await this.briefings.findByIdForOrg(id, organizationId);
+    if (!briefing) throw new NotFoundError("Briefing não encontrado.");
+    if (briefing.status !== "COMPLETED") {
+      throw new ValidationError("Só briefings concluídos podem virar cadastro de empresa.");
+    }
+
+    const data = extractCompanyData(briefing);
+
+    // Alvo: empresa já vinculada ao briefing, senão a do lead, senão cria.
+    let companyId = briefing.companyId;
+    const lead = briefing.leadId
+      ? await this.leads.findByIdForOrg(briefing.leadId, organizationId)
+      : null;
+    if (!companyId && lead?.companyId) companyId = lead.companyId;
+
+    let created = false;
+    if (companyId) {
+      const existing = await this.companies.findByIdForOrg(companyId, organizationId);
+      if (!existing) throw new NotFoundError("Empresa vinculada não encontrada.");
+      // fill-empty: só preenche o que está vazio no cadastro
+      const patch: Record<string, string> = {};
+      if (!existing.document && data.document) patch.document = data.document;
+      if (!existing.city && data.city) patch.city = data.city;
+      if (!existing.state && data.state) patch.state = data.state;
+      if (!existing.phone && data.phone) patch.phone = data.phone;
+      if (!existing.email && data.email) patch.email = data.email;
+      if (!existing.notes && data.notes) patch.notes = data.notes;
+      if (Object.keys(patch).length) {
+        await this.companies.update(companyId, organizationId, patch);
+      }
+    } else {
+      const name = data.name ?? briefing.contactName ?? "Empresa do briefing";
+      // CNPJ é unique por org — se já existe empresa com esse documento, usa ela.
+      const byDocument = data.document
+        ? await this.companies.findByDocumentForOrg(data.document, organizationId)
+        : null;
+      if (byDocument) {
+        companyId = byDocument.id;
+      } else {
+        const company = await this.companies.create({
+          organizationId,
+          name,
+          document: data.document,
+          city: data.city,
+          state: data.state,
+          phone: data.phone,
+          email: data.email,
+          notes: data.notes,
+        });
+        companyId = company.id;
+        created = true;
+      }
+    }
+
+    // sites e redes: addWebsite/addSocial são únicos por URL — duplicata é no-op tolerado
+    for (const url of data.websites) {
+      await this.companies.addWebsite(companyId, organizationId, { url }).catch(() => null);
+    }
+    for (const social of data.socials) {
+      await this.companies.addSocial(companyId, organizationId, social).catch(() => null);
+    }
+
+    // costura o grafo: briefing → empresa; lead sem empresa → empresa
+    if (briefing.companyId !== companyId) {
+      await this.briefings.linkCompany(briefing.id, companyId);
+    }
+    if (lead && !lead.companyId) {
+      await this.leads.update(lead.id, organizationId, { companyId });
+    }
+    if (briefing.leadId) {
+      await this.activityLogger.log(organizationId, briefing.leadId, userId, "OTHER", {
+        action: created ? "company_created_from_briefing" : "company_updated_from_briefing",
+        briefingId: briefing.id,
+        companyId,
+      });
+    }
+
+    const company = await this.companies.findByIdForOrg(companyId, organizationId);
+    return { company, created };
   }
 
   async archive(organizationId: string, id: string) {

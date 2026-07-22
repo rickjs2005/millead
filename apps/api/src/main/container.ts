@@ -185,6 +185,8 @@ export function buildContainer(): Container {
     briefingTemplateRepository,
     new DefaultBriefingNotifier(),
     activityLogger,
+    companyRepository,
+    leadRepository,
   );
   const briefingAnswerService = new BriefingAnswerService(
     briefingRepository,

@@ -52,6 +52,8 @@ export interface BriefingRepository {
    * Retorna null quando OUTRA chamada concorrente já concluiu (não reprocessa). */
   markCompleted(id: string, completedAt: Date): Promise<Briefing | null>;
   updateProgress(id: string, progressPercent: number): Promise<void>;
+  /** Vincula a empresa criada/atualizada a partir das respostas (apply-company). */
+  linkCompany(id: string, companyId: string): Promise<void>;
   updateContact(id: string, contact: UpdateContactInput): Promise<void>;
   setPdfUrl(id: string, pdfUrl: string): Promise<void>;
   /** Novo Briefing PENDING com mesmo template/lead/company + link próprio (token já gerado pelo service). */

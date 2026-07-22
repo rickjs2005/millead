@@ -42,6 +42,7 @@ export function createBriefingRoutes(
   router.get("/", read, validateQuery(listBriefingsQuerySchema), asyncHandler(controller.list));
   router.get("/:id", read, asyncHandler(controller.get));
   router.post("/:id/archive", write, asyncHandler(controller.archive));
+  router.post("/:id/apply-company", write, asyncHandler(controller.applyCompany));
   router.post("/:id/duplicate", write, asyncHandler(controller.duplicate));
   router.post("/:id/resend-email", write, asyncHandler(controller.resendEmail));
   router.post("/:id/resend-whatsapp", write, asyncHandler(controller.resendWhatsapp));

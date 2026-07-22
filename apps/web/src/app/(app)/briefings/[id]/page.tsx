@@ -8,6 +8,7 @@ import {
   Download,
   FileDown,
   MessageCircle,
+  Building2,
   Send,
 } from "lucide-react";
 import Link from "next/link";
@@ -30,6 +31,7 @@ import {
   useArchiveBriefing,
   useBriefing,
   useDuplicateBriefing,
+  useApplyBriefingCompany,
   useResendBriefing,
 } from "@/features/briefings/hooks";
 import { formatDateTime } from "@/utils/format";
@@ -41,6 +43,7 @@ export default function BriefingDetailPage() {
   const archiveBriefing = useArchiveBriefing();
   const duplicateBriefing = useDuplicateBriefing();
   const resendBriefing = useResendBriefing();
+  const applyCompany = useApplyBriefingCompany();
   const { confirm, dialog } = useConfirmDialog();
 
   if (isLoading) {
@@ -95,6 +98,13 @@ export default function BriefingDetailPage() {
             )}
             {briefing.status === "COMPLETED" && (
               <>
+                <Button
+                  onClick={() => applyCompany.mutate(briefing.id)}
+                  disabled={applyCompany.isPending}
+                >
+                  <Building2 className="h-4 w-4" />
+                  {briefing.companyId ? "Atualizar empresa" : "Criar empresa"}
+                </Button>
                 <Button
                   variant="outline"
                   onClick={() => resendBriefing.mutate({ id: briefing.id, channel: "email" })}

@@ -49,6 +49,16 @@ export class BriefingController {
     res.status(200).json(await this.service.get(auth.organizationId, req.params.id!));
   };
 
+  applyCompany = async (req: Request, res: Response): Promise<void> => {
+    const auth = requireAuth(req);
+    const result = await this.service.applyToCompany(
+      auth.organizationId,
+      auth.userId,
+      req.params.id!,
+    );
+    res.status(200).json(result);
+  };
+
   archive = async (req: Request, res: Response): Promise<void> => {
     const auth = requireAuth(req);
     res.status(200).json(await this.service.archive(auth.organizationId, req.params.id!));

@@ -6,6 +6,7 @@ import {
   ClipboardCheck,
   Handshake,
   ShieldAlert,
+  FileText,
   Users2,
 } from "lucide-react";
 import { FinanceCards } from "@/features/dashboard/components/finance-cards";
@@ -107,6 +108,19 @@ export default function DashboardPage() {
           label="Propostas enviadas"
           value={counts.sentProposals}
           icon={Handshake}
+          loading={counts.isLoading}
+        />
+        <StatCard
+          label="Briefings aguardando cliente"
+          value={counts.openBriefings}
+          icon={FileText}
+          loading={counts.isLoading}
+          accent={counts.openBriefings > 0 ? "success" : "default"}
+        />
+        <StatCard
+          label="Briefings concluídos"
+          value={counts.completedBriefings}
+          icon={ClipboardCheck}
           loading={counts.isLoading}
         />
       </div>

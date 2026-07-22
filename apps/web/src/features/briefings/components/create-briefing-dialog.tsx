@@ -228,8 +228,14 @@ export function CreateBriefingDialog() {
             )}
 
             <div className="flex flex-col gap-1.5">
-              <Label>Lead (opcional)</Label>
+              <Label>Lead vinculado (recomendado)</Label>
               <LeadCombobox value={leadId} onChange={(id) => setLeadId(id)} />
+              {!leadId && (
+                <p className="text-xs text-amber-600 dark:text-amber-500">
+                  Sem lead, o briefing não aparece no funil nem na timeline de ninguém — só na lista
+                  de Briefings.
+                </p>
+              )}
             </div>
           </div>
         )}

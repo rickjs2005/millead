@@ -190,6 +190,10 @@ export class PrismaBriefingRepository implements BriefingRepository {
     return toDomain(row);
   }
 
+  async linkCompany(id: string, companyId: string): Promise<void> {
+    await prisma.briefing.update({ where: { id }, data: { companyId } });
+  }
+
   async updateProgress(id: string, progressPercent: number): Promise<void> {
     await prisma.briefing.update({ where: { id }, data: { progressPercent } });
   }

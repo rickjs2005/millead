@@ -2,6 +2,7 @@ import { useQueries, useQuery } from "@tanstack/react-query";
 import { usePipelines } from "@/features/pipeline/hooks";
 import { leadsService } from "@/services/leads";
 import { meetingsService } from "@/services/meetings";
+import { briefingsService } from "@/services/briefings";
 import { proposalsService } from "@/services/proposals";
 import { tasksService } from "@/services/tasks";
 
@@ -51,6 +52,18 @@ export function useDashboardCounts() {
         queryKey: ["dashboard", "proposals", "accepted"],
         queryFn: () => proposalsService.list({ status: "ACCEPTED", pageSize: 1 }),
       },
+      {
+        queryKey: ["dashboard", "briefings", "pending"],
+        queryFn: () => briefingsService.list({ status: "PENDING", pageSize: 1 }),
+      },
+      {
+        queryKey: ["dashboard", "briefings", "inprogress"],
+        queryFn: () => briefingsService.list({ status: "IN_PROGRESS", pageSize: 1 }),
+      },
+      {
+        queryKey: ["dashboard", "briefings", "completed"],
+        queryFn: () => briefingsService.list({ status: "COMPLETED", pageSize: 1 }),
+      },
     ],
   });
 
@@ -64,6 +77,9 @@ export function useDashboardCounts() {
     scheduledMeetings,
     sentProposals,
     acceptedProposals,
+    pendingBriefings,
+    inProgressBriefings,
+    completedBriefings,
   ] = queries;
 
   return {
@@ -77,6 +93,9 @@ export function useDashboardCounts() {
     scheduledMeetings: scheduledMeetings.data?.total ?? 0,
     sentProposals: sentProposals.data?.total ?? 0,
     acceptedProposals: acceptedProposals.data?.total ?? 0,
+    /** aguardando o cliente: link enviado (PENDING) ou preenchendo (IN_PROGRESS) */
+    openBriefings: (pendingBriefings.data?.total ?? 0) + (inProgressBriefings.data?.total ?? 0),
+    completedBriefings: completedBriefings.data?.total ?? 0,
   };
 }
 
