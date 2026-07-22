@@ -27,9 +27,14 @@ export function Topbar() {
   }, [setCommandOpen]);
 
   return (
-    <header className="sticky top-0 z-30 flex h-14 shrink-0 items-center gap-3 border-b border-border bg-background/80 px-4 backdrop-blur">
-      <Button variant="ghost" size="icon" className="md:hidden" onClick={() => setMobileOpen(true)}>
-        <Menu className="h-5 w-5" />
+    <header className="sticky top-0 z-30 flex h-16 shrink-0 items-center gap-3 border-b border-border bg-background/80 px-4 backdrop-blur md:h-14">
+      <Button
+        variant="ghost"
+        size="icon"
+        className="h-11 w-11 md:hidden"
+        onClick={() => setMobileOpen(true)}
+      >
+        <Menu className="h-6 w-6" />
       </Button>
 
       <div className="hidden md:block">
@@ -38,9 +43,10 @@ export function Topbar() {
 
       <button
         onClick={() => setCommandOpen(true)}
-        className="ml-auto flex w-full max-w-sm items-center gap-2 rounded-lg border border-border bg-muted/50 px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-muted md:ml-4"
+        className="ml-auto flex w-full max-w-sm items-center gap-2 rounded-lg border border-border bg-muted/50 px-3 py-2.5 text-base text-muted-foreground transition-colors hover:bg-muted md:ml-4 md:py-1.5 md:text-sm"
       >
-        <Search className="h-3.5 w-3.5" />
+        <Search className="h-5 w-5 md:h-3.5 md:w-3.5" />
+        <span className="sm:hidden">Buscar…</span>
         <span className="hidden sm:inline">Buscar leads, empresas…</span>
         <kbd className="ml-auto hidden rounded border border-border bg-background px-1.5 py-0.5 text-[10px] sm:inline">
           ⌘K

@@ -123,8 +123,12 @@ export function NotificationsBell() {
   return (
     <Popover open={open} onOpenChange={handleOpenChange}>
       <PopoverTrigger asChild>
-        <Button variant="ghost" size="icon" className="relative ml-auto md:ml-0">
-          <Bell className="h-4 w-4" />
+        <Button
+          variant="ghost"
+          size="icon"
+          className="relative ml-auto h-11 w-11 md:ml-0 md:h-9 md:w-9"
+        >
+          <Bell className="h-6 w-6 md:h-5 md:w-5" />
           {unseen.length > 0 && (
             <span className="absolute right-1.5 top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold text-primary-foreground">
               {unseen.length > 9 ? "9+" : unseen.length}
