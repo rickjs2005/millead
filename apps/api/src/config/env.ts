@@ -32,6 +32,15 @@ const envSchema = z.object({
   CORS_ORIGIN: z.string().default("http://localhost:3000"),
   /** true = workers BullMQ no mesmo processo da API (deploy de 1 serviço só). */
   START_WORKERS: z.coerce.boolean().default(false),
+  /**
+   * Registro público de conta/organização. Default true (não quebra nada);
+   * em produção fica FALSE (sistema interno da MilWeb) — flip temporário
+   * quando precisar cadastrar alguém novo da equipe.
+   */
+  REGISTRATION_OPEN: z
+    .string()
+    .default("true")
+    .transform((v) => v !== "false" && v !== "0"),
   // ===== IA (Fase 7) =====
   // Opcional de propósito: sem a chave, o app sobe normalmente e os
   // endpoints de IA respondem 503 com instrução de configuração.
