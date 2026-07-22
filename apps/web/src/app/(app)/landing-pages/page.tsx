@@ -15,8 +15,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { useBriefing, useBriefings } from "@/features/briefings/hooks";
 import { CompanyCombobox } from "@/features/companies/components/company-combobox";
 import { useCompany } from "@/features/companies/hooks";
+import { briefingToPromptPrefill } from "@/features/prompt-builder/briefing-prefill";
 import { buildPrompt, type PromptInput } from "@/features/prompt-builder/build-prompt";
 import {
   ANIMATIONS,
@@ -97,10 +99,14 @@ function Field({
 
 export default function PromptBuilderPage() {
   const [companyId, setCompanyId] = useState<string | undefined>();
+  const [briefingId, setBriefingId] = useState<string | undefined>();
   const [form, setForm] = useState<PromptInput>(EMPTY);
   const [copied, setCopied] = useState(false);
 
   const { data: company } = useCompany(companyId);
+  // Briefings CONCLUÍDOS: o cliente já contou tudo lá — fonte ideal do prompt.
+  const { data: completedBriefings } = useBriefings({ status: "COMPLETED", pageSize: 50 });
+  const { data: briefing } = useBriefing(briefingId);
 
   // Prefill a partir da empresa selecionada -- só preenche campos ainda vazios,
   // pra não apagar o que o usuário já digitou.
@@ -115,6 +121,25 @@ export default function PromptBuilderPage() {
       contact: prev.contact || company.phone || company.email || "",
     }));
   }, [company]);
+
+  // Prefill a partir das RESPOSTAS do briefing selecionado (mesma regra:
+  // só preenche o que ainda está vazio).
+  useEffect(() => {
+    if (!briefing) return;
+    const prefill = briefingToPromptPrefill(briefing);
+    setForm((prev) => {
+      const next = { ...prev };
+      for (const [key, value] of Object.entries(prefill) as [
+        keyof PromptInput,
+        PromptInput[keyof PromptInput],
+      ][]) {
+        if (typeof value === "string" && !next[key]) {
+          (next as Record<string, unknown>)[key] = value;
+        }
+      }
+      return next;
+    });
+  }, [briefing]);
 
   function set<K extends keyof PromptInput>(key: K, value: PromptInput[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -175,6 +200,29 @@ export default function PromptBuilderPage() {
           <Card>
             <CardContent className="flex flex-col gap-4 p-5">
               <p className="text-sm font-semibold">1. Cliente</p>
+              <Field
+                label="Puxar de um briefing concluído"
+                hint="Opcional — usa as respostas que o cliente deu no formulário; preenche os campos vazios."
+              >
+                <Select
+                  value={briefingId ?? "none"}
+                  onValueChange={(v) => setBriefingId(v === "none" ? undefined : v)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Nenhum briefing" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Nenhum briefing</SelectItem>
+                    {(completedBriefings?.items ?? []).map((b) => (
+                      <SelectItem key={b.id} value={b.id}>
+                        {(b.contactName || b.contactEmail || "Sem nome") +
+                          " — " +
+                          new Date(b.completedAt ?? b.createdAt).toLocaleDateString("pt-BR")}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </Field>
               <Field label="Puxar de uma empresa" hint="Opcional — preenche os campos vazios.">
                 <CompanyCombobox value={companyId} onChange={(id) => setCompanyId(id)} />
               </Field>
