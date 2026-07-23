@@ -12,7 +12,11 @@ const Checkbox = React.forwardRef<
   <CheckboxPrimitive.Root
     ref={ref}
     className={cn(
-      "peer h-4 w-4 shrink-0 rounded-sm border border-input shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 data-[state=checked]:border-primary data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground",
+      // rounded-[4px] fixo (não usa a escala --radius do tema): num controle
+      // de 16x16px, o --radius-sm do tema (calc(0.75rem - 4px) = 8px) vira
+      // 50% = círculo perfeito, indistinguível de um radio. Checkbox precisa
+      // continuar visualmente quadrado pra não confundir single vs multi-select.
+      "peer h-4 w-4 shrink-0 rounded-[4px] border border-input shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 data-[state=checked]:border-primary data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground",
       className,
     )}
     {...props}

@@ -142,44 +142,79 @@ export default function PublicBriefingPage() {
             {currentSection.description && (
               <p className="text-sm text-muted-foreground">{currentSection.description}</p>
             )}
-            {currentSection.fields.map((field) =>
-              field.type === "GROUP" ? (
-                <div key={field.id} className="flex flex-col gap-2">
-                  <Label>{field.label}</Label>
-                  <RepeatableGroupField
-                    field={field}
-                    groupItemIds={wizard.groupItems[field.id] ?? []}
-                    getAnswer={wizard.getAnswer}
-                    setValue={wizard.setValue}
-                    addItem={wizard.addGroupItem}
-                    removeItem={wizard.removeGroupItem}
-                    files={wizard.files}
-                    registerFile={wizard.registerFile}
-                    token={token}
-                    keyHeuristics={keyHeuristics}
-                  />
-                </div>
-              ) : (
-                <div key={field.id} className="flex flex-col gap-1.5">
-                  <Label>
-                    {field.label}
-                    {field.required && <span className="ml-1 text-destructive">*</span>}
-                  </Label>
-                  {field.helpText && (
-                    <p className="text-xs text-muted-foreground">{field.helpText}</p>
+            {currentSection.fields.map((field, index) => {
+              // `config.groupLabel` é uma dica visual opcional (não afeta
+              // dado/validação): quando o grupo muda em relação ao campo
+              // anterior, insere um subtítulo pra separar etapas longas em
+              // blocos (ex.: Identificação / Contato / Localização).
+              const groupLabel =
+                typeof field.config === "object" &&
+                field.config !== null &&
+                "groupLabel" in field.config
+                  ? String((field.config as { groupLabel?: unknown }).groupLabel ?? "")
+                  : "";
+              const previousField = currentSection.fields[index - 1];
+              const previousGroupLabel =
+                previousField &&
+                typeof previousField.config === "object" &&
+                previousField.config !== null &&
+                "groupLabel" in previousField.config
+                  ? String((previousField.config as { groupLabel?: unknown }).groupLabel ?? "")
+                  : "";
+              const showGroupHeading = groupLabel !== "" && groupLabel !== previousGroupLabel;
+
+              return (
+                <div key={field.id} className="contents">
+                  {showGroupHeading && (
+                    <h3
+                      className={
+                        index === 0
+                          ? "text-xs font-semibold uppercase tracking-wide text-muted-foreground"
+                          : "mt-2 border-t pt-4 text-xs font-semibold uppercase tracking-wide text-muted-foreground"
+                      }
+                    >
+                      {groupLabel}
+                    </h3>
                   )}
-                  <FieldRenderer
-                    field={field}
-                    value={wizard.getAnswer(field.id)}
-                    onChange={(patch, opts) => wizard.setValue(field.id, "", patch, opts)}
-                    token={token}
-                    files={wizard.files}
-                    onFileRegistered={wizard.registerFile}
-                    keyHeuristics={keyHeuristics}
-                  />
+                  {field.type === "GROUP" ? (
+                    <div className="flex flex-col gap-2">
+                      <Label>{field.label}</Label>
+                      <RepeatableGroupField
+                        field={field}
+                        groupItemIds={wizard.groupItems[field.id] ?? []}
+                        getAnswer={wizard.getAnswer}
+                        setValue={wizard.setValue}
+                        addItem={wizard.addGroupItem}
+                        removeItem={wizard.removeGroupItem}
+                        files={wizard.files}
+                        registerFile={wizard.registerFile}
+                        token={token}
+                        keyHeuristics={keyHeuristics}
+                      />
+                    </div>
+                  ) : (
+                    <div className="flex flex-col gap-1.5">
+                      <Label>
+                        {field.label}
+                        {field.required && <span className="ml-1 text-destructive">*</span>}
+                      </Label>
+                      {field.helpText && (
+                        <p className="text-xs text-muted-foreground">{field.helpText}</p>
+                      )}
+                      <FieldRenderer
+                        field={field}
+                        value={wizard.getAnswer(field.id)}
+                        onChange={(patch, opts) => wizard.setValue(field.id, "", patch, opts)}
+                        token={token}
+                        files={wizard.files}
+                        onFileRegistered={wizard.registerFile}
+                        keyHeuristics={keyHeuristics}
+                      />
+                    </div>
+                  )}
                 </div>
-              ),
-            )}
+              );
+            })}
           </CardContent>
         </Card>
 

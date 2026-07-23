@@ -50,22 +50,87 @@ export function institutionalSections(): SectionSeed[] {
     {
       key: "empresa",
       title: "Dados da empresa",
+      // `config.groupLabel` é só uma dica visual pro wizard público separar
+      // esta etapa (15 campos) em blocos com subtítulo -- não afeta
+      // validação/persistência, e não exige as fields serem reordenadas
+      // desde que campos do mesmo grupo fiquem consecutivos no array.
       fields: [
-        { key: "nome", label: "Nome", type: "TEXT", required: true },
-        { key: "nomeFantasia", label: "Nome fantasia", type: "TEXT" },
-        { key: "cnpj", label: "CNPJ", type: "TEXT", config: { mask: "cnpj" } },
-        { key: "telefone", label: "Telefone", type: "PHONE" },
-        { key: "whatsapp", label: "WhatsApp", type: "PHONE" },
-        { key: "email", label: "E-mail", type: "EMAIL" },
-        { key: "cep", label: "CEP", type: "TEXT", config: { mask: "cep" } },
-        { key: "cidade", label: "Cidade(s)", type: "TEXT", config: { multi: true } },
-        { key: "estado", label: "Estado(s)", type: "TEXT", config: { multi: true } },
-        { key: "instagram", label: "Instagram", type: "URL" },
-        { key: "facebook", label: "Facebook", type: "URL" },
-        { key: "linkedin", label: "LinkedIn", type: "URL" },
-        { key: "siteAtual", label: "Site atual", type: "URL" },
-        { key: "googleMaps", label: "Google Maps", type: "URL" },
-        { key: "horario", label: "Horário de funcionamento", type: "TEXT" },
+        {
+          key: "nome",
+          label: "Nome",
+          type: "TEXT",
+          required: true,
+          config: { groupLabel: "Identificação" },
+        },
+        {
+          key: "nomeFantasia",
+          label: "Nome fantasia",
+          type: "TEXT",
+          config: { groupLabel: "Identificação" },
+        },
+        {
+          key: "cnpj",
+          label: "CNPJ",
+          type: "TEXT",
+          config: { mask: "cnpj", groupLabel: "Identificação" },
+        },
+        { key: "telefone", label: "Telefone", type: "PHONE", config: { groupLabel: "Contato" } },
+        { key: "whatsapp", label: "WhatsApp", type: "PHONE", config: { groupLabel: "Contato" } },
+        { key: "email", label: "E-mail", type: "EMAIL", config: { groupLabel: "Contato" } },
+        {
+          key: "cep",
+          label: "CEP",
+          type: "TEXT",
+          config: { mask: "cep", groupLabel: "Localização" },
+        },
+        {
+          key: "cidade",
+          label: "Cidade(s)",
+          type: "TEXT",
+          config: { multi: true, groupLabel: "Localização" },
+        },
+        {
+          key: "estado",
+          label: "Estado(s)",
+          type: "TEXT",
+          config: { multi: true, groupLabel: "Localização" },
+        },
+        {
+          key: "instagram",
+          label: "Instagram",
+          type: "URL",
+          config: { groupLabel: "Presença online" },
+        },
+        {
+          key: "facebook",
+          label: "Facebook",
+          type: "URL",
+          config: { groupLabel: "Presença online" },
+        },
+        {
+          key: "linkedin",
+          label: "LinkedIn",
+          type: "URL",
+          config: { groupLabel: "Presença online" },
+        },
+        {
+          key: "siteAtual",
+          label: "Site atual",
+          type: "URL",
+          config: { groupLabel: "Presença online" },
+        },
+        {
+          key: "googleMaps",
+          label: "Google Maps",
+          type: "URL",
+          config: { groupLabel: "Presença online" },
+        },
+        {
+          key: "horario",
+          label: "Horário de funcionamento",
+          type: "TEXT",
+          config: { groupLabel: "Funcionamento" },
+        },
       ],
     },
     {
