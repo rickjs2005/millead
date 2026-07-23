@@ -37,6 +37,25 @@ import {
 import { formatDateTime } from "@/utils/format";
 import { publicAppUrl } from "@/lib/public-url";
 
+async function downloadBriefingFile(blobUrl: string, originalName: string): Promise<void> {
+  try {
+    const response = await fetch(blobUrl);
+    if (!response.ok) throw new Error("download failed");
+    const blob = await response.blob();
+    const objectUrl = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = objectUrl;
+    link.download = originalName;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(objectUrl);
+  } catch {
+    toast.error("Não foi possível baixar o arquivo. Abrindo em nova aba...");
+    window.open(blobUrl, "_blank");
+  }
+}
+
 export default function BriefingDetailPage() {
   const { id } = useParams<{ id: string }>();
   const { data: briefing, isLoading } = useBriefing(id);
@@ -183,18 +202,31 @@ export default function BriefingDetailPage() {
           ) : (
             <div className="flex flex-col gap-2">
               {briefing.files.map((file) => (
-                <a
+                <div
                   key={file.id}
-                  href={file.blobUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="flex items-center justify-between rounded-lg border border-border p-3 text-sm hover:bg-accent"
+                  className="flex items-center justify-between gap-3 rounded-lg border border-border p-3 text-sm"
                 >
-                  <span className="truncate">{file.originalName}</span>
-                  <span className="text-xs text-muted-foreground">
+                  <a
+                    href={file.blobUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="min-w-0 flex-1 truncate hover:underline"
+                  >
+                    {file.originalName}
+                  </a>
+                  <span className="shrink-0 text-xs text-muted-foreground">
                     {(file.sizeBytes / 1024 / 1024).toFixed(1)} MB
                   </span>
-                </a>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 shrink-0"
+                    title="Baixar arquivo"
+                    onClick={() => downloadBriefingFile(file.blobUrl, file.originalName)}
+                  >
+                    <Download className="h-4 w-4" />
+                  </Button>
+                </div>
               ))}
             </div>
           )}
