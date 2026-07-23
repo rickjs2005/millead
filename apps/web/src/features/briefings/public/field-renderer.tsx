@@ -149,11 +149,15 @@ export function FieldRenderer({
       const options = (field.config as { options?: string[] } | null)?.options ?? [];
       const selected = Array.isArray(value?.valueJson) ? (value!.valueJson as string[]) : [];
       return (
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col">
           {options.map((option) => {
             const checked = selected.includes(option);
             return (
-              <label key={option} className="flex items-center gap-2 text-sm">
+              // py-3 leva a linha inteira (área clicável do <label>) a ~44px
+              // de altura -- por padrão ficava só ~20px (altura do texto),
+              // bem abaixo do mínimo de toque recomendado (Apple/Google
+              // ~44px), fácil de errar num celular com várias opções juntas.
+              <label key={option} className="flex items-center gap-3 py-3 text-sm">
                 <Checkbox
                   checked={checked}
                   onCheckedChange={(c) =>

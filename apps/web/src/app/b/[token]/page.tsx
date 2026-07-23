@@ -218,16 +218,24 @@ export default function PublicBriefingPage() {
           </CardContent>
         </Card>
 
+        {/* h-11 (44px) nos 3 botões abaixo -- o Button padrão é h-9 (36px),
+            um pouco curto pro mínimo de toque recomendado em mobile; só o
+            wizard público precisa disso (não o Button inteiro do app). */}
         <div className="flex items-center justify-between">
-          <Button variant="outline" disabled={step === 0} onClick={() => setStep((s) => s - 1)}>
+          <Button
+            variant="outline"
+            className="h-11 px-6"
+            disabled={step === 0}
+            onClick={() => setStep((s) => s - 1)}
+          >
             <ChevronLeft className="h-4 w-4" /> Voltar
           </Button>
           {isLastStep ? (
-            <Button onClick={handleComplete} disabled={completing}>
+            <Button className="h-11 px-6" onClick={handleComplete} disabled={completing}>
               {completing ? "Enviando…" : "Finalizar briefing"}
             </Button>
           ) : (
-            <Button onClick={() => setStep((s) => s + 1)}>
+            <Button className="h-11 px-6" onClick={() => setStep((s) => s + 1)}>
               Próximo <ChevronRight className="h-4 w-4" />
             </Button>
           )}
