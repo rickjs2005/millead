@@ -173,7 +173,15 @@ export function institutionalSections(): SectionSeed[] {
       fields: [
         { key: "descricaoCliente", label: "Quem é seu cliente?", type: "TEXTAREA" },
         { key: "faixaEtaria", label: "Faixa etária", type: "TEXT" },
-        { key: "cidade", label: "Cidade", type: "TEXT" },
+        // Key própria (não "cidade"): a key "cidade" já existe na seção
+        // "empresa" (cidade(s) onde a EMPRESA atua) -- chave igual fazia o
+        // heurístico de chips (MULTI_KEYS em field-utils.ts) tratar os dois
+        // campos como multi sem ninguém ter pedido isso pra este aqui, e o
+        // rótulo idêntico confundia o cliente ("já não respondi isso?").
+        // Este campo é sobre onde mora o PÚBLICO, não a empresa -- texto
+        // livre (não multi/chips): geralmente é uma resposta qualitativa
+        // ("São Paulo e região", "todo o Brasil"), não uma lista de cidades.
+        { key: "regiaoPublico", label: "De onde é o seu público-alvo?", type: "TEXT" },
         { key: "classeSocial", label: "Classe social", type: "TEXT" },
         { key: "necessidades", label: "Necessidades", type: "TEXTAREA" },
       ],
