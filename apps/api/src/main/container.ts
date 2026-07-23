@@ -41,6 +41,7 @@ import { PgBossLandingPageQueue } from "../infrastructure/queue/pg-landing-page-
 import { PrismaActivityRepository } from "../infrastructure/prisma/prisma-activity-repository.js";
 import { PrismaAuditLogRepository } from "../infrastructure/prisma/prisma-audit-log-repository.js";
 import { PrismaAuditRepository } from "../infrastructure/prisma/prisma-audit-repository.js";
+import { CachedBriefingTemplateRepository } from "../infrastructure/prisma/cached-briefing-template-repository.js";
 import { PrismaBriefingAnswerRepository } from "../infrastructure/prisma/prisma-briefing-answer-repository.js";
 import { PrismaBriefingFileRepository } from "../infrastructure/prisma/prisma-briefing-file-repository.js";
 import { PrismaBriefingRepository } from "../infrastructure/prisma/prisma-briefing-repository.js";
@@ -131,8 +132,12 @@ export function buildContainer(): Container {
   const messageTemplateRepository = new PrismaMessageTemplateRepository();
   const landingPageRepository = new PrismaLandingPageRepository();
   const contractRepository = new PrismaContractRepository();
-  const briefingRepository = new PrismaBriefingRepository();
-  const briefingTemplateRepository = new PrismaBriefingTemplateRepository();
+  // Cacheado em memória (5min): estrutura de template (seções/campos) só
+  // muda por seed manual, que reinicia o processo e já limpa o cache.
+  const briefingTemplateRepository = new CachedBriefingTemplateRepository(
+    new PrismaBriefingTemplateRepository(),
+  );
+  const briefingRepository = new PrismaBriefingRepository(briefingTemplateRepository);
   const briefingAnswerRepository = new PrismaBriefingAnswerRepository();
   const briefingFileRepository = new PrismaBriefingFileRepository();
 

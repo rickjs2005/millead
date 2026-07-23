@@ -1,18 +1,23 @@
 import { prisma, Prisma, type BriefingStatus } from "@millead/database";
-import type { Briefing, BriefingDetail, BriefingLink } from "../../domain/entities/briefing.js";
+import type {
+  Briefing,
+  BriefingDetail,
+  BriefingLink,
+  BriefingTemplateDetail,
+} from "../../domain/entities/briefing.js";
 import type {
   BriefingFilters,
   BriefingRepository,
   CreateBriefingInput,
   UpdateContactInput,
 } from "../../domain/repositories/briefing-repository.js";
+import type { BriefingTemplateRepository } from "../../domain/repositories/briefing-template-repository.js";
 import {
   paginate,
   toSkipTake,
   type PaginatedResult,
   type PaginationParams,
 } from "../../shared/pagination.js";
-import { templateInclude, toTemplateDetail } from "./briefing-mappers.js";
 
 const baseSelect = {
   id: true,
@@ -39,8 +44,13 @@ const baseSelect = {
  * Pra reabrir depois disso o admin usa "Duplicar" (gera link novo). */
 const LINK_TTL_MS = 24 * 60 * 60 * 1000;
 
+/** Sem o `template` aqui de propósito -- ver `PrismaBriefingRepository`:
+ * a estrutura do template (seções->campos) é resolvida à parte, via
+ * `templateRepository.findById`, que fica cacheado em memória (5min) por
+ * `CachedBriefingTemplateRepository`. Isso tira do caminho quente do
+ * formulário público (getByToken e CADA autosave) uma consulta aninhada
+ * que hoje roda de novo a cada request mesmo quando o template não mudou. */
 const detailInclude = {
-  template: { include: templateInclude },
   link: true,
   answers: true,
   files: { orderBy: { createdAt: "asc" as const } },
@@ -53,17 +63,17 @@ function toDomain(row: Briefing): Briefing {
 
 function toDetail(
   row: {
-    template: Parameters<typeof toTemplateDetail>[0];
     link: BriefingLink | null;
     answers: BriefingDetail["answers"];
     files: BriefingDetail["files"];
     history: BriefingDetail["history"];
   } & Briefing,
+  template: BriefingTemplateDetail,
 ): BriefingDetail {
-  const { template, link, answers, files, history, ...briefing } = row;
+  const { link, answers, files, history, ...briefing } = row;
   return {
     ...briefing,
-    template: toTemplateDetail(template),
+    template,
     link,
     answers,
     files,
@@ -72,6 +82,19 @@ function toDetail(
 }
 
 export class PrismaBriefingRepository implements BriefingRepository {
+  constructor(private readonly templateRepository: BriefingTemplateRepository) {}
+
+  /** Resolve o template do briefing (cacheado) -- lança se a FK estiver
+   * quebrada, o que a constraint do banco (onDelete: Restrict) já impede
+   * de acontecer em uso normal. */
+  private async resolveTemplate(templateId: string): Promise<BriefingTemplateDetail> {
+    const template = await this.templateRepository.findById(templateId);
+    if (!template) {
+      throw new Error(`BriefingTemplate ${templateId} não encontrado (FK deveria impedir isso)`);
+    }
+    return template;
+  }
+
   async create(input: CreateBriefingInput): Promise<Briefing & { link: BriefingLink }> {
     const result = await prisma.$transaction(async (tx) => {
       const briefing = await tx.briefing.create({
@@ -110,7 +133,8 @@ export class PrismaBriefingRepository implements BriefingRepository {
       where: { id, organizationId },
       include: detailInclude,
     });
-    return row ? toDetail(row) : null;
+    if (!row) return null;
+    return toDetail(row, await this.resolveTemplate(row.templateId));
   }
 
   async findByToken(token: string): Promise<BriefingDetail | null> {
@@ -125,7 +149,8 @@ export class PrismaBriefingRepository implements BriefingRepository {
       },
       include: detailInclude,
     });
-    return row ? toDetail(row) : null;
+    if (!row) return null;
+    return toDetail(row, await this.resolveTemplate(row.templateId));
   }
 
   async list(
