@@ -1,22 +1,25 @@
 import type { BriefingDetail, BriefingField } from "@/types/api";
-import type { PromptInput } from "./build-prompt";
+import type { CreativeInput } from "./types";
 
 /**
- * Converte as RESPOSTAS de um briefing concluído em prefill do gerador de
- * prompt — o cliente já contou tudo no formulário; nada de redigitar.
+ * Converte as RESPOSTAS de um briefing concluído em prefill do diretor
+ * criativo -- o cliente já contou tudo no formulário; nada de redigitar.
  *
  * Mapeia por key de campo (templates do seed usam keys canônicas:
  * empresa/descricao/publico/diferenciais/...). Em template CUSTOM as keys
- * são slugs do label — a heurística por substring cobre os casos comuns e
+ * são slugs do label -- a heurística por substring cobre os casos comuns e
  * TODO o resto vai pras "Observações adicionais" como "Label: valor",
  * então nenhuma resposta se perde.
  */
 
 type Bucket =
   | "businessName"
+  | "segment"
   | "description"
   | "audience"
   | "differentials"
+  | "competitors"
+  | "averageTicket"
   | "references"
   | "city"
   | "state"
@@ -30,6 +33,10 @@ function bucketFor(key: string, type: BriefingField["type"]): Bucket | null {
   const k = key.toLowerCase();
   if (k === "empresa" || k.includes("nome_da_empresa") || k.includes("nome_empresa"))
     return "businessName";
+  if (k.includes("segmento") || k.includes("nicho") || k.includes("ramo")) return "segment";
+  if (k.includes("concorrent")) return "competitors";
+  if (k.includes("ticket") || k.includes("preco_medio") || k.includes("faturamento"))
+    return "averageTicket";
   if (k.includes("descri") || k === "sobre" || k.includes("servico") || k.includes("produto"))
     return "description";
   if (k.includes("public")) return "audience";
@@ -49,7 +56,7 @@ function answerValue(valueText: string | null, valueJson: unknown): string {
   return "";
 }
 
-export function briefingToPromptPrefill(detail: BriefingDetail): Partial<PromptInput> {
+export function briefingToPrefill(detail: BriefingDetail): Partial<CreativeInput> {
   // fieldId -> field (inclui filhos de GRUPO)
   const fields = new Map<string, BriefingField>();
   for (const section of detail.template.sections) {
@@ -59,7 +66,7 @@ export function briefingToPromptPrefill(detail: BriefingDetail): Partial<PromptI
     }
   }
 
-  // key -> valores (respostas de grupo repetível geram várias linhas por campo)
+  // bucket -> valores (respostas de grupo repetível geram várias linhas por campo)
   const byBucket = new Map<Bucket, string[]>();
   const extras: string[] = [];
   const push = (bucket: Bucket, v: string) => {
@@ -85,11 +92,14 @@ export function briefingToPromptPrefill(detail: BriefingDetail): Partial<PromptI
     .filter(Boolean)
     .join(" · ");
 
-  const prefill: Partial<PromptInput> = {};
+  const prefill: Partial<CreativeInput> = {};
   if (joined("businessName")) prefill.businessName = joined("businessName", " ");
+  if (joined("segment")) prefill.segment = joined("segment", ", ");
   if (joined("description")) prefill.description = joined("description");
   if (joined("audience")) prefill.audience = joined("audience", "; ");
   if (joined("differentials")) prefill.differentials = joined("differentials");
+  if (joined("competitors")) prefill.competitors = joined("competitors", ", ");
+  if (joined("averageTicket")) prefill.averageTicket = joined("averageTicket", " · ");
   if (joined("references")) prefill.references = joined("references", ", ");
   if (location) prefill.location = location;
   if (contact) prefill.contact = contact;

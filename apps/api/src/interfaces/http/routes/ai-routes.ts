@@ -1,6 +1,7 @@
 import { PERMISSIONS } from "@millead/database/permissions";
 import { Router, type RequestHandler } from "express";
 import { draftMessageSchema } from "../../../application/dto/ai.dto.js";
+import { creativeDirectionSchema } from "../../../application/dto/creative-direction.dto.js";
 import { asyncHandler } from "../async-handler.js";
 import type { AiController } from "../controllers/ai-controller.js";
 import { aiRateLimit } from "../middlewares/rate-limit.js";
@@ -32,6 +33,15 @@ export function createAiRoutes(controller: AiController, authenticate: RequestHa
     requirePermission(PERMISSIONS.MESSAGES_WRITE),
     validateBody(draftMessageSchema),
     asyncHandler(controller.draftMessage),
+  );
+
+  // Direção criativa de landing page: mesma permissão do menu "Diretor criativo".
+  router.post(
+    "/creative-direction",
+    aiRateLimit,
+    requirePermission(PERMISSIONS.LEADS_READ),
+    validateBody(creativeDirectionSchema),
+    asyncHandler(controller.directCreative),
   );
 
   return router;

@@ -45,7 +45,7 @@ const envSchema = z.object({
   // Opcional de propósito: sem a chave, o app sobe normalmente e os
   // endpoints de IA respondem 503 com instrução de configuração.
   ANTHROPIC_API_KEY: z.string().min(1).optional(),
-  AI_MODEL: z.string().default("claude-opus-4-8"),
+  AI_MODEL: z.string().default("claude-opus-5"),
 
   // ===== Contratos (Fase 9 -- migrado do milweb-contratos) =====
   // URL pública da API (webhooks de assinatura apontam pra cá).

@@ -7,6 +7,11 @@ import type { MessageRepository } from "../../domain/repositories/message-reposi
 import type { MessageTemplateRepository } from "../../domain/repositories/message-template-repository.js";
 import type { OrganizationRepository } from "../../domain/repositories/organization-repository.js";
 import type { PipelineRepository } from "../../domain/repositories/pipeline-repository.js";
+import type {
+  CreativeBrief,
+  CreativeDirection,
+  CreativeDirector,
+} from "../../domain/services/creative-director.js";
 import type { LeadAi, LeadAiContext } from "../../domain/services/lead-ai.js";
 import type { ActivityLogger } from "./activity-logger.js";
 
@@ -22,6 +27,8 @@ export class AiService {
     private readonly templates: MessageTemplateRepository,
     private readonly messages: MessageRepository,
     private readonly activityLogger: ActivityLogger,
+    /** null quando ANTHROPIC_API_KEY não está configurada. */
+    private readonly creativeDirector: CreativeDirector | null = null,
   ) {}
 
   status() {
@@ -31,6 +38,15 @@ export class AiService {
   private requireAi(): LeadAi {
     if (!this.leadAi) throw new AiNotConfiguredError();
     return this.leadAi;
+  }
+
+  /**
+   * Direção criativa de landing page. Stateless de propósito: nada é salvo --
+   * o dossiê é montado no front a partir do que voltar daqui.
+   */
+  async directCreative(brief: CreativeBrief): Promise<CreativeDirection> {
+    if (!this.creativeDirector) throw new AiNotConfiguredError();
+    return this.creativeDirector.direct(brief);
   }
 
   /** Junta lead + empresa + auditoria + atividades num contexto pro modelo. */

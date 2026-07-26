@@ -21,6 +21,13 @@ export class AiController {
     res.status(200).json(result);
   };
 
+  /** Direção criativa de landing page -- não persiste nada. */
+  directCreative = async (req: Request, res: Response): Promise<void> => {
+    requireAuth(req);
+    const direction = await this.ai.directCreative(req.body);
+    res.status(200).json(direction);
+  };
+
   draftMessage = async (req: Request, res: Response): Promise<void> => {
     const auth = requireAuth(req);
     const message = await this.ai.draftMessage(

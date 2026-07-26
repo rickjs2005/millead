@@ -28,6 +28,7 @@ import { RegisterUseCase } from "../application/use-cases/auth/register-use-case
 import { env } from "../config/env.js";
 import { BcryptPasswordHasher } from "../infrastructure/auth/bcrypt-password-hasher.js";
 import { JwtAccessTokenService } from "../infrastructure/auth/jwt-access-token-service.js";
+import { ClaudeCreativeDirector } from "../infrastructure/ai/claude-creative-director.js";
 import { ClaudeLeadAi } from "../infrastructure/ai/claude-lead-ai.js";
 import { WebPushSender } from "../infrastructure/push/web-push-sender.js";
 import { VercelBlobStorage } from "../infrastructure/blob/vercel-blob-storage.js";
@@ -171,6 +172,9 @@ export function buildContainer(): Container {
   const leadAi = env.ANTHROPIC_API_KEY
     ? new ClaudeLeadAi(env.ANTHROPIC_API_KEY, env.AI_MODEL)
     : null;
+  const creativeDirector = env.ANTHROPIC_API_KEY
+    ? new ClaudeCreativeDirector(env.ANTHROPIC_API_KEY, env.AI_MODEL)
+    : null;
   const landingPageService = new LandingPageService(
     landingPageRepository,
     companyRepository,
@@ -220,6 +224,7 @@ export function buildContainer(): Container {
     messageTemplateRepository,
     messageRepository,
     activityLogger,
+    creativeDirector,
   );
 
   // ---- Use-cases ----
