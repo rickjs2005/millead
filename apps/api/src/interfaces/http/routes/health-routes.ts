@@ -1,12 +1,19 @@
 import { prisma } from "@millead/database";
 import { Router } from "express";
+import { resolveCommit, startedAt } from "../../../shared/version.js";
 import { asyncHandler } from "../async-handler.js";
 
 export function createHealthRoutes(): Router {
   const router = Router();
 
+  /**
+   * Liveness + identidade do build. `commit` e `startedAt` respondem "qual
+   * código está no ar?" -- web (Vercel) e API (Render) deployam separado, e
+   * sem isso a diferença entre "ainda não subiu" e "está quebrado" vira
+   * adivinhação. Rota pública: expõe só o SHA curto, nada de config.
+   */
   router.get("/health", (_req, res) => {
-    res.status(200).json({ status: "ok" });
+    res.status(200).json({ status: "ok", commit: resolveCommit(process.env), startedAt });
   });
 
   /**

@@ -43,6 +43,13 @@ o banco: `GET http://localhost:4000/health/ready` responde
 `SELECT 1` falhar). O Redis **não** entra nesse check — a API sobe e serve
 sem ele; quem depende de fila é o worker.
 
+`GET /health` responde `{"status":"ok","commit":"6eec5df","startedAt":"..."}`.
+O `commit` é o SHA curto do código em execução (`RENDER_GIT_COMMIT`, que o
+Render injeta sozinho; `dev` fora de um deploy) e o `startedAt` denuncia
+restart e cold start. **Use os dois antes de investigar comportamento novo
+que "não subiu"**: web (Vercel) e API (Render) deployam separado, então é
+comum o front já ter a mudança e a API ainda não.
+
 Pra rodar o worker de filas (BullMQ) separadamente:
 
 ```bash
