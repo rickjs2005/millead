@@ -37,9 +37,11 @@ pnpm dev                        # api em :4000, web em :3000
 Depois disso, `http://localhost:3000` redireciona pra tela de login (ou pro
 dashboard, se já houver sessão). Login de teste criado pelo seed:
 `rick@milweb.com.br` / senha em `SEED_OWNER_PASSWORD` (padrão
-`millead-dev-only` se a env var não for definida). Pra checar as
-dependências: `GET http://localhost:4000/health/ready` responde
-`{"checks":{"database":true,"redis":true}}`.
+`millead-dev-only` se a env var não for definida). Pra checar a conexão com
+o banco: `GET http://localhost:4000/health/ready` responde
+`{"status":"ready","checks":{"database":true}}` (503 e `not-ready` se o
+`SELECT 1` falhar). O Redis **não** entra nesse check — a API sobe e serve
+sem ele; quem depende de fila é o worker.
 
 Pra rodar o worker de filas (BullMQ) separadamente:
 
