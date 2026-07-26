@@ -12,6 +12,12 @@ export interface CreateAuditInput {
 export interface AuditFilters {
   companyId?: string;
   status?: AuditStatus;
+  /**
+   * Devolve só a auditoria mais recente de cada empresa (a visão de lista).
+   * Ignorado quando `companyId` está presente -- aí a intenção é o histórico
+   * daquela empresa.
+   */
+  latestPerCompany?: boolean;
 }
 
 export interface AuditResultInput {

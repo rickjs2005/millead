@@ -1,6 +1,6 @@
 "use client";
 
-import { FileSearch, Loader2 } from "lucide-react";
+import { FileSearch, History, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -18,7 +18,16 @@ import { cn } from "@/lib/utils";
 import { formatDateTime } from "@/utils/format";
 import type { Audit } from "@/types/api";
 
-export function AuditCard({ audit, hideCompany }: { audit: Audit; hideCompany?: boolean }) {
+export function AuditCard({
+  audit,
+  hideCompany,
+  historyHref,
+}: {
+  audit: Audit;
+  hideCompany?: boolean;
+  /** Quando presente, o card vira porta de entrada do histórico da empresa. */
+  historyHref?: string;
+}) {
   const { data: company } = useCompany(hideCompany ? undefined : audit.companyId);
   const overall = overallScore(audit.scores);
   const pending = audit.status === "QUEUED" || audit.status === "RUNNING";
@@ -72,6 +81,15 @@ export function AuditCard({ audit, hideCompany }: { audit: Audit; hideCompany?: 
 
         {audit.status === "FAILED" && (
           <p className="text-sm text-destructive">{audit.report?.summary ?? "A análise falhou."}</p>
+        )}
+
+        {historyHref && (
+          <Link
+            href={historyHref}
+            className="flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+          >
+            <History className="h-3 w-3" /> Ver histórico desta empresa
+          </Link>
         )}
       </CardContent>
     </Card>

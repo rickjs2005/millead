@@ -6,6 +6,8 @@ export interface ListAuditsParams {
   pageSize?: number;
   companyId?: string;
   status?: AuditStatus;
+  /** Só a auditoria mais recente de cada empresa. Ignorado se houver `companyId`. */
+  latestPerCompany?: boolean;
 }
 
 export const auditsService = {

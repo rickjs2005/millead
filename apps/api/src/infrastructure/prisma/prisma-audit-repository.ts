@@ -6,6 +6,7 @@ import type {
   AuditResultInput,
   CreateAuditInput,
 } from "../../domain/repositories/audit-repository.js";
+import { buildAuditWhere, groupsByCompany } from "./audit-query.js";
 import {
   paginate,
   toSkipTake,
@@ -39,11 +40,12 @@ export class PrismaAuditRepository implements AuditRepository {
     filters: AuditFilters,
     pagination: PaginationParams,
   ): Promise<PaginatedResult<AuditWithResults>> {
-    const where: Prisma.AuditWhereInput = {
-      organizationId,
-      ...(filters.companyId ? { companyId: filters.companyId } : {}),
-      ...(filters.status ? { status: filters.status } : {}),
-    };
+    const where = buildAuditWhere(organizationId, filters);
+
+    if (groupsByCompany(filters)) {
+      return this.listLatestPerCompany(organizationId, filters, pagination);
+    }
+
     const [rows, total] = await Promise.all([
       prisma.audit.findMany({
         where,
@@ -54,6 +56,54 @@ export class PrismaAuditRepository implements AuditRepository {
       prisma.audit.count({ where }),
     ]);
     return paginate(rows, total, pagination);
+  }
+
+  /**
+   * Uma auditoria por empresa: a mais recente. Vai de SQL cru porque o
+   * `distinct` do Prisma é resolvido EM MEMÓRIA -- medido: a query sai sem
+   * `DISTINCT ON` e sem `LIMIT`, então ele puxaria a tabela toda e o `OFFSET`
+   * da paginação rodaria antes da deduplicação, devolvendo páginas erradas.
+   * `DISTINCT ON (company_id)` resolve no banco, e o total conta empresas
+   * distintas -- senão o contador da paginação mentiria.
+   */
+  private async listLatestPerCompany(
+    organizationId: string,
+    filters: AuditFilters,
+    pagination: PaginationParams,
+  ): Promise<PaginatedResult<AuditWithResults>> {
+    const statusFilter = filters.status
+      ? Prisma.sql`AND "status" = ${filters.status}::"audit_status"`
+      : Prisma.empty;
+    const { skip, take } = toSkipTake(pagination);
+
+    const [idRows, countRows] = await Promise.all([
+      prisma.$queryRaw<{ id: string }[]>`
+        SELECT "id" FROM (
+          SELECT DISTINCT ON ("company_id") "id", "created_at"
+          FROM "audits"
+          WHERE "organization_id" = ${organizationId} ${statusFilter}
+          ORDER BY "company_id", "created_at" DESC
+        ) AS latest
+        ORDER BY "created_at" DESC
+        LIMIT ${take} OFFSET ${skip}
+      `,
+      prisma.$queryRaw<{ total: bigint }[]>`
+        SELECT COUNT(DISTINCT "company_id") AS total
+        FROM "audits"
+        WHERE "organization_id" = ${organizationId} ${statusFilter}
+      `,
+    ]);
+
+    const ids = idRows.map((row) => row.id);
+    const rows = ids.length
+      ? await prisma.audit.findMany({
+          where: { id: { in: ids } },
+          include: withResults,
+          orderBy: { createdAt: "desc" },
+        })
+      : [];
+
+    return paginate(rows, Number(countRows[0]?.total ?? 0), pagination);
   }
 
   async markRunning(id: string): Promise<void> {
