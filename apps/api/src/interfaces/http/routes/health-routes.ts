@@ -9,7 +9,14 @@ export function createHealthRoutes(): Router {
     res.status(200).json({ status: "ok" });
   });
 
-  /** Checa dependências de verdade -- usado por orquestrador/monitoramento, não por humanos. */
+  /**
+   * Liveness com dependência: faz `SELECT 1` no banco e devolve 200/`ready`
+   * ou 503/`not-ready`. Usado por orquestrador/monitoramento, não por humanos.
+   *
+   * Checa SÓ o banco, de propósito: a API sobe e serve sem Redis (quem depende
+   * de fila é o worker, em processo separado). Um 200 aqui não diz nada sobre a
+   * saúde dos workers -- não use esta rota como prova de que a fila está viva.
+   */
   router.get(
     "/health/ready",
     asyncHandler(async (_req, res) => {
