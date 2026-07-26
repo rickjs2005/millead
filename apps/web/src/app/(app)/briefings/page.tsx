@@ -120,7 +120,8 @@ export default function BriefingsPage() {
             <SelectValue placeholder="Status" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="ALL">Todos os status</SelectItem>
+            {/* "Todos" não inclui arquivado: pra ver os arquivados, filtre por eles. */}
+            <SelectItem value="ALL">Todos (menos arquivados)</SelectItem>
             {Object.entries(BRIEFING_STATUS_LABELS).map(([value, label]) => (
               <SelectItem key={value} value={value}>
                 {label}

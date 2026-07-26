@@ -12,6 +12,7 @@ import type {
   UpdateContactInput,
 } from "../../domain/repositories/briefing-repository.js";
 import type { BriefingTemplateRepository } from "../../domain/repositories/briefing-template-repository.js";
+import { buildBriefingWhere } from "./briefing-where.js";
 import {
   paginate,
   toSkipTake,
@@ -158,19 +159,7 @@ export class PrismaBriefingRepository implements BriefingRepository {
     filters: BriefingFilters,
     pagination: PaginationParams,
   ): Promise<PaginatedResult<Briefing>> {
-    const where: Prisma.BriefingWhereInput = {
-      organizationId,
-      ...(filters.status ? { status: filters.status } : {}),
-      ...(filters.leadId ? { leadId: filters.leadId } : {}),
-      ...(filters.search
-        ? {
-            OR: [
-              { contactName: { contains: filters.search, mode: "insensitive" } },
-              { contactEmail: { contains: filters.search, mode: "insensitive" } },
-            ],
-          }
-        : {}),
-    };
+    const where = buildBriefingWhere(organizationId, filters);
     const [rows, total] = await Promise.all([
       prisma.briefing.findMany({
         where,
