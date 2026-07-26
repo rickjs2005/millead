@@ -7,6 +7,5 @@
 // custa milhares de comandos Redis/dia no Upstash — um worker de demo
 // ajudou a estourar a cota free e derrubar a API em produção.
 import "./audit.worker.js";
-import "./landing-page.worker.js";
 import "./contract.worker.js";
 import "./briefing.worker.js";

@@ -7,7 +7,6 @@ import { BriefingCompletionService } from "../application/services/briefing-comp
 import { BriefingFileService } from "../application/services/briefing-file-service.js";
 import { BriefingService } from "../application/services/briefing-service.js";
 import { ContractService } from "../application/services/contract-service.js";
-import { LandingPageService } from "../application/services/landing-page-service.js";
 import { MessageService } from "../application/services/message-service.js";
 import { CompanyService } from "../application/services/company-service.js";
 import { LeadService } from "../application/services/lead-service.js";
@@ -38,7 +37,6 @@ import { createSignatureGateway } from "../infrastructure/contracts/signature/fa
 import { PgBossAuditQueue } from "../infrastructure/queue/pg-audit-queue.js";
 import { PgBossBriefingQueue } from "../infrastructure/queue/pg-briefing-queue.js";
 import { PgBossContractQueue } from "../infrastructure/queue/pg-contract-queue.js";
-import { PgBossLandingPageQueue } from "../infrastructure/queue/pg-landing-page-queue.js";
 import { PrismaActivityRepository } from "../infrastructure/prisma/prisma-activity-repository.js";
 import { PrismaAuditLogRepository } from "../infrastructure/prisma/prisma-audit-log-repository.js";
 import { PrismaAuditRepository } from "../infrastructure/prisma/prisma-audit-repository.js";
@@ -50,7 +48,6 @@ import { PrismaBriefingTemplateRepository } from "../infrastructure/prisma/prism
 import { PrismaCompanyRepository } from "../infrastructure/prisma/prisma-company-repository.js";
 import { PrismaLeadRepository } from "../infrastructure/prisma/prisma-lead-repository.js";
 import { PrismaContractRepository } from "../infrastructure/prisma/prisma-contract-repository.js";
-import { PrismaLandingPageRepository } from "../infrastructure/prisma/prisma-landing-page-repository.js";
 import { PrismaMeetingRepository } from "../infrastructure/prisma/prisma-meeting-repository.js";
 import { PrismaMessageRepository } from "../infrastructure/prisma/prisma-message-repository.js";
 import { PrismaMessageTemplateRepository } from "../infrastructure/prisma/prisma-message-template-repository.js";
@@ -69,7 +66,6 @@ import { AuditController } from "../interfaces/http/controllers/audit-controller
 import { AuthController } from "../interfaces/http/controllers/auth-controller.js";
 import { BriefingController } from "../interfaces/http/controllers/briefing-controller.js";
 import { ContractController } from "../interfaces/http/controllers/contract-controller.js";
-import { LandingPageController } from "../interfaces/http/controllers/landing-page-controller.js";
 import { MessageController } from "../interfaces/http/controllers/message-controller.js";
 import { CompanyController } from "../interfaces/http/controllers/company-controller.js";
 import { LeadController } from "../interfaces/http/controllers/lead-controller.js";
@@ -89,7 +85,6 @@ export interface Container {
   briefingController: BriefingController;
   companyController: CompanyController;
   contractController: ContractController;
-  landingPageController: LandingPageController;
   messageController: MessageController;
   leadController: LeadController;
   meetingController: MeetingController;
@@ -131,7 +126,6 @@ export function buildContainer(): Container {
   const auditRepository = new PrismaAuditRepository();
   const messageRepository = new PrismaMessageRepository();
   const messageTemplateRepository = new PrismaMessageTemplateRepository();
-  const landingPageRepository = new PrismaLandingPageRepository();
   const contractRepository = new PrismaContractRepository();
   // Cacheado em memória (5min): estrutura de template (seções/campos) só
   // muda por seed manual, que reinicia o processo e já limpa o cache.
@@ -175,12 +169,6 @@ export function buildContainer(): Container {
   const creativeDirector = env.ANTHROPIC_API_KEY
     ? new ClaudeCreativeDirector(env.ANTHROPIC_API_KEY, env.AI_MODEL)
     : null;
-  const landingPageService = new LandingPageService(
-    landingPageRepository,
-    companyRepository,
-    new PgBossLandingPageQueue(),
-    !!env.ANTHROPIC_API_KEY,
-  );
   const contractService = new ContractService(
     contractRepository,
     companyRepository,
@@ -280,7 +268,6 @@ export function buildContainer(): Container {
   const auditController = new AuditController(auditService);
   const aiController = new AiController(aiService);
   const messageController = new MessageController(messageService);
-  const landingPageController = new LandingPageController(landingPageService);
   const contractController = new ContractController(contractService);
   const briefingController = new BriefingController(
     briefingService,
@@ -296,7 +283,6 @@ export function buildContainer(): Container {
     authController,
     briefingController,
     contractController,
-    landingPageController,
     messageController,
     companyController,
     leadController,

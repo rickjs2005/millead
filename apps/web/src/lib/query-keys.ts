@@ -15,10 +15,6 @@ export const queryKeys = {
     list: (params: object) => ["messages", "list", params] as const,
     templates: () => ["messages", "templates"] as const,
   },
-  landingPages: {
-    list: (params: object) => ["landing-pages", "list", params] as const,
-    detail: (id: string) => ["landing-pages", "detail", id] as const,
-  },
   contracts: {
     list: (params: object) => ["contracts", "list", params] as const,
     detail: (id: string) => ["contracts", "detail", id] as const,

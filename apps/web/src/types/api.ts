@@ -419,33 +419,6 @@ export interface LeadReportResponse {
   report: string;
 }
 
-// ---------- Landing Pages (Fase 8) ----------
-
-export type LandingPageKind = "DEMO_SITE" | "PITCH";
-export type LandingPageStatus = "QUEUED" | "GENERATING" | "READY" | "FAILED";
-
-/** Listagem vem sem o HTML (pesado); o detalhe (GET /:id) inclui `html`. */
-export interface LandingPage {
-  id: string;
-  organizationId: string;
-  companyId: string;
-  leadId: string | null;
-  createdById: string | null;
-  slug: string;
-  title: string;
-  kind: LandingPageKind;
-  status: LandingPageStatus;
-  brief: string | null;
-  errorMessage: string | null;
-  isPublished: boolean;
-  publishedAt: string | null;
-  views: number;
-  createdAt: string;
-  updatedAt: string;
-  hasHtml?: boolean;
-  html?: string | null;
-}
-
 // ---------- Contratos (Fase 9) ----------
 
 export type ContractType = "SITE" | "SISTEMA" | "SAAS" | "MANUTENCAO" | "CONSULTORIA";

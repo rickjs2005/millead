@@ -42,8 +42,8 @@ export const authRateLimit = rateLimit({
 
 /**
  * Limite pras rotas públicas sem login (fechamento de contrato, wizard de
- * briefing, landing pages). Mais permissivo que o de auth: o autosave do
- * briefing dispara várias vezes numa sessão legítima de preenchimento.
+ * briefing). Mais permissivo que o de auth: o autosave do briefing dispara
+ * várias vezes numa sessão legítima de preenchimento.
  */
 export const publicRateLimit = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -60,7 +60,7 @@ export const publicRateLimit = rateLimit({
 
 /**
  * Limite pras rotas que chamam a Anthropic (score/report/message de lead e
- * regeneração de landing page -- esta última usa até 48k tokens por chamada).
+ * direção criativa -- esta última usa até 32k tokens por chamada).
  * Sem isso, qualquer usuário autenticado com LEADS_READ pode fazer loop e
  * queimar a conta da Anthropic. Chave por usuário (ver authUserKey), não por
  * IP. Ajustar `max` conforme o uso real; considerar também cota diária por

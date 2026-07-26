@@ -54,7 +54,6 @@ model User {
   meetingAttendees  MeetingAttendee[]
   createdProposals  Proposal[]         @relation("ProposalCreatedBy")
   requestedAudits   Audit[]            @relation("AuditRequestedBy")
-  landingPages      LandingPage[]      @relation("LandingPageCreatedBy")
   contracts         Contract[]         @relation("ContractCreatedBy")
   createdBriefings  Briefing[]         @relation("BriefingCreatedBy")
   pushSubscriptions PushSubscription[]
@@ -96,7 +95,6 @@ model Organization {
   messageTemplates  MessageTemplate[]
   messages          Message[]
   messageLogs       MessageLog[]
-  landingPages      LandingPage[]
   contracts         Contract[]
   contractSigners   ContractSigner[]
   contractEvents    ContractEvent[]
@@ -264,7 +262,6 @@ model Company {
   socials      CompanySocial[]
   leads        Lead[]
   audits       Audit[]
-  landingPages LandingPage[]
   contracts    Contract[]
   briefings    Briefing[]
 
@@ -368,7 +365,6 @@ model Lead {
   meetings     Meeting[]
   proposals    Proposal[]
   messages     Message[]
-  landingPages LandingPage[]
   contracts    Contract[]
   briefings    Briefing[]
 
@@ -837,61 +833,6 @@ model MessageLog {
   @@index([organizationId])
   @@index([messageId])
   @@map("message_logs")
-}
-
-// ===================================================================
-// LANDING PAGES (Fase 8 -- geradas por IA)
-// ===================================================================
-
-enum LandingPageKind {
-  /// Demo do site do PROSPECT ("veja como o site de vocês poderia ficar").
-  DEMO_SITE
-  /// Página de pitch da agência para o prospect (proposta de valor).
-  PITCH
-
-  @@map("landing_page_kind")
-}
-
-enum LandingPageStatus {
-  QUEUED
-  GENERATING
-  READY
-  FAILED
-
-  @@map("landing_page_status")
-}
-
-/// Landing page gerada por IA (HTML único, autocontido). Pública somente
-/// quando `isPublished` -- a rota /p/:slug da API serve o HTML sem auth,
-/// então publicar = expor na internet (local: só na máquina do dev).
-model LandingPage {
-  id             String            @id @default(cuid())
-  organizationId String            @map("organization_id")
-  companyId      String            @map("company_id")
-  leadId         String?           @map("lead_id")
-  createdById    String?           @map("created_by_id")
-  slug           String            @unique
-  title          String
-  kind           LandingPageKind   @default(DEMO_SITE)
-  status         LandingPageStatus @default(QUEUED)
-  /// Instruções livres do vendedor pra geração.
-  brief          String?
-  html           String?
-  errorMessage   String?           @map("error_message")
-  isPublished    Boolean           @default(false) @map("is_published")
-  publishedAt    DateTime?         @map("published_at")
-  views          Int               @default(0)
-  createdAt      DateTime          @default(now()) @map("created_at")
-  updatedAt      DateTime          @updatedAt @map("updated_at")
-
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  company      Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  lead         Lead?        @relation(fields: [leadId], references: [id], onDelete: SetNull)
-  createdBy    User?        @relation("LandingPageCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
-
-  @@index([organizationId, status])
-  @@index([companyId])
-  @@map("landing_pages")
 }
 
 // ===================================================================

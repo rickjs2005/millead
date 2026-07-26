@@ -1,7 +1,7 @@
 # Arquitetura — MilLead
 
-> Fase 1 (fundação). Sem telas de produto, sem IA, sem landing pages ainda —
-> ver o roadmap de fases no [README](../README.md).
+> Documento vivo: começou na Fase 1 (fundação) e acompanha as fases
+> seguintes — ver o roadmap no [README](../README.md).
 
 ## Visão geral do monorepo
 
@@ -185,9 +185,9 @@ Dois conceitos com nomes parecidos, domínios diferentes:
   BullMQ exige `maxRetriesPerRequest: null`, incompatível com a conexão
   genérica.
 - `infrastructure/queue/queues.ts` — fila `ping` de exemplo, `audit-site`
-  (Fase 6, jobId = auditId pra deduplicar) e `landing-page` (Fase 8,
-  geração por IA). Envio real de mensagem (provedor externo) ganharia fila
-  própria no futuro.
+  (Fase 6, jobId = auditId pra deduplicar), `contract-process` (Fase 9) e
+  `briefing-process` (Fase 10). Envio real de mensagem (provedor externo)
+  ganharia fila própria no futuro.
 - Workers rodam como **processo separado** do servidor HTTP
   (`pnpm dev:worker` / `pnpm start:worker`, entrypoint
   `interfaces/jobs/index.ts` que importa todos os workers) — prática
@@ -217,26 +217,34 @@ Dois conceitos com nomes parecidos, domínios diferentes:
   enviada (registra `MESSAGE_SENT` na timeline). Envio real via provedor
   (Twilio etc.) é fase futura.
 
-## Landing pages (Fase 8)
+## Diretor criativo (Fase 8)
 
-- Porta `domain/services/landing-page-generator.ts` implementada por
-  `infrastructure/ai/claude-landing-page-generator.ts` -- pede ao modelo um
-  documento HTML **autocontido** (CSS inline, SVG inline, sem JS e sem
-  recursos externos; interações só com CSS) e valida que a resposta começa
-  em `<!doctype html>`. Usa streaming do SDK (`max_tokens` alto estoura
-  timeout sem stream).
-- Geração roda na fila `landing-page` (worker
-  `interfaces/jobs/landing-page.worker.ts`, concorrência 1, 1 tentativa --
-  IA é cara; falha vira `FAILED` com mensagem e o usuário reenfileira).
-  Status: `QUEUED → GENERATING → READY | FAILED`.
-- **Rota pública** `GET /p/:slug` (sem auth) serve o HTML de páginas
-  `isPublished` e incrementa `views` (fire-and-forget). O slug é
-  `randomBytes(9)` base64url -- não enumerável. "Sem JS" no HTML gerado é
-  também o que mantém a página dentro da CSP padrão do helmet.
-- Permissões: reusa `leads:read`/`leads:write` de propósito (landing page é
-  artefato de venda; permissão própria exigiria re-seed do catálogo RBAC).
-- Tabela `landing_pages` criada na migration `20260714153905_landing_pages`
-  com RLS habilitado (padrão Supabase do projeto).
+> A geração automática de landing page por IA (HTML autocontido em fila +
+> rota pública `/p/:slug`) foi **removida**. Ela dependia de
+> `ANTHROPIC_API_KEY` e do worker, ficou dormente, e o diretor criativo
+> ocupou o lugar dela na rota `/landing-pages`.
+
+- **Composição no cliente.** `apps/web/src/features/creative-director/` monta
+  o dossiê com funções puras; `buildDossier(input, direction)` é a mesma
+  função com e sem IA. Sem direção, os blocos que exigem invenção viram
+  instruções pra IA de destino; com direção, viram conteúdo. Nenhum artefato
+  depende de rede -- a tela funciona inteira sem backend de IA.
+- **Porta** `domain/services/creative-director.ts`, implementada por
+  `infrastructure/ai/claude-creative-director.ts`: Claude Opus 5 com adaptive
+  thinking, `effort: high`, streaming (`max_tokens` alto estoura timeout sem
+  stream) e **structured outputs** (`output_config.format` + json_schema), o
+  que torna JSON inválido impossível por construção. Trata
+  `stop_reason: "refusal"` antes de ler o conteúdo.
+- **Endpoint** `POST /api/v1/ai/creative-direction` vive sob `ai-routes` e
+  reusa `AiService`/`AiController` -- é recurso de IA, não CRUD. Stateless
+  por decisão de produto: **sem tabela, sem fila, sem migration**. Sem chave
+  responde 503 (`AiNotConfiguredError`) e a UI já desabilita o botão
+  consultando `GET /api/v1/ai/status`.
+- Permissões: `leads:read`, a mesma do menu (artefato de venda; permissão
+  própria exigiria re-seed do catálogo RBAC).
+- Testes: vitest em `apps/web` cobre os builders puros e o prefill de
+  briefing -- ver a seção Testes da
+  [spec](./superpowers/specs/2026-07-25-ai-creative-director-design.md).
 
 ## Contratos (Fase 9 -- migrado do milweb-contratos)
 

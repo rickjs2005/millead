@@ -20,10 +20,6 @@ import {
   createPublicContractRoutes,
   createSignatureWebhookRoutes,
 } from "../interfaces/http/routes/contract-routes.js";
-import {
-  createLandingPageRoutes,
-  createPublicLandingPageRoutes,
-} from "../interfaces/http/routes/landing-page-routes.js";
 import { createMessageRoutes } from "../interfaces/http/routes/message-routes.js";
 import { createCompanyRoutes } from "../interfaces/http/routes/company-routes.js";
 import { createHealthRoutes } from "../interfaces/http/routes/health-routes.js";
@@ -77,10 +73,6 @@ export function createApp(container: Container): Express {
     createMessageRoutes(container.messageController, container.authenticate),
   );
   app.use(
-    "/api/v1/landing-pages",
-    createLandingPageRoutes(container.landingPageController, container.authenticate),
-  );
-  app.use(
     "/api/v1/contracts",
     createContractRoutes(container.contractController, container.authenticate),
   );
@@ -109,8 +101,6 @@ export function createApp(container: Container): Express {
     publicRateLimit,
     createSignatureWebhookRoutes(container.contractController),
   );
-  // Rota PÚBLICA da landing page -- o link que o prospect abre, sem login.
-  app.use("/p", publicRateLimit, createPublicLandingPageRoutes(container.landingPageController));
   app.use("/api/v1/auth", createAuthRoutes(container.authController, container.authenticate));
   app.use(
     "/api/v1/companies",
