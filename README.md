@@ -141,11 +141,36 @@ pnpm --filter @millead/api dev:worker
       (simulado); ZapSign pronto via `SIGNATURE_PROVIDER=zapsign` + token.
       E-mail/WhatsApp opcionais via env. O contratante vira `Company` do
       CRM automaticamente (upsert por CPF/CNPJ). Requer o worker rodando.
-- [ ] **Frontend (em andamento)**: telas de login/cadastro, dashboard,
-      leads, CRM (kanban), agenda, reuniões, tarefas, propostas, mensagens
-      e configurações já existem em `apps/web`, consumindo a API via
-      `src/services` (um serviço por recurso). Falta terminar/polir os
-      fluxos e cobrir os módulos das Fases 6+ quando existirem.
+- [x] **Frontend**: login/cadastro, dashboard, leads (tabela + kanban),
+      empresas, agenda, reuniões, tarefas, propostas, mensagens, auditoria,
+      briefings, contratos, diretor criativo e configurações, todos em
+      `apps/web` consumindo a API via `src/services` (um serviço por
+      recurso). Varredura de 28/07/2026 cruzando rotas da API com chamadas
+      do front: **95 de 95 endpoints consumidos**, nenhuma tela faltando.
+      Os únicos endpoints sem chamada no front são o
+      `POST /api/v1/webhooks/signature`, que é chamado pelo provedor de
+      assinatura e não pelo navegador, e capacidades ainda adormecidas
+      (ver abaixo).
+
+## O que falta de verdade
+
+- [ ] **Gestão de membros (API + telas)**: é a única ausência de produto.
+      Hoje `settings/team` é um `EmptyState` honesto e as rotas de
+      `/api/v1/settings` só cobrem integrações e dois `PATCH`. Sem isso a
+      organização é de usuário único.
+
+- **Filtros por pessoa, prontos e adormecidos**: `ownerId` (leads) e
+  `assigneeId` (tarefas) já existem no schema, no repositório Prisma e nos
+  tipos do front, mas nenhum formulário atribui responsável e nenhuma tela
+  filtra por ele. **Não é ponta solta**: eles servem operação com mais de
+  uma pessoa, o que depende da gestão de membros acima. Quando ela existir,
+  ligar os filtros é trabalho de minutos. Consequência hoje: a coluna
+  "Responsável" na tabela de leads sempre exibe `—`.
+
+- **Código morto encontrado na mesma varredura** (remoção trivial, sem
+  impacto): `tasksService.get`, `proposalsService.get`,
+  `pipelinesService.get`, o hook `useAudit` (só o `useAudits` plural é
+  usado) e `useMediaQuery`.
 
 ## API — Leads & CRM
 
