@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import type { Snapshot, SnapshotNode } from "@millead/video-contracts";
 import type { Page } from "playwright";
 import { captureSections } from "./capture-sections.js";
@@ -14,10 +15,16 @@ function slugPath(pathname: string): string {
   return cleaned.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
 }
 
-/** "milweb.com.br-home-desktop-202607291432" — derivado, sem Date.now(). */
+/**
+ * "milweb.com.br-home-desktop-20260729143205-9f2a1c" -- derivado, sem Date.now().
+ * O carimbo tem SEGUNDOS e há um hash da URL completa porque só o slug colide:
+ * "/a/b" e "/a-b" normalizam para o mesmo texto, e duas capturas da mesma URL
+ * no mesmo minuto se sobrescreviam sem aviso.
+ */
 export function buildSnapshotId(url: URL, capturedAt: string): string {
-  const stamp = capturedAt.replace(/[-:]/g, "").replace(/T/, "").slice(0, 12);
-  return `${url.hostname}-${slugPath(url.pathname)}-desktop-${stamp}`;
+  const stamp = capturedAt.replace(/[-:]/g, "").replace(/T/, "").slice(0, 14);
+  const hash = createHash("sha1").update(url.toString()).digest("hex").slice(0, 6);
+  return `${url.hostname}-${slugPath(url.pathname)}-desktop-${stamp}-${hash}`;
 }
 
 async function sampleColors(page: Page): Promise<{ hex: string; weight: number }[]> {

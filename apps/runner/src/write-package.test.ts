@@ -30,13 +30,25 @@ function snapshotBase(id: string) {
 describe("buildSnapshotId", () => {
   it("é determinístico e inclui host, caminho, viewport e instante", () => {
     const id = buildSnapshotId(new URL("https://milweb.com.br/"), "2026-07-29T14:32:00.000Z");
-    expect(id).toBe("milweb.com.br-home-desktop-202607291432");
+    expect(id).toBe("milweb.com.br-home-desktop-20260729143200-25daa6");
     expect(id).toBe(buildSnapshotId(new URL("https://milweb.com.br/"), "2026-07-29T14:32:00.000Z"));
   });
 
   it("transforma o caminho em slug", () => {
     const id = buildSnapshotId(new URL("https://milweb.com.br/cases/kavita"), "2026-07-29T14:32:00.000Z");
     expect(id).toContain("cases-kavita");
+  });
+
+  it("não colide entre caminhos que normalizam para o mesmo slug", () => {
+    const a = buildSnapshotId(new URL("https://site.com/a/b"), "2026-07-29T14:32:00.000Z");
+    const b = buildSnapshotId(new URL("https://site.com/a-b"), "2026-07-29T14:32:00.000Z");
+    expect(a).not.toBe(b);
+  });
+
+  it("distingue capturas da mesma URL no mesmo minuto", () => {
+    const a = buildSnapshotId(new URL("https://site.com/"), "2026-07-29T14:32:05.000Z");
+    const b = buildSnapshotId(new URL("https://site.com/"), "2026-07-29T14:32:47.000Z");
+    expect(a).not.toBe(b);
   });
 });
 
@@ -78,5 +90,45 @@ describe("writePackage", () => {
     const finalDir = await writePackage(snapshotBase(id), tmpDir, root);
     const parsed = JSON.parse(await readFile(join(finalDir, "snapshot.json"), "utf8"));
     expect(parsed.id).toBe(id);
+  });
+
+  it("preserva o pacote anterior quando a validação falha", async () => {
+    const root = await mkdtemp(join(tmpdir(), "millead-pkg-"));
+    const id = "milweb.com.br-home-desktop-202607291432";
+
+    // Pacote bom, de uma captura anterior.
+    const anterior = join(root, id);
+    await mkdir(anterior, { recursive: true });
+    await writeFile(join(anterior, "snapshot.json"), '{"antigo":true}', "utf8");
+
+    const tmpDir = join(root, `.tmp-${id}`);
+    await mkdir(tmpDir, { recursive: true });
+    const invalido = { ...snapshotBase(id), version: 99 } as unknown as Parameters<typeof writePackage>[0];
+
+    await expect(writePackage(invalido, tmpDir, root)).rejects.toThrow(/snapshot inválido/i);
+
+    // O pacote antigo tem que continuar lá, intacto.
+    expect(await readFile(join(anterior, "snapshot.json"), "utf8")).toBe('{"antigo":true}');
+  });
+
+  it("substitui o pacote anterior quando a captura nova é válida", async () => {
+    const root = await mkdtemp(join(tmpdir(), "millead-pkg-"));
+    const id = "milweb.com.br-home-desktop-202607291432";
+
+    const anterior = join(root, id);
+    await mkdir(anterior, { recursive: true });
+    await writeFile(join(anterior, "sobra.txt"), "lixo da captura antiga", "utf8");
+
+    const tmpDir = join(root, `.tmp-${id}`);
+    await mkdir(tmpDir, { recursive: true });
+
+    const finalDir = await writePackage(snapshotBase(id), tmpDir, root);
+    const arquivos = await readdir(finalDir);
+
+    // Substituição, não fusão: o lixo antigo não pode sobreviver.
+    expect(arquivos).toContain("snapshot.json");
+    expect(arquivos).not.toContain("sobra.txt");
+    // E nenhum diretório de trabalho pode ficar para trás.
+    expect(await readdir(root)).toEqual([id]);
   });
 });

@@ -23,7 +23,29 @@ export async function writePackage(
   await writeFile(join(tmpDir, "snapshot.json"), `${JSON.stringify(parsed.data, null, 2)}\n`, "utf8");
 
   const finalDir = join(capturesRoot, parsed.data.id);
-  await rm(finalDir, { recursive: true, force: true });
-  await rename(tmpDir, finalDir);
+
+  // Promoção com rede de proteção. O Windows não deixa renomear sobre um
+  // diretório existente, então o antigo precisa sair da frente -- mas ele só é
+  // APAGADO depois que o novo estiver no lugar. Se o rename falhar no meio, o
+  // antigo volta.
+  const anteriorDir = `${finalDir}.anterior`;
+  await rm(anteriorDir, { recursive: true, force: true });
+
+  let tinhaAnterior = false;
+  try {
+    await rename(finalDir, anteriorDir);
+    tinhaAnterior = true;
+  } catch {
+    // Não existia captura anterior -- caminho normal da primeira vez.
+  }
+
+  try {
+    await rename(tmpDir, finalDir);
+  } catch (err) {
+    if (tinhaAnterior) await rename(anteriorDir, finalDir);
+    throw err;
+  }
+
+  await rm(anteriorDir, { recursive: true, force: true });
   return finalDir;
 }
