@@ -55,8 +55,16 @@ function slugificar(texto: string): string {
     .replace(/^-+|-+$/g, "");
 }
 
-function truncar(texto: string, max: number): string {
-  return texto.length > max ? `${texto.slice(0, max)}…` : texto;
+function truncar(texto: string, limite: number): string {
+  const limpo = texto.replace(/\s+/g, " ").trim();
+  if (limpo.length <= limite) return limpo;
+  const corte = limpo.slice(0, limite);
+  const ultimoEspaco = corte.lastIndexOf(" ");
+  // Só quebra por palavra se sobrar texto suficiente -- palavra única enorme
+  // continua sendo cortada no limite. O espaço antes da reticência separa
+  // visualmente a última palavra do corte, em vez de colar "palavra…".
+  const base = (ultimoEspaco > limite * 0.6 ? corte.slice(0, ultimoEspaco) : corte).trimEnd();
+  return `${base} …`;
 }
 
 /**
@@ -79,9 +87,17 @@ function primeiroHeading(nodes: SnapshotNode[], secao: SnapshotNode): SnapshotNo
 
 /** Garante `sectionId` único dentro do snapshot, sufixando com o índice em caso de colisão. */
 function idUnico(base: string, index: number, usados: Set<string>): string {
-  const nome = usados.has(base) ? `${base}-${index}` : base;
-  usados.add(nome);
-  return nome;
+  const inicial = base || `secao-${index}`;
+  let candidato = inicial;
+  let tentativa = index;
+  // Laço, não uma tentativa só: o nome sufixado também pode colidir com o id
+  // literal de outra seção.
+  while (usados.has(candidato)) {
+    candidato = `${inicial}-${tentativa}`;
+    tentativa += 1;
+  }
+  usados.add(candidato);
+  return candidato;
 }
 
 /**
@@ -97,7 +113,7 @@ export function sectionsFromSnapshot(snapshot: Snapshot): SnapshotSection[] {
     const heading = primeiroHeading(snapshot.nodes, secao);
     const textoHeading = heading?.text?.trim();
     const base = secao.id ?? (textoHeading ? slugificar(textoHeading) : "");
-    const sectionId = idUnico(base || `secao-${index}`, index, usados);
+    const sectionId = idUnico(base, index, usados);
 
     return {
       nodeId: secao.nodeId,

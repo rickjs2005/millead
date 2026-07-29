@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import type { Snapshot, SnapshotNode } from "@millead/video-contracts";
 import { SnapshotSchema } from "@millead/video-contracts";
 import { describe, expect, it } from "vitest";
 import { sectionsFromSnapshot, zoomCandidatesFor } from "./from-snapshot";
@@ -90,5 +91,81 @@ describe("zoomCandidatesFor", () => {
 
   it("devolve lista vazia para nodeId que não existe", () => {
     expect(zoomCandidatesFor(snapshot, "nao-existe")).toEqual([]);
+  });
+
+  it("trunca o rótulo em fronteira de palavra", () => {
+    const alvos = zoomCandidatesFor(snapshot, sectionsFromSnapshot(snapshot)[0]!.nodeId);
+    const titulo = alvos.find((a) => a.label.startsWith("Título"))!;
+    expect(titulo.label).not.toMatch(/\S…"$/);
+  });
+});
+
+/** Snapshot mínimo montado à mão, para exercitar caminhos que a fixture real não cobre. */
+function snapshotSintetico(nodes: Partial<SnapshotNode>[]): Snapshot {
+  const base = SnapshotSchema.parse(JSON.parse(readFileSync(FIXTURE, "utf8")));
+  return {
+    ...base,
+    nodes: nodes.map((n, i) => ({
+      nodeId: `s${i}`,
+      parentId: null,
+      fingerprint: `f${i}`.padEnd(16, "0"),
+      selector: `#s${i}`,
+      tag: "div",
+      classes: [],
+      box: { x: 0, y: 0, w: 1920, h: 100 },
+      visible: true,
+      isSection: false,
+      ...n,
+    })) as Snapshot["nodes"],
+  };
+}
+
+describe("caminhos que a fixture real não exercita", () => {
+  it("usa o slug do heading quando a seção não tem id no HTML", () => {
+    const snap = snapshotSintetico([
+      { nodeId: "sec", isSection: true, tag: "section", box: { x: 0, y: 0, w: 1920, h: 800 }, screenshot: "sections/x.jpg" },
+      { nodeId: "h", tag: "h2", text: "Nossos Diferenciais", box: { x: 0, y: 40, w: 600, h: 48 } },
+    ]);
+    const [secao] = sectionsFromSnapshot(snap);
+    expect(secao!.sectionId).toBe("nossos-diferenciais");
+    expect(secao!.label).toBe("Nossos Diferenciais");
+  });
+
+  it("corta em 8 preservando título e ação antes de mídia", () => {
+    const filhos = [
+      ...Array.from({ length: 3 }, (_, i) => ({
+        nodeId: `t${i}`, tag: "h3", text: `Titulo ${i}`,
+        box: { x: 0, y: 100 + i * 60, w: 400, h: 40 },
+      })),
+      ...Array.from({ length: 4 }, (_, i) => ({
+        nodeId: `b${i}`, tag: "button", text: `Acao ${i}`,
+        box: { x: 0, y: 400 + i * 60, w: 200, h: 40 },
+      })),
+      ...Array.from({ length: 6 }, (_, i) => ({
+        nodeId: `m${i}`, tag: "img",
+        box: { x: 0, y: 700 + i * 60, w: 300, h: 50 },
+      })),
+    ];
+    const snap = snapshotSintetico([
+      { nodeId: "sec", isSection: true, tag: "section", id: "cheia", box: { x: 0, y: 0, w: 1920, h: 1200 }, screenshot: "sections/cheia.jpg" },
+      ...filhos,
+    ]);
+    const alvos = zoomCandidatesFor(snap, "sec");
+
+    expect(alvos).toHaveLength(8);           // 13 candidatos, teto de 8
+    expect(alvos.slice(0, 3).every((a) => a.label.startsWith("Título"))).toBe(true);
+    expect(alvos.slice(3, 7).every((a) => a.label.startsWith("Botão"))).toBe(true);
+    // Sobrou uma vaga: entra mídia, e só uma das seis.
+    expect(alvos.filter((a) => a.label === "Imagem")).toHaveLength(1);
+  });
+
+  it("dá ids únicos mesmo quando um id literal colide com o sufixo gerado", () => {
+    const snap = snapshotSintetico([
+      { nodeId: "a", isSection: true, tag: "section", box: { x: 0, y: 0, w: 1920, h: 400 }, screenshot: "sections/a.jpg" },
+      { nodeId: "b", isSection: true, tag: "section", id: "secao-0", box: { x: 0, y: 400, w: 1920, h: 400 }, screenshot: "sections/b.jpg" },
+      { nodeId: "c", isSection: true, tag: "section", box: { x: 0, y: 800, w: 1920, h: 400 }, screenshot: "sections/c.jpg" },
+    ]);
+    const ids = sectionsFromSnapshot(snap).map((s) => s.sectionId);
+    expect(new Set(ids).size).toBe(ids.length);
   });
 });
