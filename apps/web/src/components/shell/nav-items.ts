@@ -2,6 +2,7 @@ import {
   BarChart3,
   Building2,
   Calendar,
+  Clapperboard,
   ClipboardList,
   FileSignature,
   LayoutDashboard,
@@ -69,6 +70,7 @@ export const NAV_SECTIONS: NavSection[] = [
     items: [
       { label: "Auditoria de sites", href: "/audit", icon: ShieldCheck, permission: "audits:read" },
       { label: "Diretor criativo", href: "/landing-pages", icon: Rocket, permission: "leads:read" },
+      { label: "Vídeos", href: "/videos", icon: Clapperboard, permission: "leads:read" },
       { label: "Mensagens", href: "/messages", icon: MessageSquare, permission: "messages:read" },
     ],
   },
