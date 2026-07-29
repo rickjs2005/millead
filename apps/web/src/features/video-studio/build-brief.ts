@@ -19,9 +19,14 @@ export function totalWordBudget(scenes: FormScene[]): number {
 }
 
 /**
- * Escala proporcionalmente e devolve a sobra do arredondamento à cena mais
- * longa -- sem isso, 45s vira 44s ou 46s e ninguém entende por quê. Cenas
- * desmarcadas ficam intactas: elas não contam para o total.
+ * Escala proporcionalmente e distribui a sobra do arredondamento 1s por vez,
+ * começando pelas cenas mais longas -- assim nenhuma cena absorve sozinha toda
+ * a distorção. Cenas desmarcadas ficam intactas: não contam para o total.
+ *
+ * Limite honesto: a soma é exata enquanto `targetTotalSec` for maior ou igual
+ * ao número de cenas habilitadas. Abaixo disso é aritmeticamente impossível
+ * (cada cena tem piso de 1 segundo) -- todas ficam com 1s e o total é o número
+ * de cenas.
  */
 export function scaleDurations(scenes: FormScene[], targetTotalSec: number): FormScene[] {
   const atual = totalDuration(scenes);
@@ -33,19 +38,31 @@ export function scaleDurations(scenes: FormScene[], targetTotalSec: number): For
       : { ...scene },
   );
 
-  const sobra = targetTotalSec - totalDuration(escaladas);
-  if (sobra !== 0) {
-    let maiorIndex = -1;
-    for (const [index, scene] of escaladas.entries()) {
-      if (!scene.enabled) continue;
-      if (maiorIndex === -1 || scene.durationSec > escaladas[maiorIndex]!.durationSec) {
-        maiorIndex = index;
+  // Índices das cenas habilitadas, da mais longa para a mais curta.
+  const ordem = escaladas
+    .map((scene, index) => ({ index, durationSec: scene.durationSec, enabled: scene.enabled }))
+    .filter((item) => item.enabled)
+    .sort((a, b) => b.durationSec - a.durationSec)
+    .map((item) => item.index);
+
+  let sobra = targetTotalSec - totalDuration(escaladas);
+  while (sobra !== 0) {
+    let mudou = false;
+    for (const index of ordem) {
+      if (sobra === 0) break;
+      const cena = escaladas[index]!;
+      if (sobra > 0) {
+        escaladas[index] = { ...cena, durationSec: cena.durationSec + 1 };
+        sobra -= 1;
+        mudou = true;
+      } else if (cena.durationSec > 1) {
+        escaladas[index] = { ...cena, durationSec: cena.durationSec - 1 };
+        sobra += 1;
+        mudou = true;
       }
     }
-    if (maiorIndex !== -1) {
-      const alvo = escaladas[maiorIndex]!;
-      escaladas[maiorIndex] = { ...alvo, durationSec: Math.max(1, alvo.durationSec + sobra) };
-    }
+    // Nenhuma cena pôde encolher: o alvo é menor que o número de cenas.
+    if (!mudou) break;
   }
 
   return escaladas;
@@ -105,7 +122,7 @@ export function buildBrief(
 ): VideoBrief {
   const ativas = form.scenes.filter((s) => s.enabled);
   if (ativas.length === 0) {
-    throw new Error("marque ao menos uma cena: nenhuma cena está habilitada para gerar o vídeo");
+    throw new Error("nenhuma cena selecionada para gerar o vídeo");
   }
 
   const brief = {

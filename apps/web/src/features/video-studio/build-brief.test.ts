@@ -59,6 +59,27 @@ describe("scaleDurations", () => {
     expect(totalDuration(escaladas)).toBe(30);
     expect(escaladas[0]!.durationSec).toBe(scenes[0]!.durationSec);
   });
+
+  it("não concentra a sobra numa cena só ao reduzir bastante", () => {
+    const original = templateById("portfolio")!.defaultScenes;
+    const escaladas = scaleDurations(original, 15);
+    expect(totalDuration(escaladas)).toBe(15);
+    // A maior cena original (produtos, 15s) não pode virar 1s enquanto as
+    // outras ficam intactas -- a redução é distribuída.
+    expect(escaladas.every((s) => s.durationSec >= 1)).toBe(true);
+    expect(Math.max(...escaladas.map((s) => s.durationSec))).toBeLessThan(15);
+  });
+
+  it("documenta o limite: alvo menor que o número de cenas", () => {
+    const scenes = templateById("institucional")!.defaultScenes.map((s) => ({
+      ...s,
+      durationSec: 1,
+    }));
+    const escaladas = scaleDurations(scenes, 5);
+    // 7 cenas com piso de 1s não cabem em 5s -- todas ficam em 1s.
+    expect(escaladas.every((s) => s.durationSec === 1)).toBe(true);
+    expect(totalDuration(escaladas)).toBe(scenes.length);
+  });
 });
 
 describe("totalWordBudget", () => {
