@@ -29,7 +29,7 @@ export async function captureTiles(page: Page, outDir: string): Promise<Tile[]> 
   await mkdir(join(outDir, "tiles"), { recursive: true });
   await primeLazyLoad(page, viewport.height);
 
-  const pageHeight = await page.evaluate(() => document.documentElement.scrollHeight);
+  let pageHeight = await page.evaluate(() => document.documentElement.scrollHeight);
   const tiles: Tile[] = [];
 
   for (let index = 0; index * viewport.height < pageHeight; index += 1) {
@@ -39,9 +39,17 @@ export async function captureTiles(page: Page, outDir: string): Promise<Tile[]> 
           "Provavelmente tem scroll infinito.",
       );
     }
-    const scrollY = index * viewport.height;
-    await page.evaluate((top) => window.scrollTo(0, top), scrollY);
+
+    await page.evaluate((top) => window.scrollTo(0, top), index * viewport.height);
     await page.waitForTimeout(SETTLE_MS);
+
+    // O navegador RECORTA o scroll no limite rolável: pedir 4320 numa página
+    // que só rola até 3760 para em 3760. Gravar o valor pedido em vez do real
+    // desalinharia o último tile na hora de montar a página.
+    const scrollY = await page.evaluate(() => window.scrollY);
+
+    // Depois do recorte, o último tile pode cair na mesma posição do anterior.
+    if (tiles.length > 0 && tiles[tiles.length - 1]!.scrollY === scrollY) break;
 
     // `.jpg`, não `.webp`: o page.screenshot do Playwright só escreve PNG e
     // JPEG. Qualidade 90 é de sobra para tile de referência e pesa bem menos
@@ -49,6 +57,11 @@ export async function captureTiles(page: Page, outDir: string): Promise<Tile[]> 
     const file = `tiles/${String(index).padStart(3, "0")}-y${scrollY}.jpg`;
     await page.screenshot({ path: join(outDir, file), type: "jpeg", quality: 90 });
     tiles.push({ file, scrollY, height: viewport.height });
+
+    // Relê a altura: lazy-load pode ter empurrado o fim durante esta passada.
+    // Sem isso, página que cresce sai incompleta em silêncio em vez de estourar
+    // o teto de tiles.
+    pageHeight = await page.evaluate(() => document.documentElement.scrollHeight);
   }
 
   await page.evaluate(() => window.scrollTo(0, 0));

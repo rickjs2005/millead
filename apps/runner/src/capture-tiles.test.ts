@@ -53,4 +53,20 @@ describe("captureTiles", () => {
     // mas isso é frágil -- guardamos a referência criada no beforeAll direto.
     expect(await page.evaluate(() => window.scrollY)).toBe(0);
   });
+
+  it("grava o scrollY REAL, não o pedido: o último tile respeita o limite rolável", async () => {
+    // Mesma referência guardada no beforeAll -- browser.contexts()[0].pages()[0]
+    // é frágil demais nesse ambiente (ver nota acima).
+    const limite = await page.evaluate(
+      () => document.documentElement.scrollHeight - window.innerHeight,
+    );
+    const ultimo = tiles[tiles.length - 1]!;
+    // Com o valor NOMINAL, o último tile daria acima do limite rolável.
+    expect(ultimo.scrollY).toBeLessThanOrEqual(limite);
+  });
+
+  it("não repete a mesma posição em dois tiles", () => {
+    const posicoes = tiles.map((t) => t.scrollY);
+    expect(new Set(posicoes).size).toBe(posicoes.length);
+  });
 });
