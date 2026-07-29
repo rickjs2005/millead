@@ -24,7 +24,7 @@ const SiteSceneSchema = z.object({
   id: z.string().min(1),
   kind: z.literal("site"),
   slot: SiteSlotSchema,
-  durationSec: z.number().positive(),
+  durationSec: z.number().int("a duração da cena precisa ser em segundos inteiros").positive(),
   zoomTargets: z.array(z.string().min(1)),
   note: z.string().optional(),
 });
@@ -33,7 +33,7 @@ const NotebookSceneSchema = z.object({
   id: z.string().min(1),
   kind: z.literal("studio"),
   component: z.literal("notebook"),
-  durationSec: z.number().positive(),
+  durationSec: z.number().int("a duração da cena precisa ser em segundos inteiros").positive(),
   zoomTargets: z.array(z.string().min(1)),
 });
 
@@ -41,7 +41,7 @@ const GoogleSceneSchema = z.object({
   id: z.string().min(1),
   kind: z.literal("studio"),
   component: z.literal("google"),
-  durationSec: z.number().positive(),
+  durationSec: z.number().int("a duração da cena precisa ser em segundos inteiros").positive(),
   zoomTargets: z.array(z.string().min(1)),
   query: z.string().min(1),
   resultUrl: z.string().url(),
@@ -51,7 +51,7 @@ const WhatsappSceneSchema = z.object({
   id: z.string().min(1),
   kind: z.literal("studio"),
   component: z.literal("whatsapp"),
-  durationSec: z.number().positive(),
+  durationSec: z.number().int("a duração da cena precisa ser em segundos inteiros").positive(),
   zoomTargets: z.array(z.string().min(1)),
   company: z.string().min(1),
   message: z.string().min(1),
@@ -61,7 +61,7 @@ const LogoSceneSchema = z.object({
   id: z.string().min(1),
   kind: z.literal("studio"),
   component: z.literal("logo"),
-  durationSec: z.number().positive(),
+  durationSec: z.number().int("a duração da cena precisa ser em segundos inteiros").positive(),
   zoomTargets: z.array(z.string().min(1)),
   tagline: z.string().nullable(),
 });
@@ -93,7 +93,7 @@ export const VideoBriefSchema = z
     template: z.object({ id: z.string().min(1), name: z.string().min(1) }),
     format: z.enum(["9:16", "16:9", "1:1"]),
     fps: z.number().int().positive(),
-    totalDurationSec: z.number().positive(),
+    totalDurationSec: z.number().int().positive(),
     wordBudget: z.number().int().nonnegative(),
     scenes: z.array(BriefSceneSchema).min(1),
     narration: z.object({
@@ -115,6 +115,8 @@ export const VideoBriefSchema = z
       seen.add(scene.id);
     }
 
+    // Comparação estrita é segura porque durationSec e totalDurationSec são inteiros
+    // por schema (.int()), portanto sem deriva de ponto flutuante IEEE-754.
     const soma = brief.scenes.reduce((total, scene) => total + scene.durationSec, 0);
     if (soma !== brief.totalDurationSec) {
       ctx.addIssue({

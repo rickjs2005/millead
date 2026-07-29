@@ -85,4 +85,11 @@ describe("VideoBriefSchema", () => {
     };
     expect(() => VideoBriefSchema.parse(brief)).toThrow(/manual/i);
   });
+
+  it("recusa duração de cena fracionária", () => {
+    const brief = validBrief();
+    (brief.scenes[0] as Record<string, unknown>).durationSec = 2.5;
+    (brief as Record<string, unknown>).totalDurationSec = 16.5;
+    expect(() => VideoBriefSchema.parse(brief)).toThrow(/inteiros/i);
+  });
 });
