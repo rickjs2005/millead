@@ -8,7 +8,7 @@ import {
   wordBudgetFor,
 } from "./build-brief";
 import { TEMPLATES, templateById } from "./templates";
-import type { VideoStudioForm } from "./types";
+import type { FormScene, VideoStudioForm } from "./types";
 
 const PRESETS = [15, 30, 45, 60] as const;
 
@@ -79,6 +79,26 @@ describe("scaleDurations", () => {
     // 7 cenas com piso de 1s não cabem em 5s -- todas ficam em 1s.
     expect(escaladas.every((s) => s.durationSec === 1)).toBe(true);
     expect(totalDuration(escaladas)).toBe(scenes.length);
+  });
+
+  it("distribui sobra negativa por várias cenas em vez de despejar numa só", () => {
+    // 8 cenas de 1s escaladas para 12s: cada uma arredonda para 2s (total 16),
+    // sobrando -4. Despejar tudo na maior cena travaria em 1s e daria 15s.
+    const scenes: FormScene[] = Array.from({ length: 8 }, (_, i) => ({
+      id: `sc${i + 1}`,
+      kind: "site",
+      slot: "hero",
+      enabled: true,
+      durationSec: 1,
+      zoomTargets: [],
+    }));
+
+    const escaladas = scaleDurations(scenes, 12);
+
+    expect(totalDuration(escaladas)).toBe(12);
+    // A redução foi repartida: quatro cenas em 1s e quatro em 2s.
+    expect(escaladas.filter((s) => s.durationSec === 1)).toHaveLength(4);
+    expect(escaladas.filter((s) => s.durationSec === 2)).toHaveLength(4);
   });
 });
 
