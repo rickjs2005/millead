@@ -16,6 +16,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CompanyCombobox } from "@/features/companies/components/company-combobox";
 import { useCompany } from "@/features/companies/hooks";
 import { buildBrief, scaleDurations, totalDuration, totalWordBudget } from "@/features/video-studio/build-brief";
+import {
+  buildCapturePrompt,
+  capturePromptFileName,
+} from "@/features/video-studio/build-capture-prompt";
 import { buildPrompt, promptFileName } from "@/features/video-studio/build-prompt";
 import { NarrationFields } from "@/features/video-studio/components/narration-fields";
 import { SceneList } from "@/features/video-studio/components/scene-list";
@@ -109,9 +113,13 @@ export default function VideosPage() {
     customInstructions,
   ]);
 
-  async function copiar() {
-    await navigator.clipboard.writeText(prompt);
-    toast.success("Prompt copiado");
+  // Prompt de gravação: não depende de narração, então é derivado do brief
+  // direto. Vazio quando o brief não existe (formulário ainda inválido).
+  const capturePrompt = useMemo(() => (brief ? buildCapturePrompt(brief) : ""), [brief]);
+
+  async function copiar(conteudo: string, oQue: string) {
+    await navigator.clipboard.writeText(conteudo);
+    toast.success(`${oQue} copiado`);
   }
 
   function baixar(conteudo: string, nome: string, tipo: string) {
@@ -219,7 +227,8 @@ export default function VideosPage() {
           <Tabs defaultValue="prompt">
             <div className="flex items-center justify-between">
               <TabsList>
-                <TabsTrigger value="prompt">Prompt</TabsTrigger>
+                <TabsTrigger value="prompt">Narração</TabsTrigger>
+                <TabsTrigger value="gravacao">Gravação</TabsTrigger>
                 <TabsTrigger value="brief">Brief</TabsTrigger>
               </TabsList>
               <span className="text-sm text-muted-foreground">
@@ -229,7 +238,9 @@ export default function VideosPage() {
 
             <TabsContent value="prompt" className="space-y-3">
               <div className="flex gap-2">
-                <Button size="sm" onClick={copiar}>Copiar</Button>
+                <Button size="sm" onClick={() => copiar(prompt, "Prompt de narração")}>
+                  Copiar
+                </Button>
                 <Button
                   size="sm"
                   variant="outline"
@@ -240,6 +251,26 @@ export default function VideosPage() {
               </div>
               <pre className="max-h-[65vh] overflow-auto whitespace-pre-wrap rounded-md border p-3 text-sm">
                 {prompt}
+              </pre>
+            </TabsContent>
+
+            <TabsContent value="gravacao" className="space-y-3">
+              <div className="flex gap-2">
+                <Button size="sm" onClick={() => copiar(capturePrompt, "Prompt de gravação")}>
+                  Copiar
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() =>
+                    baixar(capturePrompt, capturePromptFileName(brief!), "text/markdown")
+                  }
+                >
+                  Baixar .md
+                </Button>
+              </div>
+              <pre className="max-h-[65vh] overflow-auto whitespace-pre-wrap rounded-md border p-3 text-sm">
+                {capturePrompt}
               </pre>
             </TabsContent>
 
