@@ -1,15 +1,11 @@
-import type { FormScene, PromptTemplate } from "./types";
-
-function site(id: string, slot: FormScene["slot"], durationSec: number, zoomTargets: string[] = []): FormScene {
-  return { id, kind: "site", slot, enabled: true, durationSec, zoomTargets };
-}
+import type { PromptTemplate, StudioFormScene } from "./types";
 
 function studio(
   id: string,
-  component: FormScene["component"],
+  component: StudioFormScene["component"],
   durationSec: number,
   zoomTargets: string[] = [],
-): FormScene {
+): StudioFormScene {
   return { id, kind: "studio", component, enabled: true, durationSec, zoomTargets };
 }
 
@@ -56,11 +52,18 @@ export const TEMPLATES: PromptTemplate[] = [
     defaultScenes: [
       studio("sc1", "notebook", 3),
       studio("sc2", "google", 5, ["barra", "resultado"]),
-      site("sc3", "hero", 6, ["titulo"]),
-      site("sc4", "sobre", 5, ["texto"]),
-      site("sc5", "servicos", 6, ["cards"]),
-      site("sc6", "formulario", 3, ["campos"]),
       studio("sc7", "whatsapp", 2, ["mensagem"]),
+    ],
+    siteInsertAt: 2,
+    wants: [
+      { chave: "Hero", palavras: ["top", "hero", "inicio", "home"], durationSec: 6 },
+      { chave: "Sobre", palavras: ["about", "sobre", "quem"], durationSec: 5 },
+      {
+        chave: "Serviços",
+        palavras: ["servic", "services", "deliverable", "entrego", "solucao"],
+        durationSec: 6,
+      },
+      { chave: "Contato", palavras: ["contact", "contato", "formulario", "fale"], durationSec: 3 },
     ],
     body: body("Você escreve narração para vídeos institucionais curtos de divulgação de sites."),
   },
@@ -71,10 +74,17 @@ export const TEMPLATES: PromptTemplate[] = [
     defaultScenes: [
       studio("sc1", "notebook", 3),
       studio("sc2", "google", 6, ["barra", "resultado", "url"]),
-      site("sc3", "hero", 8, ["titulo", "botao"]),
-      site("sc4", "produtos", 6, ["cards"]),
       studio("sc5", "whatsapp", 4, ["mensagem"]),
       studio("sc6", "logo", 3),
+    ],
+    siteInsertAt: 2,
+    wants: [
+      { chave: "Hero", palavras: ["top", "hero", "inicio", "home", "lancamento"], durationSec: 8 },
+      {
+        chave: "Produtos",
+        palavras: ["produt", "product", "cards", "vitrine", "catalogo"],
+        durationSec: 6,
+      },
     ],
     body: body("Você escreve narração para vídeos que anunciam o lançamento do site novo de uma empresa."),
   },
@@ -82,13 +92,26 @@ export const TEMPLATES: PromptTemplate[] = [
     id: "portfolio",
     name: "Portfólio",
     description: "Percorre trabalhos e diferenciais, terminando em contato.",
-    defaultScenes: [
-      site("sc1", "hero", 6, ["titulo"]),
-      site("sc2", "servicos", 8, ["cards"]),
-      site("sc3", "produtos", 15, ["cards"]),
-      site("sc4", "depoimentos", 8, ["citacao"]),
-      site("sc5", "formulario", 5, ["enviar"]),
-      studio("sc6", "logo", 3),
+    defaultScenes: [studio("sc6", "logo", 3)],
+    siteInsertAt: 0,
+    wants: [
+      { chave: "Hero", palavras: ["top", "hero", "inicio", "home", "capa"], durationSec: 6 },
+      {
+        chave: "Serviços",
+        palavras: ["servic", "services", "deliverable", "entrego", "solucao"],
+        durationSec: 8,
+      },
+      {
+        chave: "Produtos",
+        palavras: ["produt", "product", "cards", "trabalho", "projeto", "portfolio"],
+        durationSec: 15,
+      },
+      {
+        chave: "Depoimentos",
+        palavras: ["depoimento", "testemunho", "avaliacao", "review"],
+        durationSec: 8,
+      },
+      { chave: "Contato", palavras: ["contact", "contato", "formulario", "fale", "orcamento"], durationSec: 5 },
     ],
     body: body("Você escreve narração para vídeos de portfólio, que mostram trabalhos entregues."),
   },
@@ -98,11 +121,22 @@ export const TEMPLATES: PromptTemplate[] = [
     description: "Destaca categorias e produtos, terminando no atendimento.",
     defaultScenes: [
       studio("sc1", "google", 5, ["barra", "resultado"]),
-      site("sc2", "hero", 6, ["titulo"]),
-      site("sc3", "produtos", 18, ["cards", "preco"]),
-      site("sc4", "formulario", 6, ["campos"]),
       studio("sc5", "whatsapp", 6, ["conversa"]),
       studio("sc6", "logo", 4),
+    ],
+    siteInsertAt: 1,
+    wants: [
+      { chave: "Hero", palavras: ["top", "hero", "inicio", "home", "loja"], durationSec: 6 },
+      {
+        chave: "Produtos",
+        palavras: ["produt", "product", "cards", "preco", "comprar", "loja"],
+        durationSec: 18,
+      },
+      {
+        chave: "Contato",
+        palavras: ["contact", "contato", "formulario", "comprar", "checkout"],
+        durationSec: 6,
+      },
     ],
     body: body("Você escreve narração para vídeos de loja virtual, focados em produto e compra."),
   },
@@ -110,12 +144,20 @@ export const TEMPLATES: PromptTemplate[] = [
     id: "captacao",
     name: "Captação de Leads",
     description: "Foca no formulário e na chegada da mensagem no WhatsApp.",
-    defaultScenes: [
-      site("sc1", "hero", 6, ["titulo", "botao"]),
-      site("sc2", "servicos", 6, ["cards"]),
-      site("sc3", "formulario", 10, ["campos", "enviar"]),
-      studio("sc4", "whatsapp", 5, ["mensagem"]),
-      studio("sc5", "logo", 3),
+    defaultScenes: [studio("sc4", "whatsapp", 5, ["mensagem"]), studio("sc5", "logo", 3)],
+    siteInsertAt: 0,
+    wants: [
+      { chave: "Hero", palavras: ["top", "hero", "inicio", "home"], durationSec: 6 },
+      {
+        chave: "Serviços",
+        palavras: ["servic", "services", "deliverable", "entrego", "solucao"],
+        durationSec: 6,
+      },
+      {
+        chave: "Contato",
+        palavras: ["contact", "contato", "formulario", "fale", "cadastr", "lead"],
+        durationSec: 10,
+      },
     ],
     body: body("Você escreve narração para vídeos de captação de leads, que levam ao formulário."),
   },

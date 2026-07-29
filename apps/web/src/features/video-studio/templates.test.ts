@@ -1,14 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { zoomTargetsFor } from "./scenes";
+import { STUDIO_COMPONENT_INFO } from "./scenes";
 import { TEMPLATES, templateById } from "./templates";
-
-const TOTAIS: Record<string, number> = {
-  institucional: 30,
-  lancamento: 30,
-  portfolio: 45,
-  loja: 45,
-  captacao: 30,
-};
 
 describe("TEMPLATES", () => {
   it("tem os cinco templates esperados", () => {
@@ -17,23 +9,44 @@ describe("TEMPLATES", () => {
     );
   });
 
-  it.each(TEMPLATES)("$id soma exatamente o total declarado", (template) => {
-    const soma = template.defaultScenes.reduce((total, s) => total + s.durationSec, 0);
-    expect(soma).toBe(TOTAIS[template.id]);
+  // As cenas de site deixaram de ser um catálogo fechado: agora são um pedido
+  // (`wants`) que `matchTemplate` casa contra o que o site tem de verdade.
+  // Estas asserções, que antes somavam durationSec e conferiam alvo de zoom
+  // por slot, passam a conferir que o pedido em si é coerente.
+  it.each(TEMPLATES)("$id só declara wants com palavras-chave não vazias", (template) => {
+    expect(template.wants.length).toBeGreaterThan(0);
+    for (const want of template.wants) {
+      expect(want.chave.length).toBeGreaterThan(0);
+      expect(want.palavras.length).toBeGreaterThan(0);
+      expect(want.palavras.every((p) => p.length > 0)).toBe(true);
+      expect(want.durationSec).toBeGreaterThan(0);
+    }
   });
 
-  it.each(TEMPLATES)("$id só usa alvos de zoom que existem na cena", (template) => {
+  it.each(TEMPLATES)("$id tem chaves de want únicas", (template) => {
+    const chaves = template.wants.map((w) => w.chave);
+    expect(new Set(chaves).size).toBe(chaves.length);
+  });
+
+  it.each(TEMPLATES)("$id só usa cenas de estúdio válidas, com alvo de zoom conhecido", (template) => {
     for (const scene of template.defaultScenes) {
-      const validos = zoomTargetsFor(scene).map((t) => t.id);
+      expect(scene.kind).toBe("studio");
+      expect(scene.component).toBeDefined();
+      const validos = STUDIO_COMPONENT_INFO[scene.component!].zoomTargets.map((t) => t.id);
       for (const alvo of scene.zoomTargets) {
         expect(validos).toContain(alvo);
       }
     }
   });
 
-  it.each(TEMPLATES)("$id tem ids de cena únicos", (template) => {
+  it.each(TEMPLATES)("$id tem ids de cena únicos entre defaultScenes", (template) => {
     const ids = template.defaultScenes.map((s) => s.id);
     expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  it.each(TEMPLATES)("$id tem siteInsertAt dentro do tamanho de defaultScenes", (template) => {
+    expect(template.siteInsertAt).toBeGreaterThanOrEqual(0);
+    expect(template.siteInsertAt).toBeLessThanOrEqual(template.defaultScenes.length);
   });
 
   it.each(TEMPLATES)("$id declara todas as variáveis que o corpo usa", (template) => {
