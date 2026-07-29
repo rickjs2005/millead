@@ -55,6 +55,14 @@ function narrationBlock(brief: VideoBrief): string {
 }
 
 export function buildPrompt(brief: VideoBrief, template: PromptTemplate): string {
+  // A guarda de chaves malformadas ({{ empresa }} com espaço, {{}} vazio etc.)
+  // roda contra o TEMPLATE, antes da substituição -- nunca contra o resultado.
+  // Texto do usuário (nome da empresa, narração manual, instruções próprias)
+  // pode legitimamente conter "{{" e não deve derrubar o painel inteiro.
+  if (/\{\{(?!\w+\}\})/.test(template.body)) {
+    throw new Error(`variável malformada no template "${template.id}"`);
+  }
+
   const valores: Record<string, string> = {
     empresa: brief.business.name,
     url: brief.business.url,
@@ -65,18 +73,13 @@ export function buildPrompt(brief: VideoBrief, template: PromptTemplate): string
     blocoNarracao: narrationBlock(brief),
   };
 
-  const prompt = template.body.replace(/\{\{(\w+)\}\}/g, (_match, chave: string) => {
+  return template.body.replace(/\{\{(\w+)\}\}/g, (_match, chave: string) => {
     const valor = valores[chave];
     if (valor === undefined) {
       throw new Error(`variável desconhecida no template "${template.id}": {{${chave}}}`);
     }
     return valor;
   });
-
-  if (prompt.includes("{{")) {
-    throw new Error(`sobrou variável não substituída no template "${template.id}"`);
-  }
-  return prompt;
 }
 
 export function promptFileName(brief: VideoBrief): string {

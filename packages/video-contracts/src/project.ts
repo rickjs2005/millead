@@ -5,7 +5,7 @@ const SiteSceneSchema = z.object({
   type: z.literal("site"),
   source: z.object({ snapshotId: z.string().min(1), nodeId: z.string().min(1) }),
   shot: z.enum(["scroll", "zoom", "hold"]),
-  durationSec: z.number().positive(),
+  durationSec: z.number().int("a duração da cena precisa ser em segundos inteiros").positive(),
   // Vira `display:none` injetado antes da captura pesada.
   hidden: z.array(z.string()),
   caption: z.string().optional(),
@@ -16,7 +16,7 @@ const StudioSceneSchema = z.object({
   type: z.literal("studio"),
   component: z.enum(["notebook", "google", "whatsapp", "logo"]),
   props: z.record(z.unknown()),
-  durationSec: z.number().positive(),
+  durationSec: z.number().int("a duração da cena precisa ser em segundos inteiros").positive(),
 });
 
 export const SceneSchema = z.discriminatedUnion("type", [SiteSceneSchema, StudioSceneSchema]);

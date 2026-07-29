@@ -92,6 +92,21 @@ describe("buildPrompt", () => {
     expect(prompt).toContain("Nunca invente fato do negócio");
     expect(prompt).toContain("Respeite o orçamento de palavras");
   });
+
+  it("não quebra quando o texto do usuário contém chaves duplas", () => {
+    const brief = buildBrief(
+      form({ narrationMode: "custom", customInstructions: "Cite o padrão {{nome}} do cliente." }),
+      template,
+      createdAt,
+    );
+    const prompt = buildPrompt(brief, template);
+    expect(prompt).toContain("{{nome}}");
+  });
+
+  it("lança quando o template tem variável malformada", () => {
+    const malformado = { ...template, body: "Empresa: {{ empresa }}" };
+    expect(() => buildPrompt(briefAuto, malformado)).toThrow(/malformada|não substituída/i);
+  });
 });
 
 describe("promptFileName", () => {

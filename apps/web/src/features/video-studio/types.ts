@@ -39,7 +39,7 @@ export interface VideoStudioForm {
 }
 
 export interface PromptTemplate {
-  id: string;
+  id: TemplateId;
   name: string;
   description: string;
   defaultScenes: FormScene[];

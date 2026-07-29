@@ -56,7 +56,7 @@ export default function VideosPage() {
   function trocarTemplate(id: string) {
     const novo = templateById(id);
     if (!novo) return;
-    setTemplateId(id);
+    setTemplateId(novo.id);
     setScenes(scaleDurations(novo.defaultScenes.map((s) => ({ ...s })), totalDurationSec));
   }
 
@@ -120,7 +120,10 @@ export default function VideosPage() {
     link.href = url;
     link.download = nome;
     link.click();
-    URL.revokeObjectURL(url);
+    // Safari e Firefox podem cancelar o download se a URL for revogada antes
+    // do clique terminar de ser processado; Chrome tolera, mas o adiamento
+    // com setTimeout(0) é seguro nos três.
+    setTimeout(() => URL.revokeObjectURL(url), 0);
   }
 
   return (

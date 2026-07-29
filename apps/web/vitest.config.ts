@@ -2,8 +2,9 @@ import { fileURLToPath } from "node:url";
 import { defineConfig } from "vitest/config";
 
 /**
- * Só as funções puras do diretor criativo por enquanto (sem jsdom, sem React):
- * builders de dossiê e prefill de briefing. É onde a lógica de verdade mora.
+ * As funções puras do diretor criativo (builders de dossiê e prefill de
+ * briefing) e do video-studio (build-brief, build-prompt, templates) --
+ * sem jsdom, sem React. É onde a lógica de verdade mora.
  */
 export default defineConfig({
   resolve: {

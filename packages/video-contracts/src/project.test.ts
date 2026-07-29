@@ -52,6 +52,12 @@ describe("VideoProjectSchema", () => {
     bad.scenes[1]!.id = "sc1";
     expect(() => VideoProjectSchema.parse(bad)).toThrow(/duplicad/i);
   });
+
+  it("recusa duração de cena fracionária", () => {
+    const bad = structuredClone(project);
+    bad.scenes[0]!.durationSec = 2.5;
+    expect(() => VideoProjectSchema.parse(bad)).toThrow(/inteiros/i);
+  });
 });
 
 describe("AnnotationSchema", () => {

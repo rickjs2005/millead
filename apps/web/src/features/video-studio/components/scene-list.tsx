@@ -86,7 +86,12 @@ function SceneRow({ scene, onChange }: SceneRowProps) {
           {alvos.map((alvo) => {
             const marcado = scene.zoomTargets.includes(alvo.id);
             return (
-              <button key={alvo.id} type="button" onClick={() => alternarAlvo(alvo.id)}>
+              <button
+                key={alvo.id}
+                type="button"
+                aria-pressed={marcado}
+                onClick={() => alternarAlvo(alvo.id)}
+              >
                 <Badge variant={marcado ? "default" : "outline"}>{alvo.label}</Badge>
               </button>
             );
