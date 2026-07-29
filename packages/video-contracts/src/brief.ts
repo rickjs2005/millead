@@ -1,31 +1,36 @@
 import { z } from "zod";
 
 /**
- * Intenção de vídeo, decidida pelo humano no formulário. NÃO é um VideoProject:
- * aqui a cena de site aponta para um SLOT semântico ("hero"), não para um nó de
- * um Snapshot -- o Brief é produzido antes de o site ter sido capturado. Quando
- * o crawler existir, um compilador junta Brief + Snapshot -> VideoProject.
+ * Intenção de vídeo, decidida pelo humano no formulário. A cena de site aponta
+ * para a seção REAL de um Snapshot já capturado pelo crawler -- não mais para
+ * um slot semântico de catálogo. Um compilador junta Brief + Snapshot -> VideoProject.
  */
 
-export const SITE_SLOTS = [
-  "hero",
-  "sobre",
-  "servicos",
-  "produtos",
-  "depoimentos",
-  "faq",
-  "formulario",
-  "rodape",
-] as const;
-
-const SiteSlotSchema = z.enum(SITE_SLOTS);
+export const ZoomTargetSchema = z.object({
+  nodeId: z.string().min(1),
+  label: z.string().min(1),
+  /** Caixa em espaço de DOCUMENTO, medida pelo crawler. É o que faz o zoom mirar. */
+  box: z.object({
+    x: z.number(),
+    y: z.number(),
+    w: z.number().nonnegative(),
+    h: z.number().nonnegative(),
+  }),
+});
 
 const SiteSceneSchema = z.object({
   id: z.string().min(1),
   kind: z.literal("site"),
-  slot: SiteSlotSchema,
+  /** De onde a cena veio: o Snapshot e o nó da seção. */
+  source: z.object({ snapshotId: z.string().min(1), nodeId: z.string().min(1) }),
+  /** Id real da seção no site ("raio-x"), não um slot de catálogo. */
+  sectionId: z.string().min(1),
+  /** O que a pessoa lê na tela. */
+  label: z.string().min(1),
+  /** Caminho da miniatura dentro do pacote, quando a captura trouxe. */
+  screenshot: z.string().min(1).nullable(),
   durationSec: z.number().int("a duração da cena precisa ser em segundos inteiros").positive(),
-  zoomTargets: z.array(z.string().min(1)),
+  zoomTargets: z.array(ZoomTargetSchema),
   note: z.string().optional(),
 });
 
@@ -143,7 +148,7 @@ export const VideoBriefSchema = z
     }
   });
 
-export type SiteSlot = (typeof SITE_SLOTS)[number];
+export type ZoomTarget = z.infer<typeof ZoomTargetSchema>;
 export type BriefScene = z.infer<typeof BriefSceneSchema>;
 export type StudioComponent = Extract<BriefScene, { kind: "studio" }>["component"];
 export type VideoBrief = z.infer<typeof VideoBriefSchema>;

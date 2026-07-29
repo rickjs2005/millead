@@ -28,9 +28,14 @@ function validBrief() {
       {
         id: "sc3",
         kind: "site" as const,
-        slot: "hero" as const,
+        source: { snapshotId: "milweb.com.br-home-desktop-20260729000000-abc123", nodeId: "n7" },
+        sectionId: "raio-x",
+        label: "Raio-X do seu site",
+        screenshot: "sections/raio-x.jpg",
         durationSec: 8,
-        zoomTargets: ["titulo", "botao"],
+        zoomTargets: [
+          { nodeId: "n12", label: 'Botão "Gerar meu diagnóstico"', box: { x: 300, y: 3400, w: 260, h: 48 } },
+        ],
       },
     ],
     narration: { mode: "auto" as const, text: null, customInstructions: null },
@@ -49,12 +54,6 @@ describe("VideoBriefSchema", () => {
   it("recusa cena google sem query", () => {
     const brief = validBrief();
     delete (brief.scenes[1] as Record<string, unknown>).query;
-    expect(() => VideoBriefSchema.parse(brief)).toThrow();
-  });
-
-  it("recusa slot de site desconhecido", () => {
-    const brief = validBrief();
-    (brief.scenes[2] as Record<string, unknown>).slot = "newsletter";
     expect(() => VideoBriefSchema.parse(brief)).toThrow();
   });
 
@@ -91,5 +90,31 @@ describe("VideoBriefSchema", () => {
     (brief.scenes[0] as Record<string, unknown>).durationSec = 2.5;
     (brief as Record<string, unknown>).totalDurationSec = 16.5;
     expect(() => VideoBriefSchema.parse(brief)).toThrow(/inteiros/i);
+  });
+
+  it("aceita cena de site sem miniatura", () => {
+    const brief = validBrief();
+    (brief.scenes[2] as Record<string, unknown>).screenshot = null;
+    expect(() => VideoBriefSchema.parse(brief)).not.toThrow();
+  });
+
+  it("recusa cena de site sem sectionId", () => {
+    const brief = validBrief();
+    delete (brief.scenes[2] as Record<string, unknown>).sectionId;
+    expect(() => VideoBriefSchema.parse(brief)).toThrow();
+  });
+
+  it("recusa alvo de zoom sem caixa", () => {
+    const brief = validBrief();
+    const alvo = (brief.scenes[2] as { zoomTargets: Record<string, unknown>[] }).zoomTargets[0]!;
+    delete alvo.box;
+    expect(() => VideoBriefSchema.parse(brief)).toThrow();
+  });
+
+  it("recusa caixa de zoom com largura negativa", () => {
+    const brief = validBrief();
+    const alvo = (brief.scenes[2] as { zoomTargets: { box: { w: number } }[] }).zoomTargets[0]!;
+    alvo.box.w = -1;
+    expect(() => VideoBriefSchema.parse(brief)).toThrow();
   });
 });
