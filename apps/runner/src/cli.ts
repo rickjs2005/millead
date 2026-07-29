@@ -1,6 +1,6 @@
 import { mkdir, readdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { chromium } from "playwright";
+import { chromium, type Browser } from "playwright";
 import { LOCALE, TIMEZONE, USER_AGENT, buildSnapshotId, capturePage } from "./build-snapshot.js";
 import { assertPublicUrl } from "./url-guard.js";
 import { writePackage } from "./write-package.js";
@@ -51,8 +51,13 @@ export async function runCapture(
   await rm(tmpDir, { recursive: true, force: true });
   await mkdir(tmpDir, { recursive: true });
 
-  const browser = await chromium.launch();
+  // O launch entra DENTRO do try: se o Chromium não estiver instalado, a
+  // exceção precisa passar pelo catch que apaga o temporário -- senão cada
+  // tentativa frustrada deixa um .tmp-<id> para trás, e a varredura de
+  // órfãos só olha o sufixo .anterior.
+  let browser: Browser | undefined;
   try {
+    browser = await chromium.launch();
     const context = await browser.newContext({
       viewport: { width: 1920, height: 1080 },
       deviceScaleFactor: 1,
@@ -87,7 +92,7 @@ export async function runCapture(
     throw err;
   } finally {
     // Sem isto, o Chromium vira zumbi quando o processo morre por timeout.
-    await browser.close();
+    await browser?.close();
   }
 }
 

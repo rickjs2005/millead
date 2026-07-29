@@ -1,7 +1,8 @@
 import { mkdtemp, readFile, readdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { chromium } from "playwright";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { SnapshotSchema } from "@millead/video-contracts";
 import { runCapture } from "./cli.js";
 import { startFixtureServer } from "./testing/fixture-server.js";
@@ -78,5 +79,32 @@ describe("runCapture", () => {
         allowPrivate: true,
       }),
     ).rejects.toThrow(/HTTP 404/);
+  });
+
+  it("não deixa temporário para trás quando o Chromium não sobe", async () => {
+    // PLAYWRIGHT_BROWSERS_PATH não serve aqui: o `beforeAll` já lançou o
+    // Chromium com sucesso antes deste teste rodar, e a Registry do
+    // playwright-core é um singleton que já cacheou o diretório de browsers
+    // -- mudar a env var depois não tem efeito nenhum. Em vez disso, força a
+    // falha diretamente no método que o cli.ts chama.
+    const raiz = await mkdtemp(join(tmpdir(), "millead-launch-"));
+    const launchSpy = vi
+      .spyOn(chromium, "launch")
+      .mockRejectedValueOnce(new Error("browserType.launch: Executable doesn't exist"));
+
+    try {
+      await expect(
+        runCapture(`${server.url}/home.html`, {
+          capturedAt: "2026-07-29T16:00:00.000Z",
+          capturesRoot: raiz,
+          allowPrivate: true,
+        }),
+      ).rejects.toThrow();
+
+      const restos = await readdir(raiz);
+      expect(restos.filter((nome) => nome.startsWith(".tmp-"))).toEqual([]);
+    } finally {
+      launchSpy.mockRestore();
+    }
   });
 });
