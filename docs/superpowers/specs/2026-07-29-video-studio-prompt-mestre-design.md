@@ -121,8 +121,12 @@ tem, na mesma faixa `^3.24.1`.
 
 Item **"Vídeos"** na seção Prospecção da sidebar (`NAV_SECTIONS`), ao lado do
 Gerador de sites — mesma categoria de ferramenta, a que produz material para o
-cliente. O formulário aceita puxar nome e URL de uma Empresa cadastrada via
-`CompanyCombobox`, componente que já existe e já é usado pelo Gerador de sites.
+cliente. O formulário aceita puxar **nome e segmento** de uma Empresa cadastrada
+via `CompanyCombobox`, componente que já existe e já é usado pelo Gerador de
+sites. A **URL não vem do prefill**: o tipo `Company` não tem campo de site — os
+endereços vivem na relação `CompanyWebsite`, que o hook `useCompany` não devolve.
+Puxar a URL exigiria endpoint novo, e isso contraria a regra de custo zero desta
+fatia.
 
 ## O contrato `VideoBrief`
 
