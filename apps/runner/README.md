@@ -40,6 +40,14 @@ VIDEO_RUNNER_ALLOW_PRIVATE=1 pnpm capture http://127.0.0.1:4321
 Isso é recurso de teste. Não ligue essa variável em nada que aceite URL de
 terceiro.
 
+Por padrão o pacote é gravado em `apps/runner/captures/`, fixo. Para redirecionar
+(usado pelos testes de integração do CLI, que capturam em um diretório
+temporário isolado por execução):
+
+```bash
+MILLEAD_CAPTURES_ROOT=/caminho/temporario pnpm capture http://127.0.0.1:4321
+```
+
 A guarda também só examina a URL crua, antes do `page.goto`: um
 redirecionamento do site para um alvo interno não é detectado (ver comentário
 em `src/cli.ts`).

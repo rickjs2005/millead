@@ -108,7 +108,7 @@ async function main(): Promise<void> {
     const finalDir = await runCapture(rawUrl, {
       // Único timestamp do fluxo, injetado aqui na borda.
       capturedAt: new Date().toISOString(),
-      capturesRoot: join(process.cwd(), "captures"),
+      capturesRoot: process.env.MILLEAD_CAPTURES_ROOT ?? join(process.cwd(), "captures"),
       allowPrivate: process.env.VIDEO_RUNNER_ALLOW_PRIVATE === "1",
     });
     console.log(`pacote gravado em ${finalDir}`);

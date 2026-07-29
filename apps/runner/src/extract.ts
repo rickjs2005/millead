@@ -31,6 +31,29 @@ interface RawNode {
  */
 export async function extractNodes(page: Page): Promise<SnapshotNode[]> {
   const raw: RawNode[] = await page.evaluate(() => {
+    // O tsx (esbuild) compila função nomeada como `__name(function f(){}, "f")`
+    // para preservar o nome, chamando um helper `__name` injetado uma vez no
+    // topo do módulo compilado. O Playwright serializa este callback com
+    // toString() e injeta só o texto da função na página -- sem o resto do
+    // módulo, então esse helper não existe lá e a captura morre com
+    // "__name is not defined".
+    //
+    // `const __name = (fn) => fn;` NÃO resolve: o próprio esbuild detecta a
+    // colisão de nome com o helper que ele injeta e RENOMEIA a nossa
+    // constante local para `__name2`, mantendo a chamada `__name(walk,
+    // "walk")` apontando para o helper de módulo original (ausente aqui).
+    // Confirmado compilando um repro mínimo com `npx tsx` e lendo o
+    // `.toString()` gerado.
+    //
+    // Escrever na propriedade sobrevive porque não é um *binding* de
+    // variável, então o renomeador do esbuild não mexe nela -- e dentro do
+    // browser, `globalThis` é o mesmo objeto que `window`.
+    //
+    // Os testes normais NÃO pegam isso: rodam sob Vitest, que transforma o
+    // código de outro jeito. Só o CLI real (tsx) reproduz -- daí o teste em
+    // cli-subprocess.test.ts, que roda o CLI como subprocesso de verdade.
+    (globalThis as unknown as { __name?: (fn: unknown) => unknown }).__name ??= (fn) => fn;
+
     const scrollX = window.scrollX;
     const scrollY = window.scrollY;
     const out: RawNode[] = [];
