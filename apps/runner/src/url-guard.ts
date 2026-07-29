@@ -12,12 +12,42 @@ function isPrivateIPv4(ip: string): boolean {
   return false;
 }
 
+/** Desembrulha ::ffff:a.b.c.d (e a forma hex ::ffff:7f00:1) para o IPv4 equivalente. */
+function ipv4FromMapped(ip: string): string | null {
+  const pontilhado = /^::ffff:(\d{1,3}(?:\.\d{1,3}){3})$/.exec(ip);
+  if (pontilhado) return pontilhado[1]!;
+
+  const hex = /^::ffff:([0-9a-f]{1,4}):([0-9a-f]{1,4})$/.exec(ip);
+  if (hex) {
+    const alto = parseInt(hex[1]!, 16);
+    const baixo = parseInt(hex[2]!, 16);
+    return [alto >> 8, alto & 0xff, baixo >> 8, baixo & 0xff].join(".");
+  }
+  return null;
+}
+
 function isPrivateIPv6(ip: string): boolean {
-  const normalized = ip.toLowerCase();
-  if (normalized === "::1" || normalized === "::") return true;
-  if (normalized.startsWith("fe80")) return true; // link-local
-  const head = parseInt(normalized.slice(0, 2), 16);
-  return head >= 0xfc && head <= 0xfd; // unique local (fc00::/7)
+  const normalizado = ip.toLowerCase();
+
+  // IPv4 mapeado é IPv4 disfarçado. Foi por aqui que ::ffff:169.254.169.254
+  // passou pela guarda -- o metadata da nuvem entrando vestido de IPv6.
+  const mapeado = ipv4FromMapped(normalizado);
+  if (mapeado !== null) return isPrivateIPv4(mapeado);
+
+  if (normalizado === "::1" || normalizado === "::") return true;
+
+  // O primeiro HEXTET, não os dois primeiros caracteres: em "::1" o segundo
+  // caractere já é ':', e era isso que quebrava a conta antiga.
+  const primeiroHextet = normalizado.split(":")[0] ?? "";
+  // Endereço que começa em "::" e não caiu nos casos acima: trata como suspeito.
+  // IPv6 público de verdade nunca começa assim.
+  if (primeiroHextet === "") return true;
+
+  const hextet = parseInt(primeiroHextet, 16);
+  if (Number.isNaN(hextet)) return true;
+  if (hextet >= 0xfc00 && hextet <= 0xfdff) return true; // unique local, fc00::/7
+  if (hextet >= 0xfe80 && hextet <= 0xfebf) return true; // link-local, fe80::/10
+  return false;
 }
 
 function isPrivateAddress(ip: string): boolean {

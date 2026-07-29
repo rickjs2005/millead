@@ -28,4 +28,27 @@ describe("assertPublicUrl", () => {
     const url = await assertPublicUrl("http://127.0.0.1:4321/home.html", { allowPrivate: true });
     expect(url.port).toBe("4321");
   });
+
+  it("recusa IPv4 privado mapeado em IPv6", async () => {
+    await expect(assertPublicUrl("http://[::ffff:127.0.0.1]/")).rejects.toThrow(/interno/i);
+  });
+
+  it("recusa o metadata da nuvem mapeado em IPv6", async () => {
+    await expect(assertPublicUrl("http://[::ffff:169.254.169.254]/")).rejects.toThrow(/interno/i);
+  });
+
+  it("recusa IPv4 mapeado na forma hexadecimal", async () => {
+    await expect(assertPublicUrl("http://[::ffff:7f00:1]/")).rejects.toThrow(/interno/i);
+  });
+
+  it("recusa loopback e unique local em IPv6", async () => {
+    await expect(assertPublicUrl("http://[::1]/")).rejects.toThrow(/interno/i);
+    await expect(assertPublicUrl("http://[fc00::1]/")).rejects.toThrow(/interno/i);
+    await expect(assertPublicUrl("http://[fe80::1]/")).rejects.toThrow(/interno/i);
+  });
+
+  it("permite IPv6 público — a guarda não pode bloquear demais", async () => {
+    const url = await assertPublicUrl("http://[2001:4860:4860::8888]/");
+    expect(url.hostname).toBe("[2001:4860:4860::8888]");
+  });
 });
