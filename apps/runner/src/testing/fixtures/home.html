@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <title>Fixture — Home</title>
+    <meta name="description" content="Página de teste do crawler" />
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      body { background: #0b0b0f; color: #fff; font-family: sans-serif; }
+      section { padding: 40px; }
+      #hero { height: 900px; background: #0b0b0f; }
+      #sobre { height: 700px; background: #14141c; }
+      #produtos { height: 1200px; background: #0b0b0f; }
+      #contato { height: 800px; background: #14141c; }
+      .escondida { display: none; }
+      .rasa { height: 40px; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <section id="hero">
+        <h1>Drones para o agronegócio</h1>
+        <button id="cta">Falar no WhatsApp</button>
+      </section>
+      <section id="sobre"><h2>Sobre</h2><p>Texto institucional.</p></section>
+      <section id="produtos">
+        <h2>Produtos</h2>
+        <article id="produto-a"><h3>DJI Agras T25P</h3></article>
+        <article id="produto-b"><h3>DJI Agras T70P</h3></article>
+      </section>
+      <section id="contato">
+        <h2>Contato</h2>
+        <form><input name="nome" /><input name="email" /><button>Enviar</button></form>
+      </section>
+      <section id="oculta" class="escondida"><h2>Não deve aparecer</h2></section>
+      <section id="rodape-fino" class="rasa"><span>rasa demais</span></section>
+    </main>
+  </body>
+</html>
