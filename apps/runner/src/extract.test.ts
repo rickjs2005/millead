@@ -35,9 +35,30 @@ describe("extractNodes", () => {
     expect(nodes.find((n) => n.id === "rodape-fino")?.isSection).not.toBe(true);
   });
 
-  it("usa coordenadas de documento, não de viewport", () => {
-    const contato = sections().find((n) => n.id === "contato");
-    expect(contato!.box.y).toBeGreaterThan(1080);
+  it("não marca como seção o que é invisível por visibility ou opacity", () => {
+    // As duas têm 600px de altura -- passam no corte de altura de propósito,
+    // então quem tem que reprová-las é a checagem de visibilidade.
+    expect(nodes.find((n) => n.id === "invisivel")?.isSection).not.toBe(true);
+    expect(nodes.find((n) => n.id === "transparente")?.isSection).not.toBe(true);
+  });
+
+  it("usa coordenadas de documento: a caixa não muda quando a página rola", async () => {
+    const page = await browser.newPage({ viewport: { width: 1920, height: 1080 } });
+    await page.goto(`${server.url}/home.html`, { waitUntil: "networkidle" });
+
+    const noTopo = await extractNodes(page);
+    await page.evaluate(() => window.scrollTo(0, 1500));
+    await page.waitForTimeout(100);
+    const rolado = await extractNodes(page);
+    await page.close();
+
+    const contatoTopo = noTopo.find((n) => n.id === "contato")!;
+    const contatoRolado = rolado.find((n) => n.id === "contato")!;
+
+    // Coordenada de documento é invariante ao scroll. Se fosse de viewport,
+    // a segunda leitura viria 1500px menor.
+    expect(contatoRolado.box.y).toBe(contatoTopo.box.y);
+    expect(contatoTopo.box.y).toBeGreaterThan(1080);
   });
 
   it("conta os elementos interativos da seção de contato", () => {
@@ -45,10 +66,16 @@ describe("extractNodes", () => {
     expect(contato!.counts).toMatchObject({ inputs: 2, buttons: 1 });
   });
 
-  it("dá a todo nó um nodeId único e um fingerprint", () => {
-    const ids = new Set(nodes.map((n) => n.nodeId));
-    expect(ids.size).toBe(nodes.length);
+  it("dá a todo nó um fingerprint, e a mesma página gera os mesmos ids duas vezes", async () => {
     expect(nodes.every((n) => n.fingerprint.length === 16)).toBe(true);
+
+    const page = await browser.newPage({ viewport: { width: 1920, height: 1080 } });
+    await page.goto(`${server.url}/home.html`, { waitUntil: "networkidle" });
+    const segunda = await extractNodes(page);
+    await page.close();
+
+    expect(segunda.map((n) => n.nodeId)).toEqual(nodes.map((n) => n.nodeId));
+    expect(segunda.map((n) => n.fingerprint)).toEqual(nodes.map((n) => n.fingerprint));
   });
 
   it("liga cada nó ao pai por parentId", () => {
