@@ -16,6 +16,19 @@ function slugFor(node: SnapshotNode, index: number): string {
 }
 
 /**
+ * Nome de arquivo único dentro de uma captura. Sem isto, ids que normalizam
+ * para o mesmo slug (ex.: "Preço" e "Preco" acentuado, ou "hero-1" e
+ * "hero_1") gravam no mesmo arquivo -- a segunda seção sobrescreve a
+ * primeira e o schema valida as duas, então o erro passa em silêncio.
+ */
+function slugUnico(node: SnapshotNode, index: number, usados: Set<string>): string {
+  const base = slugFor(node, index) || `secao-${index}`;
+  const nome = usados.has(base) ? `${base}-${index}` : base;
+  usados.add(nome);
+  return nome;
+}
+
+/**
  * Fotografa cada seção a partir do próprio elemento (scroll into view + settle),
  * nunca recortando o tile: elemento que atravessa a fronteira de dois tiles
  * sairia cortado.
@@ -27,6 +40,7 @@ export async function captureSections(
 ): Promise<SnapshotNode[]> {
   await mkdir(join(outDir, "sections"), { recursive: true });
   const result: SnapshotNode[] = [];
+  const usados = new Set<string>();
 
   for (const [index, node] of nodes.entries()) {
     if (!node.isSection) {
@@ -34,7 +48,7 @@ export async function captureSections(
       continue;
     }
 
-    const file = `sections/${slugFor(node, index)}.jpg`;
+    const file = `sections/${slugUnico(node, index, usados)}.jpg`;
     const locator = page.locator(node.selector).first();
     try {
       await locator.scrollIntoViewIfNeeded({ timeout: 5_000 });

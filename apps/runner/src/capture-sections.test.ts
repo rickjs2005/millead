@@ -46,4 +46,32 @@ describe("captureSections", () => {
     const files = await readdir(join(outDir, "sections"));
     expect(files).toHaveLength(nodes.filter((n) => n.isSection).length);
   });
+
+  it("não deixa duas seções colidirem no mesmo arquivo", async () => {
+    const page = await browser.newPage({ viewport: { width: 1920, height: 1080 } });
+    await page.goto(`${server.url}/home.html`, { waitUntil: "networkidle" });
+    const extraidos = await extractNodes(page);
+
+    // Dois ids diferentes que normalizam para o mesmo slug.
+    const secoes = extraidos.filter((n) => n.isSection);
+    expect(secoes.length).toBeGreaterThanOrEqual(2);
+    const corrompidos = extraidos.map((n) =>
+      n.nodeId === secoes[0]!.nodeId
+        ? { ...n, id: "Preço" }
+        : n.nodeId === secoes[1]!.nodeId
+          ? { ...n, id: "Preco" }
+          : n,
+    );
+
+    const destino = await mkdtemp(join(tmpdir(), "millead-colisao-"));
+    const resultado = await captureSections(page, corrompidos, destino);
+    await page.close();
+
+    const comFoto = resultado.filter((n) => n.isSection).map((n) => n.screenshot);
+    // Nenhuma miniatura pode repetir caminho.
+    expect(new Set(comFoto).size).toBe(comFoto.length);
+
+    const arquivos = await readdir(join(destino, "sections"));
+    expect(arquivos).toHaveLength(comFoto.length);
+  });
 });
