@@ -1,0 +1,26 @@
+{
+  "name": "@millead/runner",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "capture": "tsx src/cli.ts",
+    "type-check": "tsc --noEmit",
+    "test": "vitest run",
+    "lint": "eslint ."
+  },
+  "dependencies": {
+    "@millead/video-contracts": "workspace:*",
+    "playwright": "^1.49.1",
+    "tsx": "^4.19.2",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@millead/eslint-config": "workspace:*",
+    "@millead/typescript-config": "workspace:*",
+    "@types/node": "^22.10.2",
+    "eslint": "^9.17.0",
+    "typescript": "^5.7.2",
+    "vitest": "^4.1.10"
+  }
+}
