@@ -12,13 +12,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CompanyCombobox } from "@/features/companies/components/company-combobox";
 import { useCompany } from "@/features/companies/hooks";
 import { buildBrief, scaleDurations, totalDuration, totalWordBudget } from "@/features/video-studio/build-brief";
-import { buildPrompt } from "@/features/video-studio/build-prompt";
+import { buildPrompt, promptFileName } from "@/features/video-studio/build-prompt";
+import { NarrationFields } from "@/features/video-studio/components/narration-fields";
 import { SceneList } from "@/features/video-studio/components/scene-list";
 import { TEMPLATES, templateById } from "@/features/video-studio/templates";
-import type { FormScene, TotalDuration, VideoFormat } from "@/features/video-studio/types";
+import type { FormScene, NarrationMode, TotalDuration, VideoFormat } from "@/features/video-studio/types";
 
 const DURACOES: TotalDuration[] = [15, 30, 45, 60];
 const FORMATOS: VideoFormat[] = ["9:16", "16:9", "1:1"];
@@ -34,6 +36,9 @@ export default function VideosPage() {
   const [scenes, setScenes] = useState<FormScene[]>(
     TEMPLATES[0]!.defaultScenes.map((s) => ({ ...s })),
   );
+  const [narrationMode, setNarrationMode] = useState<NarrationMode>("auto");
+  const [narrationText, setNarrationText] = useState("");
+  const [customInstructions, setCustomInstructions] = useState("");
 
   const { data: company } = useCompany(companyId);
 
@@ -60,9 +65,9 @@ export default function VideosPage() {
     setScenes(scaleDurations(scenes, alvo));
   }
 
-  const { prompt, erro } = useMemo(() => {
+  const { prompt, brief, erro } = useMemo(() => {
     try {
-      const brief = buildBrief(
+      const gerado = buildBrief(
         {
           businessName,
           url,
@@ -71,22 +76,51 @@ export default function VideosPage() {
           totalDurationSec,
           format,
           scenes,
-          narrationMode: "auto",
-          narrationText: "",
-          customInstructions: "",
+          narrationMode,
+          narrationText,
+          customInstructions,
         },
         template,
         new Date().toISOString(),
       );
-      return { prompt: buildPrompt(brief, template), erro: null as string | null };
+      return {
+        prompt: buildPrompt(gerado, template),
+        brief: gerado,
+        erro: null as string | null,
+      };
     } catch (err) {
-      return { prompt: "", erro: err instanceof Error ? err.message : String(err) };
+      return {
+        prompt: "",
+        brief: null,
+        erro: err instanceof Error ? err.message : String(err),
+      };
     }
-  }, [businessName, url, segment, templateId, totalDurationSec, format, scenes, template]);
+  }, [
+    businessName,
+    url,
+    segment,
+    templateId,
+    totalDurationSec,
+    format,
+    scenes,
+    template,
+    narrationMode,
+    narrationText,
+    customInstructions,
+  ]);
 
   async function copiar() {
     await navigator.clipboard.writeText(prompt);
     toast.success("Prompt copiado");
+  }
+
+  function baixar(conteudo: string, nome: string, tipo: string) {
+    const url = URL.createObjectURL(new Blob([conteudo], { type: tipo }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = nome;
+    link.click();
+    URL.revokeObjectURL(url);
   }
 
   return (
@@ -161,19 +195,69 @@ export default function VideosPage() {
             Redistribuir para {totalDurationSec}s
           </Button>
         </div>
+
+        <NarrationFields
+          mode={narrationMode}
+          text={narrationText}
+          customInstructions={customInstructions}
+          wordBudget={totalWordBudget(scenes)}
+          onChange={(patch) => {
+            if (patch.mode !== undefined) setNarrationMode(patch.mode);
+            if (patch.text !== undefined) setNarrationText(patch.text);
+            if (patch.customInstructions !== undefined) setCustomInstructions(patch.customInstructions);
+          }}
+        />
       </section>
 
       <section className="space-y-3">
-        <div className="flex items-center justify-between">
-          <h2 className="font-medium">Prompt</h2>
-          <Button size="sm" onClick={copiar} disabled={!prompt}>Copiar</Button>
-        </div>
         {erro ? (
           <p className="rounded-md border border-amber-500/50 bg-amber-500/10 p-3 text-sm">{erro}</p>
         ) : (
-          <pre className="max-h-[70vh] overflow-auto whitespace-pre-wrap rounded-md border p-3 text-sm">
-            {prompt}
-          </pre>
+          <Tabs defaultValue="prompt">
+            <div className="flex items-center justify-between">
+              <TabsList>
+                <TabsTrigger value="prompt">Prompt</TabsTrigger>
+                <TabsTrigger value="brief">Brief</TabsTrigger>
+              </TabsList>
+              <span className="text-sm text-muted-foreground">
+                {brief!.totalDurationSec}s · {brief!.wordBudget} palavras
+              </span>
+            </div>
+
+            <TabsContent value="prompt" className="space-y-3">
+              <div className="flex gap-2">
+                <Button size="sm" onClick={copiar}>Copiar</Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => baixar(prompt, promptFileName(brief!), "text/markdown")}
+                >
+                  Baixar .md
+                </Button>
+              </div>
+              <pre className="max-h-[65vh] overflow-auto whitespace-pre-wrap rounded-md border p-3 text-sm">
+                {prompt}
+              </pre>
+            </TabsContent>
+
+            <TabsContent value="brief" className="space-y-3">
+              <Button
+                size="sm"
+                onClick={() =>
+                  baixar(
+                    `${JSON.stringify(brief, null, 2)}\n`,
+                    `videobrief-${brief!.id}.json`,
+                    "application/json",
+                  )
+                }
+              >
+                Baixar videobrief.json
+              </Button>
+              <pre className="max-h-[65vh] overflow-auto whitespace-pre-wrap rounded-md border p-3 text-sm">
+                {JSON.stringify(brief, null, 2)}
+              </pre>
+            </TabsContent>
+          </Tabs>
         )}
       </section>
     </div>
