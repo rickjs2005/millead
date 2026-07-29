@@ -2077,7 +2077,7 @@ if (process.argv[1]?.endsWith("cli.ts") || process.argv[1]?.endsWith("cli.js")) 
 - [ ] **Step 4: Rodar e ver passar**
 
 Run: `pnpm --filter @millead/runner test src/cli.test.ts`
-Expected: PASS — 8 testes.
+Expected: PASS — 7 testes.
 
 - [ ] **Step 5: Ignorar as capturas no git**
 
