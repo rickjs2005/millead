@@ -21,6 +21,10 @@ import {
   capturePromptFileName,
 } from "@/features/video-studio/build-capture-prompt";
 import { buildPrompt, promptFileName } from "@/features/video-studio/build-prompt";
+import {
+  buildRenderPrompt,
+  renderPromptFileName,
+} from "@/features/video-studio/build-render-prompt";
 import { NarrationFields } from "@/features/video-studio/components/narration-fields";
 import { SceneList } from "@/features/video-studio/components/scene-list";
 import { TEMPLATES, templateById } from "@/features/video-studio/templates";
@@ -116,6 +120,7 @@ export default function VideosPage() {
   // Prompt de gravação: não depende de narração, então é derivado do brief
   // direto. Vazio quando o brief não existe (formulário ainda inválido).
   const capturePrompt = useMemo(() => (brief ? buildCapturePrompt(brief) : ""), [brief]);
+  const renderPrompt = useMemo(() => (brief ? buildRenderPrompt(brief) : ""), [brief]);
 
   async function copiar(conteudo: string, oQue: string) {
     await navigator.clipboard.writeText(conteudo);
@@ -229,6 +234,7 @@ export default function VideosPage() {
               <TabsList>
                 <TabsTrigger value="prompt">Narração</TabsTrigger>
                 <TabsTrigger value="gravacao">Gravação</TabsTrigger>
+                <TabsTrigger value="montagem">Montagem</TabsTrigger>
                 <TabsTrigger value="brief">Brief</TabsTrigger>
               </TabsList>
               <span className="text-sm text-muted-foreground">
@@ -271,6 +277,24 @@ export default function VideosPage() {
               </div>
               <pre className="max-h-[65vh] overflow-auto whitespace-pre-wrap rounded-md border p-3 text-sm">
                 {capturePrompt}
+              </pre>
+            </TabsContent>
+
+            <TabsContent value="montagem" className="space-y-3">
+              <div className="flex gap-2">
+                <Button size="sm" onClick={() => copiar(renderPrompt, "Prompt de montagem")}>
+                  Copiar
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => baixar(renderPrompt, renderPromptFileName(brief!), "text/markdown")}
+                >
+                  Baixar .md
+                </Button>
+              </div>
+              <pre className="max-h-[65vh] overflow-auto whitespace-pre-wrap rounded-md border p-3 text-sm">
+                {renderPrompt}
               </pre>
             </TabsContent>
 
