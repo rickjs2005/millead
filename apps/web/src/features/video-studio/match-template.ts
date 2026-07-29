@@ -26,10 +26,24 @@ export interface MatchResult {
   naoEncontrados: string[];
 }
 
-/** Uma seção casa com um `want` se seu id ou rótulo (normalizados) contiver alguma palavra-chave. */
-function secaoCasaComWant(secao: SnapshotSection, palavras: string[]): boolean {
-  const alvo = `${normalizar(secao.sectionId)} ${normalizar(secao.label)}`;
+/** Uma seção casa com um `want` se o campo indicado (normalizado) contiver alguma palavra-chave. */
+function secaoCasaPorCampo(secao: SnapshotSection, palavras: string[], campo: "sectionId" | "label"): boolean {
+  const alvo = normalizar(secao[campo]);
   return palavras.some((palavra) => alvo.includes(normalizar(palavra)));
+}
+
+function construirCenaDeSite(want: PromptTemplate["wants"][number], secao: SnapshotSection): SiteFormScene {
+  return {
+    id: idDaCena(want.chave),
+    kind: "site",
+    enabled: true,
+    durationSec: want.durationSec,
+    sectionId: secao.sectionId,
+    label: secao.label,
+    screenshot: secao.screenshot,
+    sourceNodeId: secao.nodeId,
+    zoomTargets: [],
+  };
 }
 
 /**
@@ -38,37 +52,46 @@ function secaoCasaComWant(secao: SnapshotSection, palavras: string[]): boolean {
  * cenas: agora ele sugere o que gostaria de mostrar, e esta função relata em
  * `naoEncontrados` o que o site não tem.
  *
- * Regra de casamento: substring, primeira seção ainda não usada que casar
- * vence -- nunca reusa a mesma seção em duas cenas, e nunca inventa uma
- * seção que o site não tem. As cenas de estúdio (que não dependem do site)
- * entram intactas nas posições que já tinham, definidas por `siteInsertAt`.
+ * Regra de casamento: substring, em DUAS passadas -- id vence prosa.
+ * `sectionId` é o nome que o autor do site deu à seção (intenção declarada);
+ * `label` é o texto do heading (prosa de marketing, que gera falso positivo:
+ * um `want` de "Produtos" casaria por engano com uma seção de contato cujo
+ * título diz "...um produto digital?"). Por isso a primeira passada só olha
+ * `sectionId`, para todos os `wants` na ordem do template; só os que sobram
+ * sem par tentam de novo na segunda passada, agora por `label`, contra as
+ * seções que ainda sobraram livres. Nunca reusa a mesma seção em duas cenas,
+ * nunca inventa uma seção que o site não tem. As cenas de estúdio (que não
+ * dependem do site) entram intactas nas posições que já tinham, definidas
+ * por `siteInsertAt`.
  */
 export function matchTemplate(template: PromptTemplate, secoes: SnapshotSection[]): MatchResult {
   const usados = new Set<string>();
-  const naoEncontrados: string[] = [];
-  const cenasDeSite: SiteFormScene[] = [];
+  const cenasPorChave = new Map<string, SiteFormScene>();
+  let pendentes = template.wants;
 
-  for (const want of template.wants) {
-    const secao = secoes.find((s) => !usados.has(s.sectionId) && secaoCasaComWant(s, want.palavras));
+  for (const campo of ["sectionId", "label"] as const) {
+    const aindaPendentes: typeof template.wants = [];
 
-    if (!secao) {
-      naoEncontrados.push(want.chave);
-      continue;
+    for (const want of pendentes) {
+      const secao = secoes.find((s) => !usados.has(s.sectionId) && secaoCasaPorCampo(s, want.palavras, campo));
+
+      if (!secao) {
+        aindaPendentes.push(want);
+        continue;
+      }
+
+      usados.add(secao.sectionId);
+      cenasPorChave.set(want.chave, construirCenaDeSite(want, secao));
     }
 
-    usados.add(secao.sectionId);
-    cenasDeSite.push({
-      id: idDaCena(want.chave),
-      kind: "site",
-      enabled: true,
-      durationSec: want.durationSec,
-      sectionId: secao.sectionId,
-      label: secao.label,
-      screenshot: secao.screenshot,
-      sourceNodeId: secao.nodeId,
-      zoomTargets: [],
-    });
+    pendentes = aindaPendentes;
   }
+
+  const naoEncontrados = pendentes.map((want) => want.chave);
+  // Preserva a ordem original dos `wants`, não a ordem em que cada passada casou.
+  const cenasDeSite = template.wants
+    .map((want) => cenasPorChave.get(want.chave))
+    .filter((cena): cena is SiteFormScene => cena !== undefined);
 
   const antes = template.defaultScenes.slice(0, template.siteInsertAt);
   const depois = template.defaultScenes.slice(template.siteInsertAt);

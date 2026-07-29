@@ -48,4 +48,29 @@ describe("matchTemplate", () => {
     const usados = scenes.filter((s) => s.kind === "site").map((s) => s.sectionId);
     expect(new Set(usados).size).toBe(usados.length);
   });
+
+  it("prefere casar pelo id da seção, não pela prosa do título", () => {
+    // A seção `contact` do milweb tem o título "Pronto para transformar sua
+    // ideia em um produto digital?" -- a palavra "produt" aparece na prosa.
+    // Sem a preferência por id, um want de "Produtos" roubaria a seção de
+    // contato e o want de "Contato" ficaria órfão com a seção existindo.
+    const { scenes, naoEncontrados } = matchTemplate(templateById("loja")!, secoes);
+    const contato = scenes.find((s) => s.sectionId === "contact");
+    expect(contato).toBeTruthy();
+    expect(naoEncontrados).not.toContain("Contato");
+  });
+
+  it("ainda casa pelo título quando o id não diz nada", () => {
+    const secoesFalsas = [
+      {
+        nodeId: "n1",
+        sectionId: "bloco-1",
+        label: "Sobre a nossa história",
+        screenshot: null,
+        box: { x: 0, y: 0, w: 1920, h: 600 },
+      },
+    ];
+    const { scenes } = matchTemplate(templateById("institucional")!, secoesFalsas);
+    expect(scenes.some((s) => s.sectionId === "bloco-1")).toBe(true);
+  });
 });
