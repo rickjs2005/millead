@@ -159,13 +159,16 @@ describe("caminhos que a fixture real não exercita", () => {
     expect(alvos.filter((a) => a.label === "Imagem")).toHaveLength(1);
   });
 
-  it("dá ids únicos mesmo quando um id literal colide com o sufixo gerado", () => {
+  it("dá ids únicos quando o próprio sufixo gerado já está em uso", () => {
+    // A terceira seção colide em "x", tenta "x-2" (o índice dela) e encontra
+    // "x-2" já ocupado pela primeira. Sem laço, sairia duplicado.
     const snap = snapshotSintetico([
-      { nodeId: "a", isSection: true, tag: "section", box: { x: 0, y: 0, w: 1920, h: 400 }, screenshot: "sections/a.jpg" },
-      { nodeId: "b", isSection: true, tag: "section", id: "secao-0", box: { x: 0, y: 400, w: 1920, h: 400 }, screenshot: "sections/b.jpg" },
-      { nodeId: "c", isSection: true, tag: "section", box: { x: 0, y: 800, w: 1920, h: 400 }, screenshot: "sections/c.jpg" },
+      { nodeId: "a", isSection: true, tag: "section", id: "x-2", box: { x: 0, y: 0, w: 1920, h: 400 }, screenshot: "sections/a.jpg" },
+      { nodeId: "b", isSection: true, tag: "section", id: "x", box: { x: 0, y: 400, w: 1920, h: 400 }, screenshot: "sections/b.jpg" },
+      { nodeId: "c", isSection: true, tag: "section", id: "x", box: { x: 0, y: 800, w: 1920, h: 400 }, screenshot: "sections/c.jpg" },
     ]);
     const ids = sectionsFromSnapshot(snap).map((s) => s.sectionId);
-    expect(new Set(ids).size).toBe(ids.length);
+    expect(ids).toEqual(["x-2", "x", "x-3"]);
+    expect(new Set(ids).size).toBe(3);
   });
 });
