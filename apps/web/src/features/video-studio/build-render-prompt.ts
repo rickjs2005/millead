@@ -1,5 +1,5 @@
 import type { BriefScene, VideoBrief } from "@millead/video-contracts";
-import { SITE_SLOT_INFO, STUDIO_COMPONENT_INFO } from "./scenes";
+import { STUDIO_COMPONENT_INFO } from "./scenes";
 
 /**
  * Prompt de MONTAGEM: instrui uma sessão do Claude Code a montar a composição
@@ -43,13 +43,15 @@ export function buildTimelineTable(brief: VideoBrief): string {
       const dur = frames(scene.durationSec, brief.fps);
       const inicio = cursor;
       cursor += dur;
-      const nome =
-        scene.kind === "site"
-          ? SITE_SLOT_INFO[scene.slot].label
-          : STUDIO_COMPONENT_INFO[scene.component].label;
+      const nome = scene.kind === "site" ? scene.label : STUDIO_COMPONENT_INFO[scene.component].label;
       return `| ${scene.id} | ${nome} | ${inicio} | ${dur} | ${sceneComponent(scene)} |`;
     })
     .join("\n");
+}
+
+/** A caixa de um alvo de zoom, no formato que o `SiteScene` do Remotion espera. */
+function boxLiteral(box: { x: number; y: number; w: number; h: number }): string {
+  return `{ x: ${box.x}, y: ${box.y}, w: ${box.w}, h: ${box.h} }`;
 }
 
 /** Props concretas de cada cena, já resolvidas a partir do brief. */
@@ -57,12 +59,12 @@ export function buildSceneProps(brief: VideoBrief): string {
   return brief.scenes
     .map((scene) => {
       if (scene.kind === "site") {
-        const info = SITE_SLOT_INFO[scene.slot];
         const alvos = scene.zoomTargets
-          .map((id) => info.zoomTargets.find((t) => t.id === id)?.label ?? id)
+          .map((t) => `${t.label} em ${boxLiteral(t.box)}`)
           .join(", ");
         const zoom = alvos ? `amplia: ${alvos}` : "sem zoom — plano fixo na seção";
-        return `- ${scene.id} · SiteScene · imagem: "${brief.id}/${scene.slot}.jpg" · ${zoom}`;
+        const imagem = scene.screenshot ?? "(sem miniatura ainda — falta capturar)";
+        return `- ${scene.id} · SiteScene · imagem: "${imagem}" · ${zoom}`;
       }
       switch (scene.component) {
         case "google":
@@ -145,10 +147,11 @@ export function buildRenderPrompt(brief: VideoBrief): string {
       ? [
           "## Material capturado",
           "",
-          `As imagens do site ficam em \`${REMOTION_PROJECT}/public/${brief.id}/\` e são`,
-          "lidas com `staticFile()`. Os nomes acima são os mesmos que o prompt de",
-          "gravação pediu — se algum arquivo não estiver lá, **pare e diga qual falta**",
-          "em vez de inventar placeholder que passa despercebido no render.",
+          `As imagens do site ficam em \`${REMOTION_PROJECT}/public/${brief.id}/\`, no`,
+          "caminho indicado pelo campo `imagem` de cada cena acima (ex.:",
+          `\`public/${brief.id}/sections/raio-x.jpg\`), e são lidas com \`staticFile()\`.`,
+          "Se algum arquivo não estiver lá, **pare e diga qual falta** em vez de",
+          "inventar placeholder que passa despercebido no render.",
           "",
           "Se a captura trouxe as caixas dos alvos de zoom, use-as no `SiteScene`.",
           "Sem elas, faça plano fixo e avise que o zoom ficou de fora.",

@@ -1,52 +1,19 @@
-import type { SiteSlot, StudioComponent } from "@millead/video-contracts";
-import type { FormScene, ZoomTarget } from "./types";
+import type { StudioComponent } from "@millead/video-contracts";
+import type { FormScene, StudioZoomTarget } from "./types";
 
-interface SceneInfo {
+interface StudioSceneInfo {
   label: string;
-  zoomTargets: ZoomTarget[];
+  zoomTargets: StudioZoomTarget[];
 }
 
 /**
- * Alvos de zoom são nomes de intenção, não seletores: o crawler ainda não
- * existe. Quando existir, o compilador casa cada nome com um elemento real.
+ * Catálogo fixo das quatro cenas de ESTÚDIO: elas não dependem do site (são
+ * desenhadas em React), então rótulo e alvos de zoom continuam sendo um menu
+ * fechado. A cena de SITE deixou de ter catálogo -- ela carrega seu próprio
+ * `label` e `zoomTargets` (com caixa), derivados do Snapshot real por
+ * `sectionsFromSnapshot`/`zoomCandidatesFor` (ver `from-snapshot.ts`).
  */
-export const SITE_SLOT_INFO: Record<SiteSlot, SceneInfo> = {
-  hero: {
-    label: "Hero",
-    zoomTargets: [
-      { id: "titulo", label: "Título" },
-      { id: "botao", label: "Botão principal" },
-      { id: "imagem", label: "Imagem de fundo" },
-    ],
-  },
-  sobre: {
-    label: "Sobre",
-    zoomTargets: [
-      { id: "texto", label: "Texto" },
-      { id: "imagem", label: "Imagem" },
-    ],
-  },
-  servicos: { label: "Serviços", zoomTargets: [{ id: "cards", label: "Cards" }] },
-  produtos: {
-    label: "Produtos",
-    zoomTargets: [
-      { id: "cards", label: "Cards" },
-      { id: "preco", label: "Preço" },
-    ],
-  },
-  depoimentos: { label: "Depoimentos", zoomTargets: [{ id: "citacao", label: "Citação" }] },
-  faq: { label: "FAQ", zoomTargets: [{ id: "pergunta", label: "Pergunta" }] },
-  formulario: {
-    label: "Formulário",
-    zoomTargets: [
-      { id: "campos", label: "Campos" },
-      { id: "enviar", label: "Botão Enviar" },
-    ],
-  },
-  rodape: { label: "Rodapé", zoomTargets: [{ id: "contato", label: "Contato" }] },
-};
-
-export const STUDIO_COMPONENT_INFO: Record<StudioComponent, SceneInfo> = {
+export const STUDIO_COMPONENT_INFO: Record<StudioComponent, StudioSceneInfo> = {
   notebook: { label: "Notebook abrindo", zoomTargets: [] },
   google: {
     label: "Busca no Google",
@@ -66,16 +33,14 @@ export const STUDIO_COMPONENT_INFO: Record<StudioComponent, SceneInfo> = {
   logo: { label: "Logo e CTA", zoomTargets: [] },
 };
 
-export function zoomTargetsFor(scene: FormScene): ZoomTarget[] {
-  if (scene.kind === "site" && scene.slot) return SITE_SLOT_INFO[scene.slot].zoomTargets;
-  if (scene.kind === "studio" && scene.component)
-    return STUDIO_COMPONENT_INFO[scene.component].zoomTargets;
-  return [];
+/** Alvos de zoom de catálogo de uma cena de ESTÚDIO. Vazio para cena de site: ela usa `scene.zoomTargets` direto. */
+export function studioZoomTargetsFor(scene: FormScene): StudioZoomTarget[] {
+  if (scene.kind !== "studio" || !scene.component) return [];
+  return STUDIO_COMPONENT_INFO[scene.component].zoomTargets;
 }
 
+/** Rótulo legível de qualquer cena: o `label` real da seção para site, o nome do catálogo para estúdio. */
 export function sceneLabel(scene: FormScene): string {
-  if (scene.kind === "site" && scene.slot) return SITE_SLOT_INFO[scene.slot].label;
-  if (scene.kind === "studio" && scene.component)
-    return STUDIO_COMPONENT_INFO[scene.component].label;
-  return scene.id;
+  if (scene.kind === "site") return scene.label ?? scene.sectionId ?? "Cena de site (seção ainda não escolhida)";
+  return scene.component ? STUDIO_COMPONENT_INFO[scene.component].label : scene.id;
 }

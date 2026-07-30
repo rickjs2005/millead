@@ -18,7 +18,7 @@ import { GripVertical } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
-import { sceneLabel, zoomTargetsFor } from "../scenes";
+import { sceneLabel, studioZoomTargetsFor } from "../scenes";
 import type { FormScene } from "../types";
 
 interface SceneRowProps {
@@ -30,9 +30,14 @@ function SceneRow({ scene, onChange }: SceneRowProps) {
   const { attributes, listeners, setNodeRef, transform, transition } = useSortable({
     id: scene.id,
   });
-  const alvos = zoomTargetsFor(scene);
+  // Alvo de zoom de cena de ESTÚDIO é um catálogo fixo (toggle por id). Alvo
+  // de cena de SITE já vem com caixa medida do Snapshot -- a escolha entre
+  // candidatos reais é da tela de captura (Task 5); aqui só exibimos os já
+  // marcados, sem interação.
+  const alvosEstudio = studioZoomTargetsFor(scene);
 
-  function alternarAlvo(id: string) {
+  function alternarAlvoEstudio(id: string) {
+    if (scene.kind !== "studio") return;
     const marcados = scene.zoomTargets.includes(id)
       ? scene.zoomTargets.filter((t) => t !== id)
       : [...scene.zoomTargets, id];
@@ -80,22 +85,33 @@ function SceneRow({ scene, onChange }: SceneRowProps) {
         <span className="text-sm text-muted-foreground">s</span>
       </div>
 
-      {/* Cena sem alvo de zoom (notebook, logo) não mostra o campo. */}
-      {scene.enabled && alvos.length > 0 && (
+      {/* Cena de estúdio sem alvo de zoom (notebook, logo) não mostra o campo. */}
+      {scene.enabled && scene.kind === "studio" && alvosEstudio.length > 0 && (
         <div className="flex flex-wrap gap-2 pl-10">
-          {alvos.map((alvo) => {
+          {alvosEstudio.map((alvo) => {
             const marcado = scene.zoomTargets.includes(alvo.id);
             return (
               <button
                 key={alvo.id}
                 type="button"
                 aria-pressed={marcado}
-                onClick={() => alternarAlvo(alvo.id)}
+                onClick={() => alternarAlvoEstudio(alvo.id)}
               >
                 <Badge variant={marcado ? "default" : "outline"}>{alvo.label}</Badge>
               </button>
             );
           })}
+        </div>
+      )}
+
+      {/* Cena de site: mostra os alvos já marcados (com caixa medida do Snapshot). */}
+      {scene.enabled && scene.kind === "site" && scene.zoomTargets.length > 0 && (
+        <div className="flex flex-wrap gap-2 pl-10">
+          {scene.zoomTargets.map((alvo) => (
+            <Badge key={alvo.nodeId} variant="default">
+              {alvo.label}
+            </Badge>
+          ))}
         </div>
       )}
     </li>
@@ -131,7 +147,11 @@ export function SceneList({ scenes, onChange }: SceneListProps) {
               key={scene.id}
               scene={scene}
               onChange={(patch) =>
-                onChange(scenes.map((s) => (s.id === scene.id ? { ...s, ...patch } : s)))
+                // O cast é seguro: cada SceneRow só manda patch de campos válidos
+                // para o `kind` da própria cena (nunca mistura site com estúdio).
+                // O TS não consegue provar isso ao espalhar um Partial<União>
+                // genérico sobre um membro específico da união.
+                onChange(scenes.map((s) => (s.id === scene.id ? ({ ...s, ...patch } as FormScene) : s)))
               }
             />
           ))}

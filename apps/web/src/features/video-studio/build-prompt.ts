@@ -1,27 +1,32 @@
 import type { BriefScene, VideoBrief } from "@millead/video-contracts";
 import { wordBudgetFor } from "./build-brief";
-import { SITE_SLOT_INFO, STUDIO_COMPONENT_INFO } from "./scenes";
+import { STUDIO_COMPONENT_INFO } from "./scenes";
 import type { PromptTemplate } from "./types";
 
-function infoFor(scene: BriefScene): { label: string; zoomTargets: { id: string; label: string }[] } {
-  return scene.kind === "site"
-    ? SITE_SLOT_INFO[scene.slot]
-    : STUDIO_COMPONENT_INFO[scene.component];
+/** Rótulo real da cena: o `label` da seção do site, ou o nome do catálogo de estúdio. */
+function sceneLabel(scene: BriefScene): string {
+  return scene.kind === "site" ? scene.label : STUDIO_COMPONENT_INFO[scene.component].label;
 }
 
 function sceneTag(scene: BriefScene): string {
-  return scene.kind === "site" ? scene.slot : scene.component;
+  return scene.kind === "site" ? scene.sectionId : scene.component;
+}
+
+/** Rótulos dos alvos de zoom marcados: já vêm prontos na cena de site, resolvidos pelo catálogo na de estúdio. */
+function zoomLabels(scene: BriefScene): string {
+  if (scene.kind === "site") {
+    return scene.zoomTargets.map((t) => t.label).join(", ");
+  }
+  const catalogo = STUDIO_COMPONENT_INFO[scene.component].zoomTargets;
+  return scene.zoomTargets.map((id) => catalogo.find((t) => t.id === id)?.label ?? id).join(", ");
 }
 
 export function buildSceneList(brief: VideoBrief): string {
   return brief.scenes
     .map((scene, index) => {
-      const info = infoFor(scene);
-      const alvos = scene.zoomTargets
-        .map((id) => info.zoomTargets.find((t) => t.id === id)?.label ?? id)
-        .join(", ");
+      const alvos = zoomLabels(scene);
       const partes = [
-        `${index + 1}. [${sceneTag(scene)}] ${scene.durationSec}s — ${wordBudgetFor(scene.durationSec)} palavras — ${info.label}`,
+        `${index + 1}. [${sceneTag(scene)}] ${scene.durationSec}s — ${wordBudgetFor(scene.durationSec)} palavras — ${sceneLabel(scene)}`,
       ];
       if (alvos) partes.push(`zoom: ${alvos}`);
       return partes.join("; ");

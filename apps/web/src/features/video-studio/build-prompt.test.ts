@@ -1,13 +1,24 @@
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { SnapshotSchema } from "@millead/video-contracts";
 import { describe, expect, it } from "vitest";
 import { buildBrief } from "./build-brief";
 import { buildPrompt, buildSceneList, promptFileName } from "./build-prompt";
+import { sectionsFromSnapshot } from "./from-snapshot";
+import { matchTemplate } from "./match-template";
 import { templateById } from "./templates";
 import type { VideoStudioForm } from "./types";
+
+const FIXTURE = join(dirname(fileURLToPath(import.meta.url)), "testing", "snapshot-milweb.json");
+const snapshot = SnapshotSchema.parse(JSON.parse(readFileSync(FIXTURE, "utf8")));
+const secoes = sectionsFromSnapshot(snapshot);
 
 const createdAt = "2026-07-29T14:32:00.000Z";
 const template = templateById("lancamento")!;
 
 function form(overrides: Partial<VideoStudioForm> = {}): VideoStudioForm {
+  const { scenes } = matchTemplate(template, secoes);
   return {
     businessName: "Kavita Drones",
     url: "https://kavita.com.br",
@@ -15,7 +26,8 @@ function form(overrides: Partial<VideoStudioForm> = {}): VideoStudioForm {
     templateId: template.id,
     totalDurationSec: 30,
     format: "9:16",
-    scenes: template.defaultScenes.map((s) => ({ ...s })),
+    scenes: scenes.map((s) => ({ ...s })),
+    snapshotId: snapshot.id,
     narrationMode: "auto",
     narrationText: "",
     customInstructions: "",
@@ -44,6 +56,13 @@ describe("buildSceneList", () => {
   it("não escreve 'zoom:' em cena sem alvo marcado", () => {
     const linhaNotebook = lista.split("\n")[0]!;
     expect(linhaNotebook).not.toContain("zoom:");
+  });
+
+  it("usa o label real da seção do site, não um rótulo de catálogo", () => {
+    const site = briefAuto.scenes.find((s): s is Extract<typeof s, { kind: "site" }> => s.kind === "site");
+    expect(site).toBeTruthy();
+    const linhaDoSite = lista.split("\n").find((linha) => linha.includes(`[${site!.sectionId}]`));
+    expect(linhaDoSite).toContain(site!.label);
   });
 });
 

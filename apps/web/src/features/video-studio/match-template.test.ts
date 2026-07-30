@@ -6,21 +6,26 @@ import { describe, expect, it } from "vitest";
 import { sectionsFromSnapshot } from "./from-snapshot";
 import { matchTemplate } from "./match-template";
 import { templateById } from "./templates";
+import type { FormScene, SiteFormScene } from "./types";
 
 const FIXTURE = join(dirname(fileURLToPath(import.meta.url)), "testing", "snapshot-milweb.json");
 const snapshot = SnapshotSchema.parse(JSON.parse(readFileSync(FIXTURE, "utf8")));
 const secoes = sectionsFromSnapshot(snapshot);
 
+function isSiteScene(scene: FormScene): scene is SiteFormScene {
+  return scene.kind === "site";
+}
+
 describe("matchTemplate", () => {
   it("casa o hero do template com a seção top do site", () => {
     const { scenes } = matchTemplate(templateById("institucional")!, secoes);
-    const site = scenes.filter((s) => s.kind === "site");
+    const site = scenes.filter(isSiteScene);
     expect(site.map((s) => s.sectionId)).toContain("top");
   });
 
   it("casa contato com a seção contact", () => {
     const { scenes } = matchTemplate(templateById("institucional")!, secoes);
-    expect(scenes.map((s) => s.sectionId)).toContain("contact");
+    expect(scenes.filter(isSiteScene).map((s) => s.sectionId)).toContain("contact");
   });
 
   it("relata o que o template pediu e o site não tem", () => {
@@ -33,7 +38,7 @@ describe("matchTemplate", () => {
   it("nunca inventa seção que não existe no site", () => {
     const { scenes } = matchTemplate(templateById("portfolio")!, secoes);
     const idsReais = new Set(secoes.map((s) => s.sectionId));
-    for (const cena of scenes.filter((s) => s.kind === "site")) {
+    for (const cena of scenes.filter(isSiteScene)) {
       expect(idsReais.has(cena.sectionId!)).toBe(true);
     }
   });
@@ -45,7 +50,7 @@ describe("matchTemplate", () => {
 
   it("não usa a mesma seção em duas cenas", () => {
     const { scenes } = matchTemplate(templateById("institucional")!, secoes);
-    const usados = scenes.filter((s) => s.kind === "site").map((s) => s.sectionId);
+    const usados = scenes.filter(isSiteScene).map((s) => s.sectionId);
     expect(new Set(usados).size).toBe(usados.length);
   });
 
@@ -55,7 +60,7 @@ describe("matchTemplate", () => {
     // Sem a preferência por id, um want de "Produtos" roubaria a seção de
     // contato e o want de "Contato" ficaria órfão com a seção existindo.
     const { scenes, naoEncontrados } = matchTemplate(templateById("loja")!, secoes);
-    const contato = scenes.find((s) => s.sectionId === "contact");
+    const contato = scenes.filter(isSiteScene).find((s) => s.sectionId === "contact");
     expect(contato).toBeTruthy();
     expect(naoEncontrados).not.toContain("Contato");
   });
@@ -71,6 +76,6 @@ describe("matchTemplate", () => {
       },
     ];
     const { scenes } = matchTemplate(templateById("institucional")!, secoesFalsas);
-    expect(scenes.some((s) => s.sectionId === "bloco-1")).toBe(true);
+    expect(scenes.filter(isSiteScene).some((s) => s.sectionId === "bloco-1")).toBe(true);
   });
 });

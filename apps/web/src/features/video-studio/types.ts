@@ -55,6 +55,8 @@ export interface VideoStudioForm {
   totalDurationSec: TotalDuration;
   format: VideoFormat;
   scenes: FormScene[];
+  /** Id do Snapshot carregado do crawler -- obrigatório se houver cena de site. */
+  snapshotId?: string;
   narrationMode: NarrationMode;
   narrationText: string;
   customInstructions: string;

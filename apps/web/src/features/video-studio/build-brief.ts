@@ -1,5 +1,5 @@
 import { VideoBriefSchema, type BriefScene, type VideoBrief } from "@millead/video-contracts";
-import type { FormScene, PromptTemplate, VideoStudioForm } from "./types";
+import type { FormScene, PromptTemplate, SiteFormScene, StudioFormScene, VideoStudioForm } from "./types";
 
 /** PT-BR narrado em ritmo comercial: ~2,5 palavras por segundo. */
 const PALAVRAS_POR_SEGUNDO = 2.5;
@@ -80,16 +80,40 @@ export function briefId(businessName: string, templateId: string): string {
   return `${slug}-${templateId}`;
 }
 
-function toBriefScene(scene: FormScene, form: VideoStudioForm): BriefScene {
+/**
+ * Cena de site: monta a partir da seção REAL já casada (por `matchTemplate`
+ * ou escolhida à mão na tela) -- nunca de um slot de catálogo. Uma cena ainda
+ * não casada (sem `sectionId`/`label`/`sourceNodeId`) não vira `BriefScene`:
+ * lança um erro em português em vez de inventar um valor.
+ */
+function toSiteBriefScene(scene: SiteFormScene, form: VideoStudioForm): BriefScene {
+  if (!scene.sectionId || !scene.label || !scene.sourceNodeId) {
+    throw new Error(
+      `a cena "${scene.id}" ainda não foi casada com uma seção do site -- escolha a seção antes de gerar o brief`,
+    );
+  }
+  if (!form.snapshotId) {
+    throw new Error("carregue a captura do site (Snapshot) antes de gerar o brief");
+  }
+
+  return {
+    id: scene.id,
+    kind: "site",
+    source: { snapshotId: form.snapshotId, nodeId: scene.sourceNodeId },
+    sectionId: scene.sectionId,
+    label: scene.label,
+    screenshot: scene.screenshot ?? null,
+    durationSec: scene.durationSec,
+    zoomTargets: scene.zoomTargets,
+  };
+}
+
+function toStudioBriefScene(scene: StudioFormScene, form: VideoStudioForm): BriefScene {
   const comum = {
     id: scene.id,
     durationSec: scene.durationSec,
     zoomTargets: scene.zoomTargets,
   };
-
-  if (scene.kind === "site") {
-    return { ...comum, kind: "site", slot: scene.slot! };
-  }
 
   switch (scene.component) {
     case "google":
@@ -113,6 +137,10 @@ function toBriefScene(scene: FormScene, form: VideoStudioForm): BriefScene {
     default:
       return { ...comum, kind: "studio", component: "notebook" };
   }
+}
+
+function toBriefScene(scene: FormScene, form: VideoStudioForm): BriefScene {
+  return scene.kind === "site" ? toSiteBriefScene(scene, form) : toStudioBriefScene(scene, form);
 }
 
 export function buildBrief(

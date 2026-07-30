@@ -1,51 +1,55 @@
 import type { BriefScene, VideoBrief } from "@millead/video-contracts";
-import { SITE_SLOT_INFO, STUDIO_COMPONENT_INFO } from "./scenes";
+import { STUDIO_COMPONENT_INFO } from "./scenes";
 
 /**
- * Prompt de GRAVAÇÃO: instrui quem for capturar o site (hoje uma sessão do
- * Claude Code com automação de navegador; amanhã o apps/runner) a produzir o
- * material bruto de cada cena.
+ * Prompt de GRAVAÇÃO: hoje é EXCEÇÃO, não regra. O crawler (Snapshot) já traz
+ * o screenshot de cada seção real do site -- este prompt só lista o que a
+ * captura NÃO trouxe (`screenshot: null`) para uma cena marcada na timeline.
+ * Quando toda cena de site já tem miniatura, não há nada a fazer aqui: o
+ * fluxo vai direto para o prompt de montagem.
  *
- * Só cenas `site` são gravadas. As de estúdio -- notebook, Google, WhatsApp,
- * logo -- são renderizadas em React no Remotion e aparecem aqui apenas como
- * aviso explícito de NÃO gravar, porque é o erro natural de quem lê a timeline
- * e sai capturando tudo.
+ * Só cenas `site` podem faltar captura. As de estúdio -- notebook, Google,
+ * WhatsApp, logo -- são renderizadas em React no Remotion e aparecem aqui
+ * apenas como aviso explícito de NÃO gravar, porque é o erro natural de quem
+ * lê a timeline e sai capturando tudo.
  */
 
 const VIEWPORT = { width: 1920, height: 1080 } as const;
 
-function siteScenes(brief: VideoBrief): Extract<BriefScene, { kind: "site" }>[] {
-  return brief.scenes.filter(
-    (scene): scene is Extract<BriefScene, { kind: "site" }> => scene.kind === "site",
-  );
+type SiteScene = Extract<BriefScene, { kind: "site" }>;
+type StudioScene = Extract<BriefScene, { kind: "studio" }>;
+
+function siteScenes(brief: VideoBrief): SiteScene[] {
+  return brief.scenes.filter((scene): scene is SiteScene => scene.kind === "site");
 }
 
-function studioScenes(brief: VideoBrief): Extract<BriefScene, { kind: "studio" }>[] {
-  return brief.scenes.filter(
-    (scene): scene is Extract<BriefScene, { kind: "studio" }> => scene.kind === "studio",
-  );
+function studioScenes(brief: VideoBrief): StudioScene[] {
+  return brief.scenes.filter((scene): scene is StudioScene => scene.kind === "studio");
 }
 
-function zoomLabels(scene: Extract<BriefScene, { kind: "site" }>): string[] {
-  const info = SITE_SLOT_INFO[scene.slot];
-  return scene.zoomTargets.map((id) => info.zoomTargets.find((t) => t.id === id)?.label ?? id);
+/** Só as cenas de site cuja captura ainda não trouxe miniatura -- é o que falta gravar. */
+function scenasFaltandoCaptura(brief: VideoBrief): SiteScene[] {
+  return siteScenes(brief).filter((scene) => scene.screenshot === null);
 }
 
-/** Uma entrada por cena de site, com o que capturar e o que medir. */
+/** Uma entrada por cena de site que falta capturar, com o que gravar e o que medir. */
 export function buildCaptureList(brief: VideoBrief): string {
-  const cenas = siteScenes(brief);
-  if (cenas.length === 0) {
+  if (siteScenes(brief).length === 0) {
     return "(nenhuma cena de site nesta timeline — não há o que gravar)";
   }
 
-  return cenas
+  const faltando = scenasFaltandoCaptura(brief);
+  if (faltando.length === 0) {
+    return "(nada a gravar: a captura já cobre todas as cenas escolhidas)";
+  }
+
+  return faltando
     .map((scene, index) => {
-      const info = SITE_SLOT_INFO[scene.slot];
-      const alvos = zoomLabels(scene);
+      const alvos = scene.zoomTargets.map((t) => t.label);
       const linhas = [
-        `${index + 1}. ${info.label}  [slot: ${scene.slot}]  ${scene.durationSec}s`,
-        `   arquivo: ${scene.slot}.jpg`,
-        `   capturar: a seção inteira, do topo ao fim, sem cortar`,
+        `${index + 1}. ${scene.label}  [seção: ${scene.sectionId}]  ${scene.durationSec}s`,
+        `   arquivo: sections/${scene.sectionId}.jpg`,
+        "   capturar: a seção inteira, do topo ao fim, sem cortar",
       ];
       if (alvos.length > 0) {
         linhas.push(`   medir a caixa de: ${alvos.join(", ")}`);
@@ -68,10 +72,24 @@ export function buildDoNotRecordList(brief: VideoBrief): string {
 }
 
 export function buildCapturePrompt(brief: VideoBrief): string {
-  const cenasDeSite = siteScenes(brief).length;
+  const faltando = scenasFaltandoCaptura(brief);
+
+  if (faltando.length === 0) {
+    return [
+      "Nada a gravar: a captura já cobre todas as cenas escolhidas.",
+      "",
+      `Site: ${brief.business.url}`,
+      `Empresa: ${brief.business.name}`,
+      "",
+      "Toda cena de site desta timeline já tem miniatura, trazida pela captura",
+      "do crawler. Não abra navegador nem grave nada -- vá direto para o prompt",
+      "de montagem.",
+    ].join("\n");
+  }
 
   return [
-    "Você vai gravar o material bruto de um vídeo de divulgação de site.",
+    "Você vai gravar o material que falta de um vídeo de divulgação de site.",
+    "As demais cenas já foram capturadas: grave só o que está listado abaixo.",
     "Não monte o vídeo, não escreva narração: só capture e meça.",
     "",
     `Site: ${brief.business.url}`,
@@ -86,9 +104,9 @@ export function buildCapturePrompt(brief: VideoBrief): string {
     "   a carregar — sem esse passo, metade das fotos sai em branco.",
     "3. Espere as fontes carregarem antes da primeira foto.",
     "",
-    "## O que capturar",
+    "## O que falta capturar",
     "",
-    `${cenasDeSite} cena(s) de site:`,
+    `${faltando.length} cena(s) de site sem miniatura ainda:`,
     "",
     buildCaptureList(brief),
     "",
@@ -123,7 +141,7 @@ export function buildCapturePrompt(brief: VideoBrief): string {
     "",
     "- Um arquivo de imagem por cena, com o nome indicado na lista acima.",
     "- Um JSON com a caixa medida de cada alvo:",
-    '  { "slot": "hero", "alvos": [ { "id": "titulo", "box": { "x": 0, "y": 0, "w": 0, "h": 0 } } ] }',
+    '  { "sectionId": "raio-x", "alvos": [ { "label": "...", "box": { "x": 0, "y": 0, "w": 0, "h": 0 } } ] }',
     "- A altura total da página em pixels.",
     "- Uma linha por problema encontrado: seção que não existe no site, alvo de zoom",
     "  que não deu para identificar, banner que atrapalhou.",
