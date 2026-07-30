@@ -49,9 +49,13 @@ export function buildTimelineTable(brief: VideoBrief): string {
     .join("\n");
 }
 
-/** A caixa de um alvo de zoom, no formato que o `SiteScene` do Remotion espera. */
+/**
+ * A caixa de um alvo de zoom, no formato que o `SiteScene` do Remotion
+ * espera. Arredondada com `Math.round`: a fração (`y: 4215.515625`) é ruído
+ * de medição do DOM que não ajuda um modelo lendo este prompt.
+ */
 function boxLiteral(box: { x: number; y: number; w: number; h: number }): string {
-  return `{ x: ${box.x}, y: ${box.y}, w: ${box.w}, h: ${box.h} }`;
+  return `{ x: ${Math.round(box.x)}, y: ${Math.round(box.y)}, w: ${Math.round(box.w)}, h: ${Math.round(box.h)} }`;
 }
 
 /** Props concretas de cada cena, já resolvidas a partir do brief. */

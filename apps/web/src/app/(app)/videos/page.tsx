@@ -1,5 +1,6 @@
 "use client";
 
+import type { Snapshot } from "@millead/video-contracts";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -25,10 +26,19 @@ import {
   buildRenderPrompt,
   renderPromptFileName,
 } from "@/features/video-studio/build-render-prompt";
+import { type LoadedSnapshot, SnapshotInput } from "@/features/video-studio/components/snapshot-input";
 import { NarrationFields } from "@/features/video-studio/components/narration-fields";
 import { SceneList } from "@/features/video-studio/components/scene-list";
+import { sectionsFromSnapshot } from "@/features/video-studio/from-snapshot";
+import { matchTemplate } from "@/features/video-studio/match-template";
 import { TEMPLATES, templateById } from "@/features/video-studio/templates";
-import type { FormScene, NarrationMode, TotalDuration, VideoFormat } from "@/features/video-studio/types";
+import type {
+  FormScene,
+  NarrationMode,
+  SiteFormScene,
+  TotalDuration,
+  VideoFormat,
+} from "@/features/video-studio/types";
 
 const DURACOES: TotalDuration[] = [15, 30, 45, 60];
 const FORMATOS: VideoFormat[] = ["9:16", "16:9", "1:1"];
@@ -48,6 +58,15 @@ export default function VideosPage() {
   const [narrationText, setNarrationText] = useState("");
   const [customInstructions, setCustomInstructions] = useState("");
 
+  // Captura do crawler: sem ela, cena de site não existe -- só cena de
+  // estúdio. `thumbs` mapeia "sections/x.jpg" (o mesmo caminho de
+  // `screenshot`) para uma `blob:` URL local, entregue pelo `SnapshotInput`.
+  const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
+  const [thumbs, setThumbs] = useState<Map<string, string>>(new Map());
+  // `chave` de cada `want` do template que a última "Aplicar sugestão" não
+  // achou no site -- relatado num aviso âmbar, não escondido.
+  const [naoEncontrados, setNaoEncontrados] = useState<string[]>([]);
+
   const { data: company } = useCompany(companyId);
 
   // Só preenche campo ainda vazio -- nunca sobrescreve o que você digitou.
@@ -61,11 +80,58 @@ export default function VideosPage() {
 
   const template = templateById(templateId)!;
 
+  // Só troca o template escolhido -- NÃO mexe em `scenes` (que pode ter cena
+  // de site já casada com a captura). Para popular/repovoar a timeline a
+  // partir do template, use "Aplicar sugestão do template".
   function trocarTemplate(id: string) {
     const novo = templateById(id);
     if (!novo) return;
     setTemplateId(novo.id);
-    setScenes(scaleDurations(novo.defaultScenes.map((s) => ({ ...s })), totalDurationSec));
+  }
+
+  /**
+   * Casa os `wants` do template com as seções REAIS da captura (nenhuma, se
+   * não houver captura ainda -- `matchTemplate` lida bem com isso: as cenas
+   * de estúdio entram do mesmo jeito, e todo `want` some em `naoEncontrados`).
+   */
+  function aplicarSugestaoDoTemplate() {
+    const secoes = snapshot ? sectionsFromSnapshot(snapshot) : [];
+    const resultado = matchTemplate(template, secoes);
+    setScenes(scaleDurations(resultado.scenes, totalDurationSec));
+    setNaoEncontrados(resultado.naoEncontrados);
+  }
+
+  /**
+   * Uma cena de site por SEÇÃO REAL da captura -- não só as que o template
+   * pediu (isso é o que "Aplicar sugestão do template" faz). Preserva as
+   * cenas de estúdio já na timeline, reinserindo o bloco de site na posição
+   * que o template atual indica.
+   */
+  function onSnapshotLoaded({ snapshot: novoSnapshot, thumbs: novosThumbs }: LoadedSnapshot) {
+    setSnapshot(novoSnapshot);
+    setThumbs(novosThumbs);
+    setNaoEncontrados([]);
+    setBusinessName((atual) => atual || novoSnapshot.page.title);
+    setUrl((atual) => atual || novoSnapshot.url);
+
+    const cenasDeSite: SiteFormScene[] = sectionsFromSnapshot(novoSnapshot).map((secao) => ({
+      id: `site-${secao.sectionId}`,
+      kind: "site",
+      enabled: true,
+      durationSec: 3,
+      sectionId: secao.sectionId,
+      label: secao.label,
+      screenshot: secao.screenshot,
+      sourceNodeId: secao.nodeId,
+      zoomTargets: [],
+    }));
+
+    setScenes((atuais) => {
+      const cenasDeEstudio = atuais.filter((s) => s.kind === "studio");
+      const antes = cenasDeEstudio.slice(0, template.siteInsertAt);
+      const depois = cenasDeEstudio.slice(template.siteInsertAt);
+      return [...antes, ...cenasDeSite, ...depois];
+    });
   }
 
   function redistribuir(alvo: TotalDuration) {
@@ -84,6 +150,7 @@ export default function VideosPage() {
           totalDurationSec,
           format,
           scenes,
+          snapshotId: snapshot?.id,
           narrationMode,
           narrationText,
           customInstructions,
@@ -111,6 +178,7 @@ export default function VideosPage() {
     totalDurationSec,
     format,
     scenes,
+    snapshot,
     template,
     narrationMode,
     narrationText,
@@ -159,6 +227,8 @@ export default function VideosPage() {
           <Input id="segmento" value={segment} onChange={(e) => setSegment(e.target.value)} />
         </div>
 
+        <SnapshotInput onLoaded={onSnapshotLoaded} />
+
         <div className="grid gap-4 sm:grid-cols-3">
           <div className="space-y-2 sm:col-span-3">
             <Label>Template</Label>
@@ -171,6 +241,14 @@ export default function VideosPage() {
               </SelectContent>
             </Select>
             <p className="text-sm text-muted-foreground">{template.description}</p>
+            <Button variant="outline" size="sm" onClick={aplicarSugestaoDoTemplate}>
+              Aplicar sugestão do template
+            </Button>
+            {naoEncontrados.length > 0 && (
+              <p className="rounded-md border border-amber-500/50 bg-amber-500/10 p-2 text-sm">
+                O site não tem o que o template pede para: {naoEncontrados.join(", ")}.
+              </p>
+            )}
           </div>
           <div className="space-y-2">
             <Label>Duração</Label>
@@ -206,7 +284,13 @@ export default function VideosPage() {
               {totalDuration(scenes)}s · {totalWordBudget(scenes)} palavras
             </span>
           </div>
-          <SceneList scenes={scenes} onChange={setScenes} />
+          {!snapshot && (
+            <p className="text-sm text-muted-foreground">
+              Cena de site exige uma captura. Rode <code>pnpm capture &lt;url&gt;</code> e escolha a
+              pasta acima.
+            </p>
+          )}
+          <SceneList scenes={scenes} onChange={setScenes} snapshot={snapshot} thumbs={thumbs} />
           <Button variant="outline" size="sm" onClick={() => redistribuir(totalDurationSec)}>
             Redistribuir para {totalDurationSec}s
           </Button>

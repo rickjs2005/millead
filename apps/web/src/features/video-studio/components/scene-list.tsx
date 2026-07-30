@@ -15,26 +15,34 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { GripVertical } from "lucide-react";
+import type { Snapshot, ZoomTarget } from "@millead/video-contracts";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
+import { zoomCandidatesFor } from "../from-snapshot";
 import { sceneLabel, studioZoomTargetsFor } from "../scenes";
 import type { FormScene } from "../types";
 
 interface SceneRowProps {
   scene: FormScene;
   onChange: (patch: Partial<FormScene>) => void;
+  snapshot: Snapshot | null;
+  thumbs: Map<string, string>;
 }
 
-function SceneRow({ scene, onChange }: SceneRowProps) {
+function SceneRow({ scene, onChange, snapshot, thumbs }: SceneRowProps) {
   const { attributes, listeners, setNodeRef, transform, transition } = useSortable({
     id: scene.id,
   });
-  // Alvo de zoom de cena de ESTÚDIO é um catálogo fixo (toggle por id). Alvo
-  // de cena de SITE já vem com caixa medida do Snapshot -- a escolha entre
-  // candidatos reais é da tela de captura (Task 5); aqui só exibimos os já
-  // marcados, sem interação.
+  // Alvo de zoom de cena de ESTÚDIO é um catálogo fixo (toggle por id).
   const alvosEstudio = studioZoomTargetsFor(scene);
+  // Alvo de zoom de cena de SITE são os candidatos REAIS calculados a partir
+  // do Snapshot -- a caixa medida de verdade, não um catálogo.
+  const candidatosSite: ZoomTarget[] =
+    scene.kind === "site" && snapshot && scene.sourceNodeId
+      ? zoomCandidatesFor(snapshot, scene.sourceNodeId)
+      : [];
+  const miniatura = scene.kind === "site" && scene.screenshot ? thumbs.get(scene.screenshot) : undefined;
 
   function alternarAlvoEstudio(id: string) {
     if (scene.kind !== "studio") return;
@@ -42,6 +50,15 @@ function SceneRow({ scene, onChange }: SceneRowProps) {
       ? scene.zoomTargets.filter((t) => t !== id)
       : [...scene.zoomTargets, id];
     onChange({ zoomTargets: marcados });
+  }
+
+  function alternarAlvoSite(alvo: ZoomTarget) {
+    if (scene.kind !== "site") return;
+    const marcado = scene.zoomTargets.some((t) => t.nodeId === alvo.nodeId);
+    const zoomTargets = marcado
+      ? scene.zoomTargets.filter((t) => t.nodeId !== alvo.nodeId)
+      : [...scene.zoomTargets, alvo];
+    onChange({ zoomTargets });
   }
 
   return (
@@ -65,6 +82,17 @@ function SceneRow({ scene, onChange }: SceneRowProps) {
           onCheckedChange={(checked) => onChange({ enabled: checked === true })}
           aria-label={`Incluir a cena ${sceneLabel(scene)}`}
         />
+        {scene.kind === "site" &&
+          (miniatura ? (
+            // eslint-disable-next-line @next/next/no-img-element -- blob: local, next/image não aceita esse esquema.
+            <img
+              src={miniatura}
+              alt=""
+              className="h-10 w-16 shrink-0 rounded object-cover"
+            />
+          ) : (
+            <div className="h-10 w-16 shrink-0 rounded border border-dashed" aria-hidden />
+          ))}
         <span className={scene.enabled ? "flex-1" : "flex-1 text-muted-foreground"}>
           {sceneLabel(scene)}
         </span>
@@ -104,14 +132,22 @@ function SceneRow({ scene, onChange }: SceneRowProps) {
         </div>
       )}
 
-      {/* Cena de site: mostra os alvos já marcados (com caixa medida do Snapshot). */}
-      {scene.enabled && scene.kind === "site" && scene.zoomTargets.length > 0 && (
+      {/* Cena de site: candidatos REAIS (caixa medida do Snapshot), marca/desmarca por clique. */}
+      {scene.enabled && scene.kind === "site" && candidatosSite.length > 0 && (
         <div className="flex flex-wrap gap-2 pl-10">
-          {scene.zoomTargets.map((alvo) => (
-            <Badge key={alvo.nodeId} variant="default">
-              {alvo.label}
-            </Badge>
-          ))}
+          {candidatosSite.map((alvo) => {
+            const marcado = scene.zoomTargets.some((t) => t.nodeId === alvo.nodeId);
+            return (
+              <button
+                key={alvo.nodeId}
+                type="button"
+                aria-pressed={marcado}
+                onClick={() => alternarAlvoSite(alvo)}
+              >
+                <Badge variant={marcado ? "default" : "outline"}>{alvo.label}</Badge>
+              </button>
+            );
+          })}
         </div>
       )}
     </li>
@@ -121,9 +157,15 @@ function SceneRow({ scene, onChange }: SceneRowProps) {
 interface SceneListProps {
   scenes: FormScene[];
   onChange: (scenes: FormScene[]) => void;
+  /** Snapshot carregado da captura -- alimenta miniatura e alvos de zoom das cenas de site. `null` sem captura. */
+  snapshot?: Snapshot | null;
+  /** `sections/x.jpg` -> `blob:` URL local, do `SnapshotInput`. */
+  thumbs?: Map<string, string>;
 }
 
-export function SceneList({ scenes, onChange }: SceneListProps) {
+const SEM_THUMBS = new Map<string, string>();
+
+export function SceneList({ scenes, onChange, snapshot = null, thumbs = SEM_THUMBS }: SceneListProps) {
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
 
   function handleDragEnd(event: DragEndEvent) {
@@ -146,6 +188,8 @@ export function SceneList({ scenes, onChange }: SceneListProps) {
             <SceneRow
               key={scene.id}
               scene={scene}
+              snapshot={snapshot}
+              thumbs={thumbs}
               onChange={(patch) =>
                 // O cast é seguro: cada SceneRow só manda patch de campos válidos
                 // para o `kind` da própria cena (nunca mistura site com estúdio).
