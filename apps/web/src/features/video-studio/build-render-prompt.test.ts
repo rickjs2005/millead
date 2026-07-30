@@ -132,6 +132,14 @@ describe("buildSceneProps", () => {
 describe("buildRenderPrompt", () => {
   const prompt = buildRenderPrompt(brief);
 
+  it("arredonda a caixa: fração de pixel é ruído de medição do DOM", () => {
+    // O alvo da fixture tem y = 4215.515625, medido por getBoundingClientRect.
+    // Num texto que um modelo vai ler para escrever código, isso é só ruído.
+    const prompt = buildRenderPrompt(brief);
+    expect(prompt).toContain("y: 4216");
+    expect(prompt).not.toContain("4215.515625");
+  });
+
   it("resolve a dimensão a partir do formato", () => {
     expect(prompt).toContain("1080x1920");
     const outroFormato = buildBrief(form({ format: "16:9" }), template, createdAt);
