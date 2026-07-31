@@ -36,7 +36,7 @@ export const createEstimateSchema = z.object({
   deadlineDays: z.number().int().min(1).max(365),
   paymentTerms: z.string().min(1).max(200),
   validDays: z.number().int().min(1).max(90),
-  status: z.enum(["DRAFT", "READY", "CONVERTED"]).optional(),
+  status: z.enum(["DRAFT", "READY"]).optional(), // CONVERTED só via endpoint de conversão (Fase 3)
 });
 export type CreateEstimateInput = z.infer<typeof createEstimateSchema>;
 

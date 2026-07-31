@@ -40,7 +40,7 @@ import type {
   CostSubscription,
   CostSummary,
   EstimatePayload,
-  EstimateStatus,
+  EstimateStatusWrite,
   FinanceSettings,
   PricingEstimate,
   ProjectProduct,
@@ -367,7 +367,7 @@ function EstimateForm({
     });
   }
 
-  async function submit(formValues: FormValues, status: EstimateStatus) {
+  async function submit(formValues: FormValues, status: EstimateStatusWrite) {
     const payload: EstimatePayload = {
       title: formValues.title,
       leadId: formValues.leadId || null,

@@ -730,6 +730,7 @@ export interface FinanceSettingsPayload {
 // ---------- Calculadora de Orçamentos (Financeiro Fase 2) ----------
 
 export type EstimateStatus = "DRAFT" | "READY" | "CONVERTED";
+export type EstimateStatusWrite = "DRAFT" | "READY"; // CONVERTED só via endpoint de conversão (Fase 3)
 
 export interface HoursLine {
   label: string;
@@ -822,7 +823,7 @@ export interface EstimatePayload {
   deadlineDays: number;
   paymentTerms: string;
   validDays: number;
-  status?: EstimateStatus;
+  status?: EstimateStatusWrite;
 }
 
 /** Lista paginada de orçamentos -- a API devolve só `{items, total}`, sem
