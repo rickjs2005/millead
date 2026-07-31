@@ -4,6 +4,7 @@ import type {
   UpdateFinanceSettingsInput,
 } from "../dto/cost.dto.js";
 import type { CostRepository } from "../../domain/repositories/cost-repository.js";
+import type { CompanyRepository } from "../../domain/repositories/company-repository.js";
 import type { CostSummary } from "../../domain/entities/cost.js";
 import { NotFoundError } from "../../domain/errors/app-error.js";
 
@@ -57,17 +58,28 @@ export function computeSummary(
 }
 
 export class CostService {
-  constructor(private readonly repository: CostRepository) {}
+  constructor(
+    private readonly repository: CostRepository,
+    private readonly companies: CompanyRepository,
+  ) {}
 
   listSubscriptions(organizationId: string) {
     return this.repository.listSubscriptions(organizationId);
   }
 
-  createSubscription(organizationId: string, input: CreateCostSubscriptionInput) {
+  async createSubscription(organizationId: string, input: CreateCostSubscriptionInput) {
+    if (input.companyId) {
+      const company = await this.companies.findByIdForOrg(input.companyId, organizationId);
+      if (!company) throw new NotFoundError("Empresa não encontrada.");
+    }
     return this.repository.createSubscription(organizationId, input);
   }
 
   async updateSubscription(organizationId: string, id: string, input: UpdateCostSubscriptionInput) {
+    if (input.companyId) {
+      const company = await this.companies.findByIdForOrg(input.companyId, organizationId);
+      if (!company) throw new NotFoundError("Empresa não encontrada.");
+    }
     const updated = await this.repository.updateSubscription(organizationId, id, input);
     if (!updated) throw new NotFoundError("Assinatura não encontrada");
     return updated;

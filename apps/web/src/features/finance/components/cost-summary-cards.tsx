@@ -39,7 +39,7 @@ export function CostSummaryCards() {
                   {formatCurrency(summary?.perClientShareBrl ?? 0)}
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  {formatCurrency(summary?.clientMonthlyBrl ?? 0)} ÷{" "}
+                  {formatCurrency(summary?.agencyMonthlyBrl ?? 0)} ÷{" "}
                   {summary?.activeClientsCount ?? 0} cliente
                   {summary?.activeClientsCount === 1 ? "" : "s"}
                 </p>

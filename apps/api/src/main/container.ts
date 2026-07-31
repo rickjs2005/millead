@@ -182,7 +182,7 @@ export function buildContainer(): Container {
     createSignatureGateway(),
     new DefaultContractNotifier(),
   );
-  const costService = new CostService(costRepository);
+  const costService = new CostService(costRepository, companyRepository);
   const blobStorage = new VercelBlobStorage();
   const briefingService = new BriefingService(
     briefingRepository,
