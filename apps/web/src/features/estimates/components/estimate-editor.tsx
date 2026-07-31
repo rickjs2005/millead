@@ -1,7 +1,8 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Plus, Trash2 } from "lucide-react";
+import { FileText, Plus, Trash2 } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, type ReactNode } from "react";
 import { Controller, useFieldArray, useForm, useWatch } from "react-hook-form";
@@ -20,6 +21,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { ConvertEstimateDialog } from "@/features/estimates/components/convert-estimate-dialog";
 import { EstimateResultPanel } from "@/features/estimates/components/estimate-result-panel";
 import { computeEstimate, type EstimateCalcInput } from "@/features/estimates/estimate-calc";
 import {
@@ -34,6 +36,7 @@ import {
   useFinanceSettings,
 } from "@/features/finance/hooks";
 import { LeadCombobox } from "@/features/leads/components/lead-combobox";
+import { useProposal } from "@/features/proposals/hooks";
 import { formatCurrency } from "@/utils/format";
 import type {
   CostServiceCatalogItem,
@@ -195,9 +198,14 @@ function EstimateForm({
 }) {
   const router = useRouter();
   const isEdit = !!estimate;
+  const isConverted = estimate?.status === "CONVERTED";
   const createEstimate = useCreateEstimate();
   const updateEstimate = useUpdateEstimate();
   const pending = isEdit ? updateEstimate.isPending : createEstimate.isPending;
+  // Proposal buscada pelo proposalId já presente no PricingEstimate (decisão
+  // da Task 3: reusar proposalsService.get em vez de inflar o GET do
+  // estimate no back com um include de proposal -- zero mudança de backend).
+  const { data: proposal } = useProposal(isConverted ? estimate.proposalId : null);
 
   const usdToBrlRate = Number(settings.usdToBrlRate);
   const clientSubscriptions = subscriptions.filter((s) => s.scope === "CLIENT" && s.isActive);
@@ -250,7 +258,7 @@ function EstimateForm({
     handleSubmit,
     getValues,
     setValue,
-    formState: { errors },
+    formState: { errors, isDirty },
   } = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues,
@@ -409,6 +417,36 @@ function EstimateForm({
   return (
     <form onSubmit={saveDraft} className="grid gap-6 lg:grid-cols-[1fr_320px]">
       <div className="flex flex-col gap-4">
+        {isConverted && (
+          <Card className="border-success/50 bg-success/5">
+            <CardContent className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="font-medium text-foreground">Convertido em proposta</p>
+                <p className="text-sm text-muted-foreground">
+                  Este orçamento foi convertido e agora é somente leitura.
+                </p>
+              </div>
+              <div className="flex shrink-0 items-center gap-2">
+                <Button asChild variant="outline" size="sm">
+                  <Link href="/proposals">Ver proposta</Link>
+                </Button>
+                {proposal?.pdfUrl && (
+                  <Button asChild size="sm">
+                    <a href={proposal.pdfUrl} target="_blank" rel="noreferrer">
+                      Abrir PDF
+                    </a>
+                  </Button>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* fieldset nativo: disabled cascateia pra todo input/select/button
+            descendente (inclusive os componentes Radix -- Select/Checkbox
+            renderizam <button> por baixo), sem precisar espalhar `disabled`
+            campo a campo por todos os Cards abaixo. */}
+        <fieldset disabled={isConverted} className="m-0 flex flex-col gap-4 border-0 p-0">
         <Card>
           <CardHeader>
             <CardTitle>Dados gerais</CardTitle>
@@ -760,15 +798,48 @@ function EstimateForm({
             </Field>
           </CardContent>
         </Card>
+        </fieldset>
 
-        <div className="flex items-center gap-2">
-          <Button type="submit" variant="outline" disabled={pending}>
-            {pending ? "Salvando…" : "Salvar rascunho"}
-          </Button>
-          <Button type="button" onClick={markReady} disabled={pending}>
-            {pending ? "Salvando…" : "Marcar como pronto"}
-          </Button>
-        </div>
+        {!isConverted && (
+          <div className="flex flex-wrap items-center gap-2">
+            <Button type="submit" variant="outline" disabled={pending}>
+              {pending ? "Salvando…" : "Salvar rascunho"}
+            </Button>
+            <Button type="button" onClick={markReady} disabled={pending}>
+              {pending ? "Salvando…" : "Marcar como pronto"}
+            </Button>
+            {isEdit && (
+              <>
+                <ConvertEstimateDialog
+                  estimate={estimate}
+                  computed={computed}
+                  trigger={
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      className="gap-1.5"
+                      disabled={isDirty}
+                      title={
+                        isDirty ? "Salve o orçamento antes de gerar a proposta." : undefined
+                      }
+                    >
+                      <FileText className="h-4 w-4" /> Gerar proposta
+                    </Button>
+                  }
+                />
+                {isDirty ? (
+                  <span className="text-xs text-muted-foreground">
+                    Salve o orçamento antes de gerar a proposta.
+                  </span>
+                ) : !estimate.leadId ? (
+                  <span className="text-xs text-muted-foreground">
+                    Vincule um lead pra habilitar a conversão em proposta.
+                  </span>
+                ) : null}
+              </>
+            )}
+          </div>
+        )}
       </div>
 
       <EstimateResultPanel

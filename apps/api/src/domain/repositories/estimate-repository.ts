@@ -20,4 +20,6 @@ export interface EstimateRepository {
   ): Promise<PricingEstimateWithItems | null>;
   delete(organizationId: string, id: string): Promise<boolean>;
   listProducts(organizationId: string): Promise<ProjectProduct[]>;
+  /** Marca o orçamento como convertido e vincula a proposta gerada -- passo final do `convert`. */
+  markConverted(organizationId: string, id: string, proposalId: string): Promise<void>;
 }

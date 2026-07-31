@@ -47,3 +47,10 @@ export const listEstimatesQuerySchema = paginationSchema.extend({
   status: z.enum(["DRAFT", "READY", "CONVERTED"]).optional(),
 });
 export type ListEstimatesQuery = z.infer<typeof listEstimatesQuerySchema>;
+
+// Conversão em proposta: o front manda o preço escolhido (mínimo/recomendado/
+// premium/custom são decisão de UI) -- o resto vem do próprio orçamento.
+export const convertEstimateSchema = z.object({
+  price: money.min(1),
+});
+export type ConvertEstimateInput = z.infer<typeof convertEstimateSchema>;

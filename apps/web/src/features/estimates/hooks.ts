@@ -66,3 +66,22 @@ export function useDeleteEstimate() {
     onError: (err) => toast.error(err instanceof ApiError ? err.message : "Erro ao remover orçamento."),
   });
 }
+
+/** Conversão orçamento -> proposta (Fase 3). Invalida `estimates` (o
+ * orçamento vira CONVERTED) E `proposals` (a proposta nova precisa aparecer
+ * na lista) -- os dois namespaces mudam no mesmo request. Abrir o pdfUrl em
+ * nova aba é responsabilidade de quem chama (o dialog), não do hook. */
+export function useConvertEstimate() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, price }: { id: string; price: number }) =>
+      estimatesService.convert(id, price),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["estimates"] });
+      queryClient.invalidateQueries({ queryKey: ["proposals"] });
+      toast.success("Proposta gerada com sucesso.");
+    },
+    onError: (err) =>
+      toast.error(err instanceof ApiError ? err.message : "Erro ao gerar proposta."),
+  });
+}

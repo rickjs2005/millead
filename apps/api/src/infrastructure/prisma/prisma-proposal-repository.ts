@@ -90,4 +90,9 @@ export class PrismaProposalRepository implements ProposalRepository {
     const row = await prisma.proposal.findUniqueOrThrow({ where: { id } });
     return toDomain(row);
   }
+
+  async delete(id: string, organizationId: string): Promise<boolean> {
+    const { count } = await prisma.proposal.deleteMany({ where: { id, organizationId } });
+    return count > 0;
+  }
 }

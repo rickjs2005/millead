@@ -38,4 +38,6 @@ export interface ProposalRepository {
     pagination: PaginationParams,
   ): Promise<PaginatedResult<Proposal>>;
   update(id: string, organizationId: string, patch: UpdateProposalInput): Promise<Proposal | null>;
+  /** Cleanup do fluxo de conversão orçamento→proposta: some se o PDF/upload falhar após criar a proposal. */
+  delete(id: string, organizationId: string): Promise<boolean>;
 }

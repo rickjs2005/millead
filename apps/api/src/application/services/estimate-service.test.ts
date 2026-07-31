@@ -3,9 +3,18 @@ import type { CostRepository } from "../../domain/repositories/cost-repository.j
 import type { CostSubscription, FinanceSettings } from "../../domain/entities/cost.js";
 import type { LeadRepository } from "../../domain/repositories/lead-repository.js";
 import type { LeadDetail } from "../../domain/entities/lead.js";
+import type { CompanyRepository } from "../../domain/repositories/company-repository.js";
+import type { CompanyDetail } from "../../domain/entities/company.js";
+import type { OrganizationRepository } from "../../domain/repositories/organization-repository.js";
+import type { Organization } from "../../domain/entities/organization.js";
+import type { ProposalRepository } from "../../domain/repositories/proposal-repository.js";
+import type { Proposal } from "../../domain/entities/proposal.js";
+import type { BlobStorage } from "../../domain/services/blob-storage.js";
 import type { EstimateRepository } from "../../domain/repositories/estimate-repository.js";
 import type { PricingEstimateWithItems, ProjectProduct } from "../../domain/entities/estimate.js";
-import { NotFoundError } from "../../domain/errors/app-error.js";
+import type { ActivityRepository } from "../../domain/repositories/activity-repository.js";
+import { ActivityLogger } from "./activity-logger.js";
+import { ConflictError, NotFoundError, ValidationError } from "../../domain/errors/app-error.js";
 import { EstimateService } from "./estimate-service.js";
 
 const ORG = "org-1";
@@ -140,10 +149,70 @@ function fakeLead(overrides: Partial<LeadDetail> = {}): LeadDetail {
   };
 }
 
+function fakeCompany(overrides: Partial<CompanyDetail> = {}): CompanyDetail {
+  return {
+    id: "company-1",
+    organizationId: ORG,
+    name: "Cliente Empresa Ltda",
+    document: null,
+    segment: null,
+    sizeEstimate: null,
+    city: null,
+    state: null,
+    country: "BR",
+    phone: null,
+    email: null,
+    notes: null,
+    createdAt: new Date("2026-07-31"),
+    updatedAt: new Date("2026-07-31"),
+    websites: [],
+    socials: [],
+    ...overrides,
+  };
+}
+
+function fakeOrganization(overrides: Partial<Organization> = {}): Organization {
+  return {
+    id: ORG,
+    name: "MilWeb",
+    slug: "milweb",
+    createdAt: new Date("2026-07-31"),
+    updatedAt: new Date("2026-07-31"),
+    ...overrides,
+  };
+}
+
+const PROPOSAL_ID = "cproposal000123456";
+
+function fakeProposal(overrides: Partial<Proposal> = {}): Proposal {
+  return {
+    id: PROPOSAL_ID,
+    organizationId: ORG,
+    leadId: "lead-1",
+    createdById: USER,
+    title: "Site institucional",
+    status: "DRAFT",
+    value: "5000",
+    currency: "BRL",
+    validUntil: new Date("2026-08-15"),
+    pdfUrl: null,
+    sentAt: null,
+    respondedAt: null,
+    createdAt: new Date("2026-07-31"),
+    updatedAt: new Date("2026-07-31"),
+    ...overrides,
+  };
+}
+
 function fakeRepos(overrides: {
   estimates?: Partial<EstimateRepository>;
   costs?: Partial<CostRepository>;
   leads?: Partial<LeadRepository>;
+  companies?: Partial<CompanyRepository>;
+  organizations?: Partial<OrganizationRepository>;
+  proposals?: Partial<ProposalRepository>;
+  blobStorage?: Partial<BlobStorage>;
+  renderPdf?: (data: unknown) => Promise<Uint8Array>;
 } = {}) {
   const estimates = {
     list: vi.fn().mockResolvedValue({ items: [fakeEstimate()], total: 1 }),
@@ -152,6 +221,7 @@ function fakeRepos(overrides: {
     update: vi.fn().mockResolvedValue(fakeEstimate()),
     delete: vi.fn().mockResolvedValue(true),
     listProducts: vi.fn().mockResolvedValue([fakeProduct()]),
+    markConverted: vi.fn().mockResolvedValue(undefined),
     ...overrides.estimates,
   } as unknown as EstimateRepository;
 
@@ -173,7 +243,70 @@ function fakeRepos(overrides: {
     ...overrides.leads,
   } as unknown as LeadRepository;
 
-  return { estimates, costs, leads, service: new EstimateService(estimates, costs, leads) };
+  const companies = {
+    findByIdForOrg: vi.fn().mockResolvedValue(fakeCompany()),
+    ...overrides.companies,
+  } as unknown as CompanyRepository;
+
+  const organizations = {
+    findById: vi.fn().mockResolvedValue(fakeOrganization()),
+    ...overrides.organizations,
+  } as unknown as OrganizationRepository;
+
+  const proposals = {
+    create: vi.fn().mockResolvedValue(fakeProposal()),
+    update: vi
+      .fn()
+      .mockResolvedValue(fakeProposal({ pdfUrl: `https://blob.test/proposals/${ORG}/${PROPOSAL_ID}.pdf` })),
+    delete: vi.fn().mockResolvedValue(true),
+    findByIdForOrg: vi.fn().mockResolvedValue(fakeProposal()),
+    list: vi.fn(),
+    ...overrides.proposals,
+  } as unknown as ProposalRepository;
+
+  const blobStorage = {
+    upload: vi.fn().mockResolvedValue({
+      url: `https://blob.test/proposals/${ORG}/${PROPOSAL_ID}.pdf`,
+      pathname: `proposals/${ORG}/${PROPOSAL_ID}.pdf`,
+    }),
+    createClientUploadToken: vi.fn(),
+    delete: vi.fn(),
+    ...overrides.blobStorage,
+  } as unknown as BlobStorage;
+
+  const activityRepository = {
+    record: vi.fn().mockResolvedValue(undefined),
+    listForLead: vi.fn(),
+    listRecentForOrg: vi.fn(),
+  } as unknown as ActivityRepository;
+  const activityLogger = new ActivityLogger(activityRepository);
+
+  const renderPdf = overrides.renderPdf ?? vi.fn().mockResolvedValue(new Uint8Array([1, 2, 3]));
+
+  const service = new EstimateService(
+    estimates,
+    costs,
+    leads,
+    companies,
+    organizations,
+    proposals,
+    blobStorage,
+    activityLogger,
+    renderPdf,
+  );
+
+  return {
+    estimates,
+    costs,
+    leads,
+    companies,
+    organizations,
+    proposals,
+    blobStorage,
+    activityRepository,
+    renderPdf,
+    service,
+  };
 }
 
 const CREATE_INPUT = {
@@ -261,6 +394,32 @@ describe("EstimateService", () => {
     await expect(service.delete(ORG, "est-x")).rejects.toThrow(NotFoundError);
   });
 
+  it("update rejeita orçamento CONVERTED sem chamar repo.update", async () => {
+    const { service, estimates } = fakeRepos({
+      estimates: {
+        findById: vi
+          .fn()
+          .mockResolvedValue(fakeEstimate({ status: "CONVERTED", proposalId: PROPOSAL_ID })),
+      },
+    });
+    await expect(service.update(ORG, "est-1", { title: "Novo título" })).rejects.toThrow(
+      ConflictError,
+    );
+    expect(estimates.update).not.toHaveBeenCalled();
+  });
+
+  it("delete rejeita orçamento CONVERTED sem chamar repo.delete", async () => {
+    const { service, estimates } = fakeRepos({
+      estimates: {
+        findById: vi
+          .fn()
+          .mockResolvedValue(fakeEstimate({ status: "CONVERTED", proposalId: PROPOSAL_ID })),
+      },
+    });
+    await expect(service.delete(ORG, "est-1")).rejects.toThrow(ConflictError);
+    expect(estimates.delete).not.toHaveBeenCalled();
+  });
+
   it("update com leadId null desvincula sem validar ownership", async () => {
     const updated = fakeEstimate({ leadId: null });
     const { service, estimates, leads } = fakeRepos({
@@ -270,5 +429,124 @@ describe("EstimateService", () => {
     expect(leads.findByIdForOrg).not.toHaveBeenCalled();
     expect(result.leadId).toBeNull();
     expect(estimates.update).toHaveBeenCalledWith(ORG, "est-1", { leadId: null });
+  });
+
+  describe("convert", () => {
+    it("rejeita orçamento sem leadId sem criar nada", async () => {
+      const { service, estimates, proposals } = fakeRepos({
+        estimates: { findById: vi.fn().mockResolvedValue(fakeEstimate({ leadId: null })) },
+      });
+      await expect(service.convert(ORG, USER, "est-1", { price: 5000 })).rejects.toThrow(
+        ValidationError,
+      );
+      expect(proposals.create).not.toHaveBeenCalled();
+      expect(estimates.markConverted).not.toHaveBeenCalled();
+    });
+
+    it("rejeita orçamento já CONVERTED sem criar nada", async () => {
+      const { service, estimates, proposals } = fakeRepos({
+        estimates: {
+          findById: vi
+            .fn()
+            .mockResolvedValue(
+              fakeEstimate({ leadId: "lead-1", status: "CONVERTED", proposalId: PROPOSAL_ID }),
+            ),
+        },
+      });
+      await expect(service.convert(ORG, USER, "est-1", { price: 5000 })).rejects.toThrow(
+        ConflictError,
+      );
+      expect(proposals.create).not.toHaveBeenCalled();
+      expect(estimates.markConverted).not.toHaveBeenCalled();
+    });
+
+    it("happy path: cria proposal com value=price, gera e sobe o PDF, marca convertido e loga Activity", async () => {
+      const { service, estimates, proposals, blobStorage, renderPdf, activityRepository } = fakeRepos({
+        estimates: { findById: vi.fn().mockResolvedValue(fakeEstimate({ leadId: "lead-1" })) },
+        leads: {
+          findByIdForOrg: vi.fn().mockResolvedValue(fakeLead({ companyId: "company-1" })),
+        },
+      });
+
+      const result = await service.convert(ORG, USER, "est-1", { price: 5000 });
+
+      expect(proposals.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          organizationId: ORG,
+          leadId: "lead-1",
+          createdById: USER,
+          title: "Site institucional",
+          value: "5000",
+          currency: "BRL",
+        }),
+      );
+      expect(renderPdf).toHaveBeenCalledWith(
+        expect.objectContaining({
+          proposalNumber: expect.stringMatching(/^\d{4}-[A-Z0-9]{6}$/),
+          clientName: "Cliente Empresa Ltda",
+          finalPrice: 5000,
+        }),
+      );
+      expect(blobStorage.upload).toHaveBeenCalledWith(
+        expect.objectContaining({
+          pathname: `proposals/${ORG}/${PROPOSAL_ID}.pdf`,
+          contentType: "application/pdf",
+        }),
+      );
+      expect(proposals.update).toHaveBeenCalledWith(
+        PROPOSAL_ID,
+        ORG,
+        expect.objectContaining({ pdfUrl: expect.any(String) }),
+      );
+      expect(estimates.markConverted).toHaveBeenCalledWith(ORG, "est-1", PROPOSAL_ID);
+      expect(activityRepository.record).toHaveBeenCalledWith(
+        expect.objectContaining({
+          organizationId: ORG,
+          leadId: "lead-1",
+          userId: USER,
+          type: "OTHER",
+          payload: expect.objectContaining({
+            kind: "estimate_converted",
+            estimateId: "est-1",
+            proposalId: PROPOSAL_ID,
+          }),
+        }),
+      );
+      expect(result.proposalId).toBe(PROPOSAL_ID);
+      expect(result.pdfUrl).toEqual(expect.any(String));
+      expect(result.estimate.id).toBe("est-1");
+    });
+
+    it("falha no upload: remove a proposal criada (cleanup) e não marca o estimate como convertido", async () => {
+      const { service, estimates, proposals } = fakeRepos({
+        estimates: { findById: vi.fn().mockResolvedValue(fakeEstimate({ leadId: "lead-1" })) },
+        blobStorage: { upload: vi.fn().mockRejectedValue(new Error("blob indisponível")) },
+      });
+
+      await expect(service.convert(ORG, USER, "est-1", { price: 5000 })).rejects.toThrow(
+        "blob indisponível",
+      );
+
+      expect(proposals.create).toHaveBeenCalledTimes(1);
+      expect(proposals.delete).toHaveBeenCalledWith(PROPOSAL_ID, ORG);
+      expect(estimates.markConverted).not.toHaveBeenCalled();
+      expect(proposals.update).not.toHaveBeenCalled();
+    });
+
+    it("falha no upload E no delete do cleanup: propaga o erro do UPLOAD (causa raiz), não o do cleanup", async () => {
+      const { service, estimates, proposals } = fakeRepos({
+        estimates: { findById: vi.fn().mockResolvedValue(fakeEstimate({ leadId: "lead-1" })) },
+        blobStorage: { upload: vi.fn().mockRejectedValue(new Error("blob indisponível")) },
+        proposals: { delete: vi.fn().mockRejectedValue(new Error("db indisponível")) },
+      });
+
+      await expect(service.convert(ORG, USER, "est-1", { price: 5000 })).rejects.toThrow(
+        "blob indisponível",
+      );
+
+      expect(proposals.delete).toHaveBeenCalledWith(PROPOSAL_ID, ORG);
+      expect(estimates.markConverted).not.toHaveBeenCalled();
+      expect(proposals.update).not.toHaveBeenCalled();
+    });
   });
 });

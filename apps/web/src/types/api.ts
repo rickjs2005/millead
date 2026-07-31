@@ -833,6 +833,14 @@ export interface EstimatesListResult {
   total: number;
 }
 
+/** Resposta de POST /api/v1/estimates/:id/convert (Fase 3) -- espelha o
+ * retorno de `EstimateService.convert` (apps/api/src/application/services/estimate-service.ts). */
+export interface ConvertEstimateResult {
+  estimate: PricingEstimate;
+  proposalId: string;
+  pdfUrl: string;
+}
+
 // ---------- Erros ----------
 
 export interface ApiErrorBody {

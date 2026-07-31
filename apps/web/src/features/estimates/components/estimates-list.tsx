@@ -1,6 +1,7 @@
 "use client";
 
 import { Calculator, Trash2 } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo } from "react";
 import { useConfirmDialog } from "@/components/confirm-dialog";
@@ -52,27 +53,40 @@ function EstimateRow({
         {formatCurrency(estimate.computed.priceRecommended)}
       </TableCell>
       <TableCell>
-        <Badge variant={ESTIMATE_STATUS_VARIANT[estimate.status]}>
-          {ESTIMATE_STATUS_LABELS[estimate.status]}
-        </Badge>
+        <div className="flex flex-col items-start gap-1">
+          <Badge variant={ESTIMATE_STATUS_VARIANT[estimate.status]}>
+            {ESTIMATE_STATUS_LABELS[estimate.status]}
+          </Badge>
+          {estimate.status === "CONVERTED" && estimate.proposalId && (
+            <Link
+              href="/proposals"
+              className="text-xs text-primary hover:underline"
+              onClick={(e) => e.stopPropagation()}
+            >
+              Ver proposta
+            </Link>
+          )}
+        </div>
       </TableCell>
       <TableCell className="text-muted-foreground">{formatDate(estimate.updatedAt)}</TableCell>
       <TableCell onClick={(e) => e.stopPropagation()}>
-        <Button
-          variant="ghost"
-          size="icon"
-          aria-label={`Excluir ${estimate.title}`}
-          onClick={() =>
-            confirm({
-              title: "Excluir orçamento",
-              description: `Tem certeza que deseja excluir "${estimate.title}"? Essa ação não pode ser desfeita.`,
-              confirmLabel: "Excluir",
-              onConfirm: () => deleteEstimate.mutateAsync(estimate.id),
-            })
-          }
-        >
-          <Trash2 className="h-4 w-4" />
-        </Button>
+        {estimate.status !== "CONVERTED" && (
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label={`Excluir ${estimate.title}`}
+            onClick={() =>
+              confirm({
+                title: "Excluir orçamento",
+                description: `Tem certeza que deseja excluir "${estimate.title}"? Essa ação não pode ser desfeita.`,
+                confirmLabel: "Excluir",
+                onConfirm: () => deleteEstimate.mutateAsync(estimate.id),
+              })
+            }
+          >
+            <Trash2 className="h-4 w-4" />
+          </Button>
+        )}
         {dialog}
       </TableCell>
     </TableRow>
