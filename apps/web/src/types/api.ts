@@ -815,6 +815,8 @@ export interface EstimateComputed {
   oneTimeCost: number;
   infraCost: number;
   supportReserve: number;
+  /** (domainYears ?? 0) × domainYearPriceBrl -- campo próprio, NÃO entra em infraCost/oneTimeCost. */
+  domainCost: number;
   totalCost: number;
   priceMin: number;
   priceRecommended: number;
@@ -840,6 +842,11 @@ export interface PricingEstimate {
   deadlineDays: number;
   paymentTerms: string;
   validDays: number;
+  // Fase 6: preço final decidido pelo dono e domínio por anos -- ambos
+  // opcionais, Decimal do Prisma serializa como string, null quando ausente.
+  finalPrice: string | null;
+  domainYears: number | null;
+  domainYearPriceBrl: string | null;
   createdAt: string;
   updatedAt: string;
   costItems: EstimateCostItem[];
@@ -886,6 +893,11 @@ export interface EstimatePayload {
   paymentTerms: string;
   validDays: number;
   status?: EstimateStatusWrite;
+  // Fase 6: preço final decidido pelo dono e domínio por anos -- ambos
+  // opcionais/nullable (null desvincula/limpa no update).
+  finalPrice?: number | null;
+  domainYears?: number | null;
+  domainYearPriceBrl?: number | null;
 }
 
 /** Lista paginada de orçamentos -- a API devolve só `{items, total}`, sem

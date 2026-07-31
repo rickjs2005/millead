@@ -323,6 +323,11 @@ function EstimateForm({
       supportReservePct: safeNumber(values.supportReservePct),
       marginPct: safeNumber(values.marginPct),
       usdToBrlRate,
+      // Domínio ainda não tem campo no formulário (Task 3 da Fase 6 adiciona
+      // a UI) -- preview local nasce sem domínio; o `computed` persistido
+      // (servidor) é quem manda de qualquer forma.
+      domainYears: null,
+      domainYearPriceBrl: 0,
     }),
     [values, usdToBrlRate],
   );

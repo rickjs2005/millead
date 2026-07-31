@@ -32,6 +32,8 @@ export interface ProposalPdfData {
   finalPrice: number; // preço escolhido na conversão
   infraMonthlyBrl: number; // computed do orçamento (0 = sem linha de infra)
   infraMonths: number;
+  domainYears: number | null; // Fase 6 -- null = orçamento sem domínio
+  domainCostBrl: number; // computed.domainCost (0 = sem linha de domínio)
   createdAt: Date;
 }
 
@@ -226,17 +228,41 @@ function drawInvestmentRow(
   doc.y = boxBottom - (opts.highlight ? 6 : 2);
 }
 
+/**
+ * Calcula as linhas do bloco Investimento (dev - infra - domínio). Extraído
+ * de `drawInvestment` pra ser testável em unidade -- o texto desenhado no
+ * PDF (pdf-lib) não dá pra inspecionar direto num teste, mas essa conta sim.
+ */
+export function computeInvestmentLines(
+  data: Pick<ProposalPdfData, "finalPrice" | "infraMonthlyBrl" | "infraMonths" | "domainCostBrl">,
+): { infraTotal: number; domainTotal: number; devPrice: number; showBreakdown: boolean } {
+  const infraTotal = data.infraMonthlyBrl > 0 ? data.infraMonthlyBrl * data.infraMonths : 0;
+  const domainTotal = data.domainCostBrl > 0 ? data.domainCostBrl : 0;
+  const devPrice = data.finalPrice - infraTotal - domainTotal;
+  // Orçamento estranho (infra + domínio >= preço final) não pode gerar linha
+  // negativa no PDF do cliente -- cai para linha única com o total.
+  const showBreakdown = (infraTotal > 0 || domainTotal > 0) && devPrice > 0;
+  return { infraTotal, domainTotal, devPrice, showBreakdown };
+}
+
 function drawInvestment(doc: Doc, data: ProposalPdfData): void {
   drawSectionTitle(doc, "Investimento");
 
-  const infraTotal = data.infraMonthlyBrl > 0 ? data.infraMonthlyBrl * data.infraMonths : 0;
-  const devPrice = data.finalPrice - infraTotal;
+  const { infraTotal, domainTotal, devPrice, showBreakdown } = computeInvestmentLines(data);
 
-  // Orçamento estranho (infra >= preço final) não pode gerar linha negativa
-  // no PDF do cliente -- cai para linha única com o total.
-  if (data.infraMonthlyBrl > 0 && devPrice > 0) {
+  if (showBreakdown) {
     drawInvestmentRow(doc, "Desenvolvimento e implantação", fmtBRL(devPrice));
-    drawInvestmentRow(doc, `Infraestrutura (${data.infraMonths} meses)`, fmtBRL(infraTotal));
+    if (infraTotal > 0) {
+      drawInvestmentRow(doc, `Infraestrutura (${data.infraMonths} meses)`, fmtBRL(infraTotal));
+    }
+    if (domainTotal > 0) {
+      const years = data.domainYears ?? 0;
+      drawInvestmentRow(
+        doc,
+        `Registro de domínio (${years} ${years === 1 ? "ano" : "anos"})`,
+        fmtBRL(domainTotal),
+      );
+    }
     doc.y -= 4;
   }
 

@@ -17,6 +17,8 @@ const BASE = {
   supportReservePct: 10,
   marginPct: 30,
   usdToBrlRate: 5,
+  domainYears: null,
+  domainYearPriceBrl: 0,
 } as const;
 
 describe("computeEstimate", () => {
@@ -28,6 +30,7 @@ describe("computeEstimate", () => {
     expect(r.oneTimeCost).toBe(0);
     expect(r.infraCost).toBeCloseTo((103.333333 + 80) * 12, 1); // 2200
     expect(r.supportReserve).toBeCloseTo(504, 2);
+    expect(r.domainCost).toBe(0);
     expect(r.totalCost).toBeCloseTo(5040 + 2200 + 504, 1); // 7744
     expect(r.priceMin).toBeCloseTo(r.totalCost, 5);
     expect(r.priceRecommended).toBeCloseTo(r.totalCost * 1.3, 1);
@@ -109,5 +112,30 @@ describe("computeEstimate", () => {
     });
     expect(r.oneTimeCost).toBe(500);
     expect(r.infraCost).toBe(500);
+  });
+
+  it("domínio: 2 anos × R$40/ano soma 80 no totalCost -- campo próprio, fora de infraCost/oneTimeCost", () => {
+    const r = computeEstimate({
+      ...BASE,
+      hoursBreakdown: [...BASE.hoursBreakdown],
+      costItems: [...BASE.costItems],
+      domainYears: 2,
+      domainYearPriceBrl: 40,
+    });
+    expect(r.domainCost).toBe(80);
+    expect(r.infraCost).toBeCloseTo((103.333333 + 80) * 12, 1); // domínio não mexe em infraCost
+    expect(r.totalCost).toBeCloseTo(5040 + 2200 + 504 + 80, 1);
+  });
+
+  it("domainYears null zera domainCost mesmo com domainYearPriceBrl > 0", () => {
+    const r = computeEstimate({
+      ...BASE,
+      hoursBreakdown: [...BASE.hoursBreakdown],
+      costItems: [...BASE.costItems],
+      domainYears: null,
+      domainYearPriceBrl: 40,
+    });
+    expect(r.domainCost).toBe(0);
+    expect(r.totalCost).toBeCloseTo(5040 + 2200 + 504, 1);
   });
 });

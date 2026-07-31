@@ -29,7 +29,7 @@ export const costItemSchema = z
   });
 export type CostItemInput = z.infer<typeof costItemSchema>;
 
-export const createEstimateSchema = z.object({
+const baseEstimateSchema = z.object({
   title: z.string().min(2).max(80),
   // Nullable já no CREATE (padrão lead.dto.ts:25-26) -- assim o `.partial()`
   // do update herda `null` como "desvincular" sem precisar de schema à parte.
@@ -50,10 +50,32 @@ export const createEstimateSchema = z.object({
   paymentTerms: z.string().min(1).max(200),
   validDays: z.number().int().min(1).max(90),
   status: z.enum(["DRAFT", "READY"]).optional(), // CONVERTED só via endpoint de conversão (Fase 3)
+  // Fase 6: preço final decidido pelo dono -- ausente/null usa o preço
+  // recomendado calculado (comportamento anterior, preservado no convert).
+  finalPrice: money.min(1).optional().nullable(),
+  // Domínio contratado por N anos -- campo próprio no cálculo (não é um
+  // costItem), fora de infraCost/oneTimeCost. `domainYears` presente exige
+  // `domainYearPriceBrl` presente (refine abaixo); o inverso é livre.
+  domainYears: z.number().int().min(1).max(3).optional().nullable(),
+  domainYearPriceBrl: money.optional().nullable(),
 });
+
+export const createEstimateSchema = baseEstimateSchema.refine(
+  (data) => data.domainYears == null || data.domainYearPriceBrl != null,
+  {
+    message: "domainYearPriceBrl é obrigatório quando domainYears é informado.",
+    path: ["domainYearPriceBrl"],
+  },
+);
 export type CreateEstimateInput = z.infer<typeof createEstimateSchema>;
 
-export const updateEstimateSchema = createEstimateSchema.partial();
+export const updateEstimateSchema = baseEstimateSchema.partial().refine(
+  (data) => data.domainYears == null || data.domainYearPriceBrl != null,
+  {
+    message: "domainYearPriceBrl é obrigatório quando domainYears é informado.",
+    path: ["domainYearPriceBrl"],
+  },
+);
 export type UpdateEstimateInput = z.infer<typeof updateEstimateSchema>;
 
 export const listEstimatesQuerySchema = paginationSchema.extend({
@@ -63,7 +85,10 @@ export type ListEstimatesQuery = z.infer<typeof listEstimatesQuerySchema>;
 
 // Conversão em proposta: o front manda o preço escolhido (mínimo/recomendado/
 // premium/custom são decisão de UI) -- o resto vem do próprio orçamento.
+// Fase 6: `price` fica OPCIONAL -- ausente usa `finalPrice` salvo no
+// orçamento (preço decidido pelo dono) e, na ausência dele, o preço
+// recomendado calculado (EstimateService.convert resolve essa cascata).
 export const convertEstimateSchema = z.object({
-  price: money.min(1),
+  price: money.min(1).optional(),
 });
 export type ConvertEstimateInput = z.infer<typeof convertEstimateSchema>;
