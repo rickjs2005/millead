@@ -20,12 +20,15 @@ export type CostItemInput = z.infer<typeof costItemSchema>;
 
 export const createEstimateSchema = z.object({
   title: z.string().min(2).max(80),
-  leadId: z.string().min(1).optional(),
-  productId: z.string().min(1).optional(),
+  // Nullable já no CREATE (padrão lead.dto.ts:25-26) -- assim o `.partial()`
+  // do update herda `null` como "desvincular" sem precisar de schema à parte.
+  leadId: z.string().min(1).nullable().optional(),
+  productId: z.string().min(1).nullable().optional(),
   hourlyRate: money,
   hoursBreakdown: z.array(hoursLineSchema).max(20),
   costItems: z.array(costItemSchema).max(30),
-  agencyShareMonthly: money,
+  // Ausente no CREATE -- o service preenche com o rateio atual (perClientShareBrl).
+  agencyShareMonthly: money.optional(),
   infraMonths: z.number().int().min(0).max(60),
   supportReservePct: z.number().min(0).max(100),
   marginPct: z.number().min(0).max(500),
