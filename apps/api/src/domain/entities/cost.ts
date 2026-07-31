@@ -48,6 +48,16 @@ export interface FinanceSettings {
   updatedAt: Date;
 }
 
+/** Uma assinatura com capacidade (ex.: tokens/mês) aproximando do limite. */
+export interface CapacityEntry {
+  id: string;
+  name: string;
+  used: number;
+  limit: number;
+  /** 0-999, arredondado, = round(used/limit*100). */
+  pct: number;
+}
+
 /** Resumo financeiro da org -- números já convertidos pra BRL/mês. */
 export interface CostSummary {
   agencyMonthlyBrl: number;
@@ -58,4 +68,8 @@ export interface CostSummary {
   /** Sugestão exibida ao lado do campo manual. */
   wonLeadsCount: number;
   activeSubscriptions: number;
+  /** Só assinaturas ativas com used/limit definidos e limit>0, ordenadas por pct desc. */
+  capacity: CapacityEntry[];
+  /** Maior pct entre as entradas de capacity; null quando capacity está vazia. */
+  maxCapacityPct: number | null;
 }

@@ -5,7 +5,7 @@ import type {
 } from "../dto/cost.dto.js";
 import type { CostRepository } from "../../domain/repositories/cost-repository.js";
 import type { CompanyRepository } from "../../domain/repositories/company-repository.js";
-import type { CostSummary } from "../../domain/entities/cost.js";
+import type { CapacityEntry, CostSummary } from "../../domain/entities/cost.js";
 import { NotFoundError } from "../../domain/errors/app-error.js";
 
 type Currency = "BRL" | "USD";
@@ -23,11 +23,48 @@ export function monthlyAmountBrl(
 }
 
 interface SummarySubscription {
+  id: string;
+  name: string;
   scope: "AGENCY" | "CLIENT";
   amount: number | { toString(): string };
   currency: Currency;
   billingCycle: Cycle;
   isActive: boolean;
+  capacityUsed: number | null;
+  capacityLimit: number | null;
+}
+
+interface CapacitySubscription {
+  id: string;
+  name: string;
+  isActive: boolean;
+  capacityUsed: number | null;
+  capacityLimit: number | null;
+}
+
+/** Puro pra ser testável sem repo -- só assinaturas ativas com used/limit definidos
+ * e limit>0 entram na lista, ordenadas por pct desc. */
+export function computeCapacity(
+  subscriptions: readonly CapacitySubscription[],
+): { capacity: CapacityEntry[]; maxCapacityPct: number | null } {
+  const capacity = subscriptions
+    .filter(
+      (s): s is CapacitySubscription & { capacityUsed: number; capacityLimit: number } =>
+        s.isActive && s.capacityUsed != null && s.capacityLimit != null && s.capacityLimit > 0,
+    )
+    .map((s) => ({
+      id: s.id,
+      name: s.name,
+      used: s.capacityUsed,
+      limit: s.capacityLimit,
+      pct: Math.round((s.capacityUsed / s.capacityLimit) * 100),
+    }))
+    .sort((a, b) => b.pct - a.pct);
+
+  return {
+    capacity,
+    maxCapacityPct: capacity.length > 0 ? Math.max(...capacity.map((c) => c.pct)) : null,
+  };
 }
 
 /** Puro pra ser testável sem repo -- o service delega aqui. */
@@ -46,6 +83,7 @@ export function computeSummary(
   const agencyMonthlyBrl = sum("AGENCY");
   const clientMonthlyBrl = sum("CLIENT");
   const clients = Math.max(settings.activeClientsCount, 1);
+  const { capacity, maxCapacityPct } = computeCapacity(subscriptions);
   return {
     agencyMonthlyBrl,
     clientMonthlyBrl,
@@ -54,6 +92,8 @@ export function computeSummary(
     activeClientsCount: settings.activeClientsCount,
     wonLeadsCount,
     activeSubscriptions: active.length,
+    capacity,
+    maxCapacityPct,
   };
 }
 
@@ -110,11 +150,15 @@ export class CostService {
     ]);
     return computeSummary(
       subscriptions.map((s) => ({
+        id: s.id,
+        name: s.name,
         scope: s.scope,
         amount: Number(s.amount),
         currency: s.currency,
         billingCycle: s.billingCycle,
         isActive: s.isActive,
+        capacityUsed: s.capacityUsed,
+        capacityLimit: s.capacityLimit,
       })),
       { usdToBrlRate: Number(settings.usdToBrlRate), activeClientsCount: settings.activeClientsCount },
       wonLeads,

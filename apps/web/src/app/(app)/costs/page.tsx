@@ -3,6 +3,7 @@
 import { Plus, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { CapacitySection } from "@/features/finance/components/capacity-section";
 import { CostSubscriptionDialog } from "@/features/finance/components/cost-subscription-dialog";
 import { CostSubscriptionsList } from "@/features/finance/components/cost-subscriptions-list";
 import { CostSummaryCards } from "@/features/finance/components/cost-summary-cards";
@@ -37,6 +38,8 @@ export default function CostsPage() {
       </div>
 
       <CostSummaryCards />
+
+      <CapacitySection />
 
       <Card className="overflow-hidden p-0">
         <CostSubscriptionsList />

@@ -17,8 +17,12 @@ export function useFinanceSettings() {
   return useQuery({ queryKey: queryKeys.costs.settings(), queryFn: costsService.settings });
 }
 
-export function useCostSummary() {
-  return useQuery({ queryKey: queryKeys.costs.summary(), queryFn: costsService.summary });
+export function useCostSummary(options?: { enabled?: boolean }) {
+  return useQuery({
+    queryKey: queryKeys.costs.summary(),
+    queryFn: costsService.summary,
+    enabled: options?.enabled ?? true,
+  });
 }
 
 /** Invalida list, catalog, settings e summary de uma vez -- qualquer mutação

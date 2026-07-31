@@ -695,6 +695,15 @@ export interface FinanceSettings {
   activeClientsCount: number;
 }
 
+/** Uma assinatura com capacidade (ex.: tokens/mês) aproximando do limite. */
+export interface CapacityEntry {
+  id: string;
+  name: string;
+  used: number;
+  limit: number;
+  pct: number;
+}
+
 export interface CostSummary {
   agencyMonthlyBrl: number;
   clientMonthlyBrl: number;
@@ -703,6 +712,8 @@ export interface CostSummary {
   activeClientsCount: number;
   wonLeadsCount: number;
   activeSubscriptions: number;
+  capacity: CapacityEntry[];
+  maxCapacityPct: number | null;
 }
 
 export interface CostSubscriptionPayload {

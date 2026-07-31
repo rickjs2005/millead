@@ -3,7 +3,7 @@ import type { CompanyRepository } from "../../domain/repositories/company-reposi
 import type { CostRepository } from "../../domain/repositories/cost-repository.js";
 import type { CostSubscription, FinanceSettings } from "../../domain/entities/cost.js";
 import { NotFoundError } from "../../domain/errors/app-error.js";
-import { CostService, monthlyAmountBrl, computeSummary } from "./cost-service.js";
+import { CostService, monthlyAmountBrl, computeSummary, computeCapacity } from "./cost-service.js";
 
 describe("monthlyAmountBrl", () => {
   it("mantém BRL mensal como está", () => {
@@ -22,11 +22,61 @@ describe("monthlyAmountBrl", () => {
 
 describe("computeSummary", () => {
   const subs = [
-    { scope: "AGENCY", amount: 550, currency: "BRL", billingCycle: "MONTHLY", isActive: true },
-    { scope: "AGENCY", amount: 239, currency: "BRL", billingCycle: "MONTHLY", isActive: true },
-    { scope: "AGENCY", amount: 40, currency: "BRL", billingCycle: "YEARLY", isActive: true },
-    { scope: "CLIENT", amount: 20, currency: "USD", billingCycle: "MONTHLY", isActive: true },
-    { scope: "AGENCY", amount: 999, currency: "BRL", billingCycle: "MONTHLY", isActive: false },
+    {
+      id: "sub-1",
+      name: "Claude Max 5x",
+      scope: "AGENCY",
+      amount: 550,
+      currency: "BRL",
+      billingCycle: "MONTHLY",
+      isActive: true,
+      capacityUsed: null,
+      capacityLimit: null,
+    },
+    {
+      id: "sub-2",
+      name: "Cursor Pro",
+      scope: "AGENCY",
+      amount: 239,
+      currency: "BRL",
+      billingCycle: "MONTHLY",
+      isActive: true,
+      capacityUsed: null,
+      capacityLimit: null,
+    },
+    {
+      id: "sub-3",
+      name: "Domínio",
+      scope: "AGENCY",
+      amount: 40,
+      currency: "BRL",
+      billingCycle: "YEARLY",
+      isActive: true,
+      capacityUsed: null,
+      capacityLimit: null,
+    },
+    {
+      id: "sub-4",
+      name: "Vercel Pro",
+      scope: "CLIENT",
+      amount: 20,
+      currency: "USD",
+      billingCycle: "MONTHLY",
+      isActive: true,
+      capacityUsed: null,
+      capacityLimit: null,
+    },
+    {
+      id: "sub-5",
+      name: "Inativa",
+      scope: "AGENCY",
+      amount: 999,
+      currency: "BRL",
+      billingCycle: "MONTHLY",
+      isActive: false,
+      capacityUsed: null,
+      capacityLimit: null,
+    },
   ] as const;
 
   it("soma só ativos, separa escopos e rateia por clientes ativos", () => {
@@ -38,11 +88,83 @@ describe("computeSummary", () => {
     expect(s.activeClientsCount).toBe(2);
     expect(s.wonLeadsCount).toBe(7);
     expect(s.activeSubscriptions).toBe(4);
+    expect(s.capacity).toEqual([]);
+    expect(s.maxCapacityPct).toBeNull();
   });
 
   it("nunca divide por zero", () => {
     const s = computeSummary([...subs], { usdToBrlRate: 5, activeClientsCount: 0 }, 0);
     expect(s.perClientShareBrl).toBe(s.agencyMonthlyBrl);
+  });
+});
+
+describe("computeCapacity", () => {
+  const base = {
+    scope: "AGENCY" as const,
+    amount: 0,
+    currency: "BRL" as const,
+    billingCycle: "MONTHLY" as const,
+  };
+
+  it("assinatura 12/15 entra com pct 80", () => {
+    const { capacity } = computeCapacity([
+      { ...base, id: "s1", name: "Claude", isActive: true, capacityUsed: 12, capacityLimit: 15 },
+    ]);
+    expect(capacity).toEqual([{ id: "s1", name: "Claude", used: 12, limit: 15, pct: 80 }]);
+  });
+
+  it("1/1 dá pct 100", () => {
+    const { capacity, maxCapacityPct } = computeCapacity([
+      { ...base, id: "s1", name: "Claude", isActive: true, capacityUsed: 1, capacityLimit: 1 },
+    ]);
+    expect(capacity).toEqual([{ id: "s1", name: "Claude", used: 1, limit: 1, pct: 100 }]);
+    expect(maxCapacityPct).toBe(100);
+  });
+
+  it("sem capacityUsed ou capacityLimit fica fora da lista", () => {
+    const { capacity, maxCapacityPct } = computeCapacity([
+      { ...base, id: "s1", name: "Sem used", isActive: true, capacityUsed: null, capacityLimit: 15 },
+      { ...base, id: "s2", name: "Sem limit", isActive: true, capacityUsed: 5, capacityLimit: null },
+    ]);
+    expect(capacity).toEqual([]);
+    expect(maxCapacityPct).toBeNull();
+  });
+
+  it("assinatura inativa fica fora da lista mesmo com capacidade definida", () => {
+    const { capacity } = computeCapacity([
+      { ...base, id: "s1", name: "Inativa", isActive: false, capacityUsed: 12, capacityLimit: 15 },
+    ]);
+    expect(capacity).toEqual([]);
+  });
+
+  it("limit 0 fica fora da lista", () => {
+    const { capacity } = computeCapacity([
+      { ...base, id: "s1", name: "Zerada", isActive: true, capacityUsed: 0, capacityLimit: 0 },
+    ]);
+    expect(capacity).toEqual([]);
+  });
+
+  it("ordena por pct desc", () => {
+    const { capacity } = computeCapacity([
+      { ...base, id: "low", name: "Baixo", isActive: true, capacityUsed: 1, capacityLimit: 10 },
+      { ...base, id: "high", name: "Alto", isActive: true, capacityUsed: 9, capacityLimit: 10 },
+      { ...base, id: "mid", name: "Médio", isActive: true, capacityUsed: 5, capacityLimit: 10 },
+    ]);
+    expect(capacity.map((c) => c.id)).toEqual(["high", "mid", "low"]);
+  });
+
+  it("maxCapacityPct é o maior pct da lista", () => {
+    const { maxCapacityPct } = computeCapacity([
+      { ...base, id: "low", name: "Baixo", isActive: true, capacityUsed: 1, capacityLimit: 10 },
+      { ...base, id: "high", name: "Alto", isActive: true, capacityUsed: 9, capacityLimit: 10 },
+    ]);
+    expect(maxCapacityPct).toBe(90);
+  });
+
+  it("lista vazia dá maxCapacityPct null", () => {
+    const { capacity, maxCapacityPct } = computeCapacity([]);
+    expect(capacity).toEqual([]);
+    expect(maxCapacityPct).toBeNull();
   });
 });
 
@@ -161,7 +283,7 @@ describe("CostService", () => {
   it("getSummary converte os Decimais string do repo e monta o resumo", async () => {
     const { service } = fakeRepos({
       listSubscriptions: vi.fn().mockResolvedValue([
-        fakeSubscription({ amount: "550", scope: "AGENCY" }),
+        fakeSubscription({ amount: "550", scope: "AGENCY", capacityUsed: 12, capacityLimit: 15 }),
         fakeSubscription({ id: "sub-2", name: "Vercel Pro", amount: "20", currency: "USD", scope: "CLIENT" }),
         fakeSubscription({ id: "sub-3", name: "Inativa", amount: "999", isActive: false }),
       ]),
@@ -175,5 +297,7 @@ describe("CostService", () => {
     expect(s.perClientShareBrl).toBeCloseTo(275, 2);
     expect(s.wonLeadsCount).toBe(3);
     expect(s.activeSubscriptions).toBe(2);
+    expect(s.capacity).toEqual([{ id: "sub-1", name: "Claude Max 5x", used: 12, limit: 15, pct: 80 }]);
+    expect(s.maxCapacityPct).toBe(80);
   });
 });
