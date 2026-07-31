@@ -2,6 +2,7 @@ import bcrypt from "bcryptjs";
 import { PrismaClient, type Prisma } from "../src/generated/client/index.js";
 import { ALL_PERMISSIONS, SYSTEM_ROLES } from "../src/permissions.js";
 import { BRIEFING_TEMPLATES, type FieldSeed } from "./seed-data/briefing-templates.js";
+import { seedFinance } from "./seed-data/finance.js";
 
 const prisma = new PrismaClient();
 
@@ -230,6 +231,9 @@ async function main() {
 
   console.log("Seed: templates de briefing...");
   await seedBriefingTemplates();
+
+  console.log("Seed: financeiro (catálogo, produtos e assinaturas)...");
+  await seedFinance(prisma);
 
   // Não imprime a senha (vazaria em logs de CI). Só mostra a origem dela.
   const passwordSource = process.env.SEED_OWNER_PASSWORD
