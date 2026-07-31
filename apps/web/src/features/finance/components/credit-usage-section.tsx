@@ -47,8 +47,18 @@ import {
   useUsage,
   useUsageSummary,
 } from "@/features/finance/hooks";
-import { formatCurrency, formatDate } from "@/utils/format";
+import { formatCurrency } from "@/utils/format";
 import type { CostSubscription } from "@/types/api";
+
+/** `usedAt` chega como meia-noite UTC ("YYYY-MM-DD" ancorado em UTC) --
+ * formatar no fuso do browser (o `formatDate` global) vira o dia anterior em
+ * fusos negativos (ex. America/Sao_Paulo, UTC-3). Fix local só pra esta
+ * coluna: formata em UTC, igual o dia foi gravado. */
+function formatDateUtc(value: string | Date | null | undefined): string {
+  if (!value) return "—";
+  const date = typeof value === "string" ? new Date(value) : value;
+  return new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeZone: "UTC" }).format(date);
+}
 
 /** "YYYY-MM" do mês corrente em America/Sao_Paulo -- mesmo fuso usado pelo
  * backend (`currentMonthInTimeZone`) quando `month` não é enviado na query. */
@@ -400,7 +410,7 @@ export function CreditUsageSection() {
               <TableBody>
                 {(entries ?? []).map((entry) => (
                   <TableRow key={entry.id}>
-                    <TableCell className="text-muted-foreground">{formatDate(entry.usedAt)}</TableCell>
+                    <TableCell className="text-muted-foreground">{formatDateUtc(entry.usedAt)}</TableCell>
                     <TableCell>{subscriptionName(entry.subscriptionId)}</TableCell>
                     <TableCell className="text-muted-foreground">
                       {entry.companyName ?? "Sem cliente"}

@@ -32,7 +32,7 @@ export const createUsageEntrySchema = z.object({
   companyId: z.string().min(1).optional().nullable(),
   credits: z.number().int().min(1).max(1_000_000),
   usedAt: z.coerce.date(),
-  note: z.string().max(200).optional(),
+  note: z.string().max(200).optional().nullable(),
 });
 export type CreateUsageEntryInput = z.infer<typeof createUsageEntrySchema>;
 

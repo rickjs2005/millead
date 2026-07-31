@@ -402,7 +402,9 @@ function EstimateForm({
     }
 
     const label = `${subscription.name} (${credits} créditos)`;
-    const amount = credits * unit;
+    // Arredonda pra 2 casas -- sem isso, 300 × 0,239 aparece como
+    // 71.69999999999999 no campo Valor (erro de ponto flutuante).
+    const amount = Math.round(credits * unit * 100) / 100;
     if (idx >= 0) {
       setValue(`costItems.${idx}.label`, label);
       setValue(`costItems.${idx}.amount`, amount);
