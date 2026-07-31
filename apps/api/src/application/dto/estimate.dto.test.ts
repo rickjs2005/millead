@@ -146,6 +146,20 @@ describe("updateEstimateSchema -- finalPrice/domainYears/domainYearPriceBrl (Fas
     const result = updateEstimateSchema.safeParse({ domainYears: 3, domainYearPriceBrl: 45 });
     expect(result.success).toBe(true);
   });
+
+  it("rejeita patch que define domainYearPriceBrl como null sem também definir domainYears como null", () => {
+    const result = updateEstimateSchema.safeParse({ domainYearPriceBrl: null });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues[0]?.message).toBe("Remova o domínio junto com o preço por ano.");
+      expect(result.error.issues[0]?.path).toEqual(["domainYearPriceBrl"]);
+    }
+  });
+
+  it("aceita patch que limpa os dois campos de domínio juntos (ambos null)", () => {
+    const result = updateEstimateSchema.safeParse({ domainYears: null, domainYearPriceBrl: null });
+    expect(result.success).toBe(true);
+  });
 });
 
 describe("convertEstimateSchema -- price opcional (Fase 6: conversão direta)", () => {

@@ -70,9 +70,19 @@ export const createEstimateSchema = baseEstimateSchema.refine(
 export type CreateEstimateInput = z.infer<typeof createEstimateSchema>;
 
 export const updateEstimateSchema = baseEstimateSchema.partial().refine(
-  (data) => data.domainYears == null || data.domainYearPriceBrl != null,
+  (data) => {
+    // Se tem domainYears, precisa ter domainYearPriceBrl
+    if (data.domainYears != null && data.domainYearPriceBrl == null) {
+      return false;
+    }
+    // Se está setando domainYearPriceBrl como null, precisa também settar domainYears como null
+    if ("domainYearPriceBrl" in data && data.domainYearPriceBrl == null && data.domainYears !== null) {
+      return false;
+    }
+    return true;
+  },
   {
-    message: "domainYearPriceBrl é obrigatório quando domainYears é informado.",
+    message: "Remova o domínio junto com o preço por ano.",
     path: ["domainYearPriceBrl"],
   },
 );

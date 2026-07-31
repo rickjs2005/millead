@@ -396,7 +396,10 @@ function EstimateForm({
   const finalPriceTouchedRef = useRef(isEdit);
   useEffect(() => {
     if (finalPriceTouchedRef.current) return;
-    setValue("finalPrice", computed.priceRecommended);
+    const recommended = computed.priceRecommended;
+    if (recommended > 0) {
+      setValue("finalPrice", Math.round(recommended * 100) / 100);
+    }
   }, [computed.priceRecommended, setValue]);
 
   function setFinalPricePreset(price: number) {
@@ -559,7 +562,7 @@ function EstimateForm({
       status,
       // Fase 6: `null` explícito (nunca omitido) -- limpa o campo no update
       // quando o dono apaga o preço final ou volta o domínio pra "Nenhum".
-      finalPrice: formValues.finalPrice ?? null,
+      finalPrice: formValues.finalPrice || null,
       domainYears: formValues.domainYears > 0 ? formValues.domainYears : null,
       domainYearPriceBrl: formValues.domainYears > 0 ? formValues.domainYearPriceBrl : null,
     };
