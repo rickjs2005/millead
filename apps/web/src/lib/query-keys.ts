@@ -54,4 +54,10 @@ export const queryKeys = {
     templates: () => ["briefings", "templates"] as const,
     template: (key: string) => ["briefings", "template", key] as const,
   },
+  costs: {
+    list: () => ["costs", "list"] as const,
+    catalog: () => ["costs", "catalog"] as const,
+    settings: () => ["costs", "settings"] as const,
+    summary: () => ["costs", "summary"] as const,
+  },
 };

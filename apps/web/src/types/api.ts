@@ -639,6 +639,94 @@ export interface PublicBriefing {
   files: BriefingFile[];
 }
 
+// ---------- Financeiro (Fase 1) ----------
+
+export type CostScope = "AGENCY" | "CLIENT";
+export type CostCurrency = "BRL" | "USD";
+export type CostBillingCycle = "MONTHLY" | "YEARLY";
+export type CostCategory =
+  | "HOSTING"
+  | "DATABASE"
+  | "AI"
+  | "DOMAIN"
+  | "EMAIL"
+  | "SIGNATURE"
+  | "OTHER";
+
+export interface CostSubscription {
+  id: string;
+  organizationId: string;
+  companyId: string | null;
+  serviceKey: string | null;
+  name: string;
+  scope: CostScope;
+  amount: string;
+  currency: CostCurrency;
+  billingCycle: CostBillingCycle;
+  capacityLimit: number | null;
+  capacityUsed: number | null;
+  isActive: boolean;
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CostServiceCatalogItem {
+  id: string;
+  key: string;
+  name: string;
+  category: CostCategory;
+  defaultAmount: string;
+  currency: CostCurrency;
+  billingCycle: CostBillingCycle;
+  defaultScope: CostScope;
+  defaultCapacityLimit: number | null;
+  bestFor: string | null;
+  billingNotes: string | null;
+}
+
+export interface FinanceSettings {
+  id: string;
+  organizationId: string;
+  usdToBrlRate: string;
+  defaultHourlyRate: string;
+  supportReservePct: string;
+  defaultMarginPct: string;
+  activeClientsCount: number;
+}
+
+export interface CostSummary {
+  agencyMonthlyBrl: number;
+  clientMonthlyBrl: number;
+  totalMonthlyBrl: number;
+  perClientShareBrl: number;
+  activeClientsCount: number;
+  wonLeadsCount: number;
+  activeSubscriptions: number;
+}
+
+export interface CostSubscriptionPayload {
+  name: string;
+  scope: CostScope;
+  amount: number;
+  currency: CostCurrency;
+  billingCycle: CostBillingCycle;
+  serviceKey?: string | null;
+  companyId?: string | null;
+  capacityLimit?: number | null;
+  capacityUsed?: number | null;
+  isActive?: boolean;
+  notes?: string | null;
+}
+
+export interface FinanceSettingsPayload {
+  usdToBrlRate?: number;
+  defaultHourlyRate?: number;
+  supportReservePct?: number;
+  defaultMarginPct?: number;
+  activeClientsCount?: number;
+}
+
 // ---------- Erros ----------
 
 export interface ApiErrorBody {
