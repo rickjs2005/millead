@@ -18,11 +18,27 @@ import { Label } from "@/components/ui/label";
 import { useCostSummary, useFinanceSettings, useUpdateFinanceSettings } from "@/features/finance/hooks";
 
 const schema = z.object({
-  usdToBrlRate: z.coerce.number().min(0.01, "Informe um câmbio válido."),
-  defaultHourlyRate: z.coerce.number().min(0, "Informe um valor válido."),
-  supportReservePct: z.coerce.number().min(0, "Use um valor entre 0 e 100.").max(100, "Use um valor entre 0 e 100."),
-  defaultMarginPct: z.coerce.number().min(0, "Use um valor entre 0 e 100.").max(100, "Use um valor entre 0 e 100."),
-  activeClientsCount: z.coerce.number().int().min(1, "Informe ao menos 1 cliente ativo."),
+  usdToBrlRate: z.coerce
+    .number()
+    .min(0.01, "Informe um câmbio válido.")
+    .max(1000, "Use um valor entre 0,01 e 1000."),
+  defaultHourlyRate: z.coerce
+    .number()
+    .min(0, "Informe um valor válido.")
+    .max(9_999_999, "Use um valor até 9.999.999."),
+  supportReservePct: z.coerce
+    .number()
+    .min(0, "Use um valor entre 0 e 100.")
+    .max(100, "Use um valor entre 0 e 100."),
+  defaultMarginPct: z.coerce
+    .number()
+    .min(0, "Use um valor entre 0 e 500.")
+    .max(500, "Use um valor entre 0 e 500."),
+  activeClientsCount: z.coerce
+    .number()
+    .int()
+    .min(1, "Informe ao menos 1 cliente ativo.")
+    .max(10_000, "Use um valor até 10.000."),
 });
 type FormValues = z.infer<typeof schema>;
 

@@ -148,7 +148,7 @@ export function CostSubscriptionDialog({
       billingCycle: values.billingCycle,
       capacityLimit: values.capacityLimit ?? null,
       capacityUsed: values.capacityUsed ?? null,
-      notes: values.notes || undefined,
+      notes: values.notes || null,
     };
     if (isEdit) {
       await updateCostSubscription.mutateAsync({ id: subscription.id, payload });
