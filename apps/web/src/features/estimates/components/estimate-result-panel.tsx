@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { formatCurrency } from "@/utils/format";
@@ -45,13 +46,21 @@ export function EstimateResultPanel({
   hourlyRate,
   infraMonths,
   agencyShareMonthly,
+  domainYears,
   product,
+  children,
 }: {
   computed: EstimateComputed;
   hourlyRate: number;
   infraMonths: number;
   agencyShareMonthly: number;
+  /** 0 quando o orçamento não tem domínio contratado. */
+  domainYears: number;
   product?: ProjectProduct;
+  /** Bloco de "Preço final (você decide)" -- renderizado pelo editor (é o
+   * único lugar com acesso ao `control` do react-hook-form), mas visualmente
+   * pertence a este painel, logo abaixo dos 3 preços sugeridos. */
+  children?: ReactNode;
 }) {
   const rateioNoPeriodo = agencyShareMonthly * infraMonths;
   // `computed.infraCost` já inclui `oneTimeCost` (é o que `totalCost` precisa
@@ -80,6 +89,12 @@ export function EstimateResultPanel({
           value={formatCurrency(infraRecurringNoPeriodo)}
         />
         <Row label="Reserva de suporte" value={formatCurrency(computed.supportReserve)} />
+        {domainYears > 0 && (
+          <Row
+            label={`Domínio (${domainYears} ${domainYears === 1 ? "ano" : "anos"})`}
+            value={formatCurrency(computed.domainCost)}
+          />
+        )}
 
         <Separator />
 
@@ -90,6 +105,8 @@ export function EstimateResultPanel({
         <Row label="Preço mínimo" value={formatCurrency(computed.priceMin)} />
         <Row label="Preço recomendado" value={formatCurrency(computed.priceRecommended)} primary />
         <Row label="Preço premium" value={formatCurrency(computed.pricePremium)} />
+
+        {children}
 
         {product && (
           <p className="mt-1 text-xs text-muted-foreground">

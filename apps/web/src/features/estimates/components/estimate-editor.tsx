@@ -4,9 +4,10 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { FileText, Plus, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useMemo, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, type ReactNode } from "react";
 import { Controller, useFieldArray, useForm, useWatch } from "react-hook-form";
 import { z } from "zod";
+import { useConfirmDialog } from "@/components/confirm-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -21,10 +22,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { ConvertEstimateDialog } from "@/features/estimates/components/convert-estimate-dialog";
 import { EstimateResultPanel } from "@/features/estimates/components/estimate-result-panel";
 import { computeEstimate, type EstimateCalcInput } from "@/features/estimates/estimate-calc";
 import {
+  useConvertEstimate,
   useCreateEstimate,
   useEstimateProducts,
   useUpdateEstimate,
@@ -84,6 +85,16 @@ function decimalField(min = 0, message = "Informe um número válido.") {
   return z.preprocess(parseDecimal, z.number({ invalid_type_error: message }).min(min, message));
 }
 
+/** Mesmo preprocess vírgula-decimal, mas o campo pode ficar vazio -- usado no
+ * "Preço final (você decide)": ausente equivale a "usar o recomendado" (a
+ * API resolve essa cascata no convert). */
+function optionalDecimalField(min = 0, message = "Informe um valor válido.") {
+  return z.preprocess(
+    parseDecimal,
+    z.number({ invalid_type_error: message }).min(min, message).optional(),
+  );
+}
+
 function intField(min: number, max: number, message = "Informe um número válido.") {
   return z.preprocess(
     parseDecimal,
@@ -131,6 +142,17 @@ const schema = z.object({
   deadlineDays: intField(1, 365, "Informe o prazo em dias."),
   paymentTerms: z.string().optional(),
   validDays: intField(1, 90, "Informe a validade em dias."),
+  // Fase 6: preço final decidido pelo dono -- ausente usa o recomendado (a
+  // API resolve a cascata no convert). "Tocado" (digitado ou preset clicado)
+  // é controlado fora do schema, por um ref (ver `finalPriceTouchedRef`).
+  finalPrice: optionalDecimalField(0),
+  // Domínio .br por N anos -- 0 = "Nenhum" (nasce sempre presente e nunca
+  // fica undefined, ao contrário de finalPrice, pra o <Select> sempre ter um
+  // valor controlado). `domainYearPriceBrl` é o snapshot do preço/ano do
+  // catálogo NO MOMENTO da seleção (nunca digitado -- setado junto com
+  // `domainYears` no handler do select).
+  domainYears: z.number().int().min(0).max(3).default(0),
+  domainYearPriceBrl: z.number().min(0).default(0),
 });
 type FormValues = z.infer<typeof schema>;
 
@@ -166,7 +188,16 @@ function Field({
  * novo, o resumo de custos) carregarem antes de montar o form, pra os
  * defaultValues já nascerem certos sem useEffect + reset() correndo atrás do
  * carregamento das queries. */
-export function EstimateEditor({ estimate }: { estimate?: PricingEstimate }) {
+export function EstimateEditor({
+  estimate,
+  defaultLeadId,
+}: {
+  estimate?: PricingEstimate;
+  /** Pré-seleciona o lead em orçamento novo criado a partir do detalhe de um
+   * lead (`/estimates/new?leadId=...`, unificação da Fase 6). Ignorado em
+   * edição -- o `leadId` já persistido manda. */
+  defaultLeadId?: string;
+}) {
   const isEdit = !!estimate;
   const { data: settings } = useFinanceSettings();
   const { data: costSummary } = useCostSummary();
@@ -191,6 +222,7 @@ export function EstimateEditor({ estimate }: { estimate?: PricingEstimate }) {
   return (
     <EstimateForm
       estimate={estimate}
+      defaultLeadId={defaultLeadId}
       settings={settings}
       costSummary={costSummary}
       subscriptions={subscriptions ?? []}
@@ -202,6 +234,7 @@ export function EstimateEditor({ estimate }: { estimate?: PricingEstimate }) {
 
 function EstimateForm({
   estimate,
+  defaultLeadId,
   settings,
   costSummary,
   subscriptions,
@@ -209,6 +242,7 @@ function EstimateForm({
   products,
 }: {
   estimate?: PricingEstimate;
+  defaultLeadId?: string;
   settings: FinanceSettings;
   costSummary?: CostSummary;
   subscriptions: CostSubscription[];
@@ -220,6 +254,8 @@ function EstimateForm({
   const isConverted = estimate?.status === "CONVERTED";
   const createEstimate = useCreateEstimate();
   const updateEstimate = useUpdateEstimate();
+  const convertEstimate = useConvertEstimate();
+  const { confirm, dialog: confirmDialog } = useConfirmDialog();
   const pending = isEdit ? updateEstimate.isPending : createEstimate.isPending;
   // Proposal buscada pelo proposalId já presente no PricingEstimate (decisão
   // da Task 3: reusar proposalsService.get em vez de inflar o GET do
@@ -257,10 +293,13 @@ function EstimateForm({
         deadlineDays: estimate.deadlineDays,
         paymentTerms: estimate.paymentTerms,
         validDays: estimate.validDays,
+        finalPrice: estimate.finalPrice != null ? Number(estimate.finalPrice) : undefined,
+        domainYears: estimate.domainYears ?? 0,
+        domainYearPriceBrl: estimate.domainYearPriceBrl != null ? Number(estimate.domainYearPriceBrl) : 0,
       }
     : {
         title: "",
-        leadId: undefined,
+        leadId: defaultLeadId,
         productId: "none",
         hourlyRate: Number(settings.defaultHourlyRate),
         hoursBreakdown: DEFAULT_HOURS_LABELS.map((label) => ({ label, hours: 0 })),
@@ -275,6 +314,9 @@ function EstimateForm({
         deadlineDays: 30,
         paymentTerms: "",
         validDays: 15,
+        finalPrice: undefined,
+        domainYears: 0,
+        domainYearPriceBrl: 0,
       };
 
   const {
@@ -323,15 +365,44 @@ function EstimateForm({
       supportReservePct: safeNumber(values.supportReservePct),
       marginPct: safeNumber(values.marginPct),
       usdToBrlRate,
-      // Domínio ainda não tem campo no formulário (Task 3 da Fase 6 adiciona
-      // a UI) -- preview local nasce sem domínio; o `computed` persistido
-      // (servidor) é quem manda de qualquer forma.
-      domainYears: null,
-      domainYearPriceBrl: 0,
+      // `domainYears` 0 (select em "Nenhum") vira null pro cálculo (mesmo
+      // efeito -- (domainYears ?? 0) × preço -- mas null é o shape que o
+      // resto do domínio (payload, PDF) usa pra "sem domínio").
+      domainYears: values.domainYears ? safeNumber(values.domainYears) : null,
+      domainYearPriceBrl: safeNumber(values.domainYearPriceBrl),
     }),
     [values, usdToBrlRate],
   );
   const computed = useMemo(() => computeEstimate(calcInput), [calcInput]);
+
+  // Catálogo `registrobr-domain` -- preço/ano exibido nas opções do select de
+  // domínio e snapshotado em `domainYearPriceBrl` quando o dono escolhe uma
+  // opção (fallback 40 se o catálogo não tiver o item, ex.: seed ausente).
+  const domainYearPrice = useMemo(() => {
+    const item = catalog.find((c) => c.key === "registrobr-domain");
+    return item ? Number(item.defaultAmount) : 40;
+  }, [catalog]);
+
+  function handleDomainYearsChange(years: number) {
+    setValue("domainYears", years, { shouldDirty: true });
+    setValue("domainYearPriceBrl", years > 0 ? domainYearPrice : 0, { shouldDirty: true });
+  }
+
+  // Preço final (Fase 6): pré-preenche com o recomendado em orçamento NOVO
+  // enquanto o dono não mexeu no campo (nem digitou, nem clicou um preset) --
+  // `touchedRef` (não state) porque não precisa re-render, só precisa ser
+  // lido dentro do efeito abaixo a cada recálculo do `computed`. Em edição
+  // (`isEdit`) nunca mexe -- o valor salvo (ou vazio) é a fonte da verdade.
+  const finalPriceTouchedRef = useRef(isEdit);
+  useEffect(() => {
+    if (finalPriceTouchedRef.current) return;
+    setValue("finalPrice", computed.priceRecommended);
+  }, [computed.priceRecommended, setValue]);
+
+  function setFinalPricePreset(price: number) {
+    finalPriceTouchedRef.current = true;
+    setValue("finalPrice", Math.round(price * 100) / 100, { shouldDirty: true });
+  }
 
   function handleProductChange(id: string) {
     setValue("productId", id);
@@ -486,6 +557,11 @@ function EstimateForm({
       paymentTerms: formValues.paymentTerms ?? "",
       validDays: formValues.validDays,
       status,
+      // Fase 6: `null` explícito (nunca omitido) -- limpa o campo no update
+      // quando o dono apaga o preço final ou volta o domínio pra "Nenhum".
+      finalPrice: formValues.finalPrice ?? null,
+      domainYears: formValues.domainYears > 0 ? formValues.domainYears : null,
+      domainYearPriceBrl: formValues.domainYears > 0 ? formValues.domainYearPriceBrl : null,
     };
 
     if (isEdit) {
@@ -498,6 +574,25 @@ function EstimateForm({
 
   const saveDraft = handleSubmit((v) => submit(v, "DRAFT"));
   const markReady = handleSubmit((v) => submit(v, "READY"));
+
+  // Conversão direta (Fase 6): sem dialog de escolha de preço -- só confirma
+  // o que a API vai usar (finalPrice salvo, ou recomendado na ausência) e
+  // dispara `convert(id)` sem body de price. Só chamável com `estimate`
+  // existente (botão só aparece com `isEdit`, ver JSX abaixo).
+  function openConvertConfirm() {
+    if (!estimate) return;
+    const priceToUse =
+      estimate.finalPrice != null ? Number(estimate.finalPrice) : computed.priceRecommended;
+    confirm({
+      title: "Gerar proposta",
+      description: `Será criada uma proposta em rascunho com PDF de ${formatCurrency(priceToUse)} para o cliente. Custos internos não aparecem no PDF.`,
+      confirmLabel: "Gerar proposta",
+      variant: "default",
+      onConfirm: async () => {
+        await convertEstimate.mutateAsync(estimate.id);
+      },
+    });
+  }
 
   return (
     <form onSubmit={saveDraft} className="grid gap-6 lg:grid-cols-[1fr_320px]">
@@ -863,6 +958,23 @@ function EstimateForm({
                 <Input id="infra-months" inputMode="numeric" {...register("infraMonths")} />
               </Field>
             </div>
+
+            <Field label="Domínio .br (Registro.br)">
+              <Select
+                value={String(values.domainYears ?? 0)}
+                onValueChange={(v) => handleDomainYearsChange(Number(v))}
+              >
+                <SelectTrigger className="w-full sm:w-64">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="0">Nenhum</SelectItem>
+                  <SelectItem value="1">1 ano — {formatCurrency(domainYearPrice)}</SelectItem>
+                  <SelectItem value="2">2 anos — {formatCurrency(domainYearPrice * 2)}</SelectItem>
+                  <SelectItem value="3">3 anos — {formatCurrency(domainYearPrice * 3)}</SelectItem>
+                </SelectContent>
+              </Select>
+            </Field>
           </CardContent>
         </Card>
 
@@ -941,23 +1053,17 @@ function EstimateForm({
             </Button>
             {isEdit && (
               <>
-                <ConvertEstimateDialog
-                  estimate={estimate}
-                  computed={computed}
-                  trigger={
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      className="gap-1.5"
-                      disabled={isDirty}
-                      title={
-                        isDirty ? "Salve o orçamento antes de gerar a proposta." : undefined
-                      }
-                    >
-                      <FileText className="h-4 w-4" /> Gerar proposta
-                    </Button>
-                  }
-                />
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="gap-1.5"
+                  disabled={isDirty || !estimate.leadId || convertEstimate.isPending}
+                  title={isDirty ? "Salve o orçamento antes de gerar a proposta." : undefined}
+                  onClick={openConvertConfirm}
+                >
+                  <FileText className="h-4 w-4" />
+                  {convertEstimate.isPending ? "Gerando…" : "Gerar proposta"}
+                </Button>
                 {isDirty ? (
                   <span className="text-xs text-muted-foreground">
                     Salve o orçamento antes de gerar a proposta.
@@ -967,6 +1073,7 @@ function EstimateForm({
                     Vincule um lead pra habilitar a conversão em proposta.
                   </span>
                 ) : null}
+                {confirmDialog}
               </>
             )}
           </div>
@@ -978,8 +1085,56 @@ function EstimateForm({
         hourlyRate={calcInput.hourlyRate}
         infraMonths={calcInput.infraMonths}
         agencyShareMonthly={calcInput.agencyShareMonthly}
+        domainYears={calcInput.domainYears ?? 0}
         product={selectedProduct}
-      />
+      >
+        {!isConverted && (
+          <div className="mt-1 flex flex-col gap-2 border-t border-border pt-3">
+            <Field
+              label="Preço final (você decide)"
+              htmlFor="final-price"
+              hint="Pré-preenchido com o recomendado -- ajuste livremente ou use um preset."
+              error={errors.finalPrice?.message}
+            >
+              <Input
+                id="final-price"
+                inputMode="decimal"
+                {...register("finalPrice", {
+                  onChange: () => {
+                    finalPriceTouchedRef.current = true;
+                  },
+                })}
+              />
+            </Field>
+            <div className="flex flex-wrap gap-1.5">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setFinalPricePreset(computed.priceMin)}
+              >
+                Mínimo
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setFinalPricePreset(computed.priceRecommended)}
+              >
+                Recomendado
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setFinalPricePreset(computed.pricePremium)}
+              >
+                Premium
+              </Button>
+            </div>
+          </div>
+        )}
+      </EstimateResultPanel>
     </form>
   );
 }

@@ -67,19 +67,21 @@ export function useDeleteEstimate() {
   });
 }
 
-/** Conversão orçamento -> proposta (Fase 3). Invalida `estimates` (o
+/** Conversão orçamento -> proposta (Fase 3; Fase 6 tira o preço do body --
+ * a API resolve finalPrice salvo -> recomendado). Invalida `estimates` (o
  * orçamento vira CONVERTED) E `proposals` (a proposta nova precisa aparecer
  * na lista) -- os dois namespaces mudam no mesmo request. Abrir o pdfUrl em
- * nova aba é responsabilidade de quem chama (o dialog), não do hook. */
+ * nova aba é responsabilidade do hook (antes vivia no dialog de conversão,
+ * removido na Fase 6 -- conversão direta via ConfirmDialog no editor). */
 export function useConvertEstimate() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, price }: { id: string; price: number }) =>
-      estimatesService.convert(id, price),
-    onSuccess: () => {
+    mutationFn: (id: string) => estimatesService.convert(id),
+    onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ["estimates"] });
       queryClient.invalidateQueries({ queryKey: ["proposals"] });
       toast.success("Proposta gerada com sucesso.");
+      window.open(result.pdfUrl, "_blank");
     },
     onError: (err) =>
       toast.error(err instanceof ApiError ? err.message : "Erro ao gerar proposta."),

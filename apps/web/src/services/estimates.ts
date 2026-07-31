@@ -23,6 +23,9 @@ export const estimatesService = {
     api.patch<PricingEstimate>(`/api/v1/estimates/${id}`, payload),
   remove: (id: string) => api.delete<void>(`/api/v1/estimates/${id}`),
   products: () => api.get<ProjectProduct[]>("/api/v1/estimates/products"),
-  convert: (id: string, price: number) =>
-    api.post<ConvertEstimateResult>(`/api/v1/estimates/${id}/convert`, { price }),
+  // Fase 6: `price` fica opcional -- SEM body a API resolve a cascata
+  // finalPrice salvo -> preço recomendado (EstimateService.convert). O corpo
+  // `{}` (em vez de omitir por completo) evita ambiguidade de parsing do lado
+  // do Express com Content-Type: application/json e corpo vazio.
+  convert: (id: string) => api.post<ConvertEstimateResult>(`/api/v1/estimates/${id}/convert`, {}),
 };
