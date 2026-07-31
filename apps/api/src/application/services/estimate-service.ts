@@ -269,11 +269,15 @@ export class EstimateService {
     ]);
     const summary = computeSummary(
       subscriptions.map((s) => ({
+        id: s.id,
+        name: s.name,
         scope: s.scope,
         amount: Number(s.amount),
         currency: s.currency,
         billingCycle: s.billingCycle,
         isActive: s.isActive,
+        capacityUsed: s.capacityUsed,
+        capacityLimit: s.capacityLimit,
       })),
       { usdToBrlRate: Number(settings.usdToBrlRate), activeClientsCount: settings.activeClientsCount },
       wonLeadsCount,
