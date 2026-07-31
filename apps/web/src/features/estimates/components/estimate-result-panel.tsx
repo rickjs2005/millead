@@ -54,6 +54,11 @@ export function EstimateResultPanel({
   product?: ProjectProduct;
 }) {
   const rateioNoPeriodo = agencyShareMonthly * infraMonths;
+  // `computed.infraCost` já inclui `oneTimeCost` (é o que `totalCost` precisa
+  // somar) -- pra exibir "Infra + rateio no período" só com os itens
+  // mensais (o custo único aparece na linha própria acima), recalculamos
+  // aqui a fatia recorrente sem o one-time.
+  const infraRecurringNoPeriodo = computed.infraMonthlyBrl * infraMonths + rateioNoPeriodo;
 
   return (
     <Card className="sticky top-4 h-fit">
@@ -67,9 +72,12 @@ export function EstimateResultPanel({
         />
         <Row label="Infra mensal (itens de custo)" value={`${formatCurrency(computed.infraMonthlyBrl)}/mês`} />
         <Row label={`Rateio da agência (${formatCurrency(agencyShareMonthly)}/mês)`} value={formatCurrency(rateioNoPeriodo)} />
+        {computed.oneTimeCost > 0 && (
+          <Row label="Custos únicos (créditos)" value={formatCurrency(computed.oneTimeCost)} />
+        )}
         <Row
           label={`Infra + rateio no período (${infraMonths} ${infraMonths === 1 ? "mês" : "meses"})`}
-          value={formatCurrency(computed.infraCost)}
+          value={formatCurrency(infraRecurringNoPeriodo)}
         />
         <Row label="Reserva de suporte" value={formatCurrency(computed.supportReserve)} />
 

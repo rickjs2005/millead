@@ -52,6 +52,22 @@ import type {
 const DEFAULT_HOURS_LABELS = ["Design", "Frontend", "Backend", "SEO", "Testes"];
 const MARGIN_PRESETS = [20, 30, 40];
 
+/** Espelho local do mesmo helper em cost-subscription-dialog.tsx/
+ * cost-subscriptions-list.tsx -- valor mensal em BRL de uma assinatura. */
+function monthlyBrl(subscription: CostSubscription, rate: number) {
+  const brl =
+    subscription.currency === "USD" ? Number(subscription.amount) * rate : Number(subscription.amount);
+  return subscription.billingCycle === "YEARLY" ? brl / 12 : brl;
+}
+
+/** Extrai o N de créditos do label auto-gerado "{nome} (N créditos)" --
+ * fonte da verdade pro valor exibido no input (evita arredondar de volta
+ * a partir do amount, que teria erro de ponto flutuante). */
+function parseCreditsFromLabel(label: string): number {
+  const match = label.match(/\((\d+) créditos\)$/);
+  return match ? Number(match[1]) : 0;
+}
+
 /** Vírgula decimal -> ponto antes do z.coerce.number() -- o dono digita
  * "5,30" nos campos de dinheiro/horas/percentuais. Resolve aqui o que ficou
  * como backlog M3 da Fase 1 (cost-subscription-dialog não aceita vírgula). */
@@ -95,6 +111,9 @@ const costItemSchema = z.object({
   currency: z.enum(["BRL", "USD"]),
   billingCycle: z.enum(["MONTHLY", "YEARLY"]),
   subscriptionId: z.string().nullable().optional(),
+  // Custo único (créditos estimados) -- ausente equivale a false. Sempre
+  // MONTHLY quando true (o DTO da API rejeita outra combinação).
+  isOneTime: z.boolean().optional(),
 });
 
 const schema = z.object({
@@ -209,6 +228,9 @@ function EstimateForm({
 
   const usdToBrlRate = Number(settings.usdToBrlRate);
   const clientSubscriptions = subscriptions.filter((s) => s.scope === "CLIENT" && s.isActive);
+  // Sem filtro de escopo -- créditos (ex.: Higgsfield) normalmente são AGENCY
+  // (plano único compartilhado), mas o consumo por projeto ainda é estimável.
+  const creditSubscriptions = subscriptions.filter((s) => s.isActive && !!s.creditsIncluded);
 
   const defaultValues: FormValues = estimate
     ? {
@@ -225,6 +247,7 @@ function EstimateForm({
           currency: item.currency,
           billingCycle: item.billingCycle,
           subscriptionId: item.subscriptionId,
+          isOneTime: item.isOneTime,
         })),
         agencyShareMonthly: Number(estimate.agencyShareMonthly),
         infraMonths: estimate.infraMonths,
@@ -242,7 +265,9 @@ function EstimateForm({
         hourlyRate: Number(settings.defaultHourlyRate),
         hoursBreakdown: DEFAULT_HOURS_LABELS.map((label) => ({ label, hours: 0 })),
         costItems: [],
-        agencyShareMonthly: costSummary?.perClientShareBrl ?? 0,
+        // Rateio nasce zerado (decisão do Rick) -- o valor calculado hoje só
+        // aparece como sugestão (hint + botão "Usar" no campo abaixo).
+        agencyShareMonthly: 0,
         infraMonths: 12,
         supportReservePct: Number(settings.supportReservePct),
         marginPct: Number(settings.defaultMarginPct),
@@ -291,6 +316,7 @@ function EstimateForm({
         amount: safeNumber(c?.amount),
         currency: c?.currency ?? "BRL",
         billingCycle: c?.billingCycle ?? "MONTHLY",
+        isOneTime: c?.isOneTime ?? false,
       })),
       agencyShareMonthly: safeNumber(values.agencyShareMonthly),
       infraMonths: safeNumber(values.infraMonths),
@@ -323,8 +349,11 @@ function EstimateForm({
   // orçamento novo quanto pra edição: se o item já veio carregado do banco
   // com aquele subscriptionId, a caixa já nasce marcada, e desmarcar remove
   // essa linha (nunca duplica). Correção pós-revisão da Task 6.
+  // `!c?.isOneTime` exclui a linha de créditos estimados (mesmo
+  // subscriptionId, isOneTime true) -- do contrário, estimar créditos de uma
+  // assinatura marcaria essa caixa como "recorrente adicionado" por engano.
   function isSubscriptionChecked(subscriptionId: string) {
-    return (values.costItems ?? []).some((c) => c?.subscriptionId === subscriptionId);
+    return (values.costItems ?? []).some((c) => c?.subscriptionId === subscriptionId && !c?.isOneTime);
   }
 
   function toggleSubscription(subscription: CostSubscription, checked: boolean) {
@@ -338,8 +367,54 @@ function EstimateForm({
         subscriptionId: subscription.id,
       });
     } else {
-      const idx = getValues("costItems").findIndex((c) => c.subscriptionId === subscription.id);
+      const idx = getValues("costItems").findIndex(
+        (c) => c.subscriptionId === subscription.id && !c.isOneTime,
+      );
       if (idx >= 0) removeCost(idx);
+    }
+  }
+
+  // Estimador de créditos (Fase 5): cada assinatura ativa com creditsIncluded
+  // ganha um input próprio que cria/atualiza/remove UMA linha isOneTime em
+  // costItems (identificada por subscriptionId + isOneTime, coexiste com a
+  // linha recorrente da mesma assinatura, se houver). O preço unitário é
+  // sempre derivado (nunca digitado) -- muda o plano/câmbio, muda o unitário.
+  function creditsLineIndex(subscriptionId: string) {
+    return (values.costItems ?? []).findIndex(
+      (c) => c?.subscriptionId === subscriptionId && c?.isOneTime,
+    );
+  }
+
+  function creditsLineValue(subscriptionId: string): number {
+    const idx = creditsLineIndex(subscriptionId);
+    if (idx < 0) return 0;
+    return parseCreditsFromLabel(values.costItems?.[idx]?.label ?? "");
+  }
+
+  function setCreditsLine(subscription: CostSubscription, credits: number) {
+    const idx = creditsLineIndex(subscription.id);
+    const included = subscription.creditsIncluded ?? 1;
+    const unit = monthlyBrl(subscription, usdToBrlRate) / included;
+
+    if (!credits || credits <= 0) {
+      if (idx >= 0) removeCost(idx);
+      return;
+    }
+
+    const label = `${subscription.name} (${credits} créditos)`;
+    const amount = credits * unit;
+    if (idx >= 0) {
+      setValue(`costItems.${idx}.label`, label);
+      setValue(`costItems.${idx}.amount`, amount);
+    } else {
+      appendCost({
+        label,
+        amount,
+        currency: "BRL",
+        billingCycle: "MONTHLY",
+        subscriptionId: subscription.id,
+        isOneTime: true,
+      });
     }
   }
 
@@ -385,9 +460,12 @@ function EstimateForm({
       costItems: formValues.costItems.map((item) => ({
         label: item.label,
         amount: item.amount,
+        // Custo único é sempre MONTHLY -- o DTO da API rejeita isOneTime com
+        // outro ciclo (item não tem seletor de ciclo na UI, ver acima).
         currency: item.currency,
-        billingCycle: item.billingCycle,
+        billingCycle: item.isOneTime ? "MONTHLY" : item.billingCycle,
         subscriptionId: item.subscriptionId ?? null,
+        isOneTime: item.isOneTime ?? false,
       })),
       agencyShareMonthly: formValues.agencyShareMonthly,
       infraMonths: formValues.infraMonths,
@@ -613,10 +691,41 @@ function EstimateForm({
               </div>
             )}
 
+            {creditSubscriptions.length > 0 && (
+              <div className="flex flex-col gap-2 rounded-lg border border-border p-3">
+                <p className="text-xs font-medium text-muted-foreground">
+                  Créditos estimados — custo único, não entra no × meses de infra
+                </p>
+                {creditSubscriptions.map((subscription) => {
+                  const included = subscription.creditsIncluded ?? 1;
+                  const unit = monthlyBrl(subscription, usdToBrlRate) / included;
+                  const credits = creditsLineValue(subscription.id);
+                  return (
+                    <div key={subscription.id} className="flex flex-wrap items-center gap-2 text-sm">
+                      <span className="min-w-0 flex-1">Créditos {subscription.name}:</span>
+                      <Input
+                        type="number"
+                        inputMode="numeric"
+                        min={0}
+                        className="w-24"
+                        value={credits || ""}
+                        placeholder="0"
+                        onChange={(e) => setCreditsLine(subscription, Number(e.target.value) || 0)}
+                        aria-label={`Créditos estimados de ${subscription.name}`}
+                      />
+                      <span className="text-xs text-muted-foreground">
+                        × {formatCurrency(unit)} = {formatCurrency(credits * unit)}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
             <div className="flex flex-col gap-2">
               {costFields.map((field, index) => {
                 const item = values.costItems?.[index];
-                const origin = item?.subscriptionId ? "Assinatura" : "Avulso";
+                const origin = item?.isOneTime ? "único" : item?.subscriptionId ? "Assinatura" : "Avulso";
                 return (
                   <div
                     key={field.id}
@@ -662,24 +771,28 @@ function EstimateForm({
                         )}
                       />
                     </Field>
-                    <Field label="Ciclo">
-                      <Controller
-                        control={control}
-                        name={`costItems.${index}.billingCycle`}
-                        render={({ field: f }) => (
-                          <Select value={f.value} onValueChange={f.onChange}>
-                            <SelectTrigger className="w-28">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="MONTHLY">Mensal</SelectItem>
-                              <SelectItem value="YEARLY">Anual</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        )}
-                      />
-                    </Field>
-                    <Badge variant="secondary" className="mt-6">
+                    {/* Custo único não tem ciclo (a API rejeita isOneTime+YEARLY) --
+                        esconder em vez de deixar um seletor que quebraria a gravação. */}
+                    {!item?.isOneTime && (
+                      <Field label="Ciclo">
+                        <Controller
+                          control={control}
+                          name={`costItems.${index}.billingCycle`}
+                          render={({ field: f }) => (
+                            <Select value={f.value} onValueChange={f.onChange}>
+                              <SelectTrigger className="w-28">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="MONTHLY">Mensal</SelectItem>
+                                <SelectItem value="YEARLY">Anual</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          )}
+                        />
+                      </Field>
+                    )}
+                    <Badge variant={item?.isOneTime ? "outline" : "secondary"} className="mt-6">
                       {origin}
                     </Badge>
                     <Button
@@ -719,14 +832,25 @@ function EstimateForm({
               <Field
                 label="Rateio da agência (mensal)"
                 htmlFor="agency-share"
-                hint={
-                  costSummary
-                    ? `${formatCurrency(costSummary.perClientShareBrl)} calculado hoje`
-                    : undefined
-                }
                 error={errors.agencyShareMonthly?.message}
               >
                 <Input id="agency-share" inputMode="decimal" {...register("agencyShareMonthly")} />
+                {/* Orçamento novo nasce com rateio 0 (decisão do Rick) -- este
+                    é só um atalho pra puxar o valor calculado hoje, não um
+                    auto-fill. */}
+                {costSummary && (
+                  <p className="text-xs text-muted-foreground">
+                    Rateio calculado hoje: {formatCurrency(costSummary.perClientShareBrl)}
+                    {" — "}
+                    <button
+                      type="button"
+                      className="font-medium text-primary hover:underline"
+                      onClick={() => setValue("agencyShareMonthly", costSummary.perClientShareBrl)}
+                    >
+                      Usar
+                    </button>
+                  </p>
+                )}
               </Field>
               <Field label="Meses de infra" htmlFor="infra-months" error={errors.infraMonths?.message}>
                 <Input id="infra-months" inputMode="numeric" {...register("infraMonths")} />

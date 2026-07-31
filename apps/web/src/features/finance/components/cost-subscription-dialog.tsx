@@ -59,6 +59,10 @@ const schema = z.object({
   billingCycle: z.enum(["MONTHLY", "YEARLY"]),
   capacityLimit: optionalInt,
   capacityUsed: optionalInt,
+  creditsIncluded: z.preprocess(
+    (v) => (v === "" || v === null || v === undefined ? undefined : v),
+    z.coerce.number().int().min(1, "Deve ser maior que zero.").optional(),
+  ),
   notes: z.string().optional(),
 });
 type FormValues = z.infer<typeof schema>;
@@ -114,6 +118,7 @@ export function CostSubscriptionDialog({
       billingCycle: subscription?.billingCycle ?? "MONTHLY",
       capacityLimit: subscription?.capacityLimit ?? undefined,
       capacityUsed: subscription?.capacityUsed ?? undefined,
+      creditsIncluded: subscription?.creditsIncluded ?? undefined,
       notes: subscription?.notes ?? "",
     },
   });
@@ -121,6 +126,7 @@ export function CostSubscriptionDialog({
   const amount = watch("amount");
   const currency = watch("currency");
   const billingCycle = watch("billingCycle");
+  const creditsIncluded = watch("creditsIncluded");
   const rate = settings ? Number(settings.usdToBrlRate) : 0;
   const catalogItem = catalog?.find((c) => c.key === catalogKey);
   const groupedCatalog = groupCatalogByCategory(catalog ?? []);
@@ -148,6 +154,7 @@ export function CostSubscriptionDialog({
       billingCycle: values.billingCycle,
       capacityLimit: values.capacityLimit ?? null,
       capacityUsed: values.capacityUsed ?? null,
+      creditsIncluded: values.creditsIncluded ?? null,
       notes: values.notes || null,
     };
     if (isEdit) {
@@ -317,6 +324,30 @@ export function CostSubscriptionDialog({
                   <p className="text-xs text-destructive">{errors.capacityUsed.message}</p>
                 )}
               </div>
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="cost-credits-included">Créditos inclusos/mês (opcional)</Label>
+              <Input
+                id="cost-credits-included"
+                type="number"
+                inputMode="numeric"
+                min={1}
+                placeholder="Ex.: 1000"
+                {...register("creditsIncluded")}
+              />
+              {errors.creditsIncluded && (
+                <p className="text-xs text-destructive">{errors.creditsIncluded.message}</p>
+              )}
+              {!!creditsIncluded && creditsIncluded > 0 && (currency === "BRL" || rate > 0) && (
+                <p className="text-xs text-muted-foreground">
+                  ≈{" "}
+                  {formatCurrency(
+                    monthlyBrl(Number(amount || 0), currency, billingCycle, rate) / creditsIncluded,
+                  )}{" "}
+                  por crédito
+                </p>
+              )}
             </div>
 
             <div className="flex flex-col gap-1.5">

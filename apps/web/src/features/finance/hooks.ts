@@ -3,7 +3,11 @@ import { toast } from "sonner";
 import { queryKeys } from "@/lib/query-keys";
 import { ApiError } from "@/services/api-client";
 import { costsService } from "@/services/costs";
-import type { CostSubscriptionPayload, FinanceSettingsPayload } from "@/types/api";
+import type {
+  CostSubscriptionPayload,
+  CreateUsageEntryPayload,
+  FinanceSettingsPayload,
+} from "@/types/api";
 
 export function useCostSubscriptions() {
   return useQuery({ queryKey: queryKeys.costs.list(), queryFn: costsService.list });
@@ -22,6 +26,20 @@ export function useCostSummary(options?: { enabled?: boolean }) {
     queryKey: queryKeys.costs.summary(),
     queryFn: costsService.summary,
     enabled: options?.enabled ?? true,
+  });
+}
+
+export function useUsage(month: string) {
+  return useQuery({
+    queryKey: queryKeys.costs.usage(month),
+    queryFn: () => costsService.listUsage(month),
+  });
+}
+
+export function useUsageSummary(month: string) {
+  return useQuery({
+    queryKey: queryKeys.costs.usageSummary(month),
+    queryFn: () => costsService.usageSummary(month),
   });
 }
 
@@ -65,6 +83,30 @@ export function useDeleteCostSubscription() {
       toast.success("Custo removido.");
     },
     onError: (err) => toast.error(err instanceof ApiError ? err.message : "Erro ao remover custo."),
+  });
+}
+
+export function useCreateUsage() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: CreateUsageEntryPayload) => costsService.createUsage(payload),
+    onSuccess: () => {
+      invalidateAll(queryClient);
+      toast.success("Consumo lançado.");
+    },
+    onError: (err) => toast.error(err instanceof ApiError ? err.message : "Erro ao lançar consumo."),
+  });
+}
+
+export function useDeleteUsage() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => costsService.removeUsage(id),
+    onSuccess: () => {
+      invalidateAll(queryClient);
+      toast.success("Lançamento removido.");
+    },
+    onError: (err) => toast.error(err instanceof ApiError ? err.message : "Erro ao remover lançamento."),
   });
 }
 

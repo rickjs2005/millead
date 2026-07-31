@@ -665,6 +665,7 @@ export interface CostSubscription {
   billingCycle: CostBillingCycle;
   capacityLimit: number | null;
   capacityUsed: number | null;
+  creditsIncluded: number | null;
   isActive: boolean;
   notes: string | null;
   createdAt: string;
@@ -726,6 +727,7 @@ export interface CostSubscriptionPayload {
   companyId?: string | null;
   capacityLimit?: number | null;
   capacityUsed?: number | null;
+  creditsIncluded?: number | null;
   isActive?: boolean;
   notes?: string | null;
 }
@@ -736,6 +738,49 @@ export interface FinanceSettingsPayload {
   supportReservePct?: number;
   defaultMarginPct?: number;
   activeClientsCount?: number;
+}
+
+// ---------- Consumo de créditos (Financeiro Fase 5) ----------
+
+/** Lançamento de consumo de créditos -- `companyName` já vem denormalizado
+ * da leitura (join com Company), null quando sem cliente. */
+export interface CostUsageEntry {
+  id: string;
+  organizationId: string;
+  subscriptionId: string;
+  companyId: string | null;
+  companyName: string | null;
+  credits: number;
+  usedAt: string;
+  note: string | null;
+  createdAt: string;
+}
+
+/** Resumo de consumo de créditos de um mês (`GET /costs/usage/summary`). */
+export interface UsageSummary {
+  month: string; // "2026-07"
+  /** Preço unitário quando há exatamente 1 assinatura com creditsIncluded
+   * usada no mês; null se ambíguo/nenhum -- ver o detalhe em `bySubscription`. */
+  unitPriceBrl: number | null;
+  totalCredits: number;
+  bySubscription: {
+    subscriptionId: string;
+    name: string;
+    credits: number;
+    creditsIncluded: number | null;
+    unitPriceBrl: number | null;
+    costBrl: number;
+  }[];
+  /** companyId null => "Sem cliente". */
+  byClient: { companyId: string | null; companyName: string; credits: number; costBrl: number }[];
+}
+
+export interface CreateUsageEntryPayload {
+  subscriptionId: string;
+  companyId?: string | null;
+  credits: number;
+  usedAt: string;
+  note?: string | null;
 }
 
 // ---------- Calculadora de Orçamentos (Financeiro Fase 2) ----------
