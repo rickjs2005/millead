@@ -114,6 +114,7 @@ model Organization {
   projectProducts         ProjectProduct[]
   pricingEstimates        PricingEstimate[]
   pricingEstimateCosts    PricingEstimateCost[]
+  costUsageEntries        CostUsageEntry[]
 
   @@map("organizations")
 }
@@ -272,6 +273,7 @@ model Company {
   contracts         Contract[]
   briefings         Briefing[]
   costSubscriptions CostSubscription[]
+  costUsageEntries  CostUsageEntry[]
 
   @@unique([organizationId, document])
   @@index([organizationId])
@@ -1330,25 +1332,27 @@ enum CostCategory {
 }
 
 model CostSubscription {
-  id             String           @id @default(cuid())
-  organizationId String           @map("organization_id")
-  companyId      String?          @map("company_id")
-  serviceKey     String?          @map("service_key")
-  name           String
-  scope          CostScope
-  amount         Decimal          @db.Decimal(12, 2)
-  currency       CostCurrency     @default(BRL)
-  billingCycle   CostBillingCycle @default(MONTHLY) @map("billing_cycle")
-  capacityLimit  Int?             @map("capacity_limit")
-  capacityUsed   Int?             @map("capacity_used")
-  isActive       Boolean          @default(true) @map("is_active")
-  notes          String?
-  createdAt      DateTime         @default(now()) @map("created_at")
-  updatedAt      DateTime         @updatedAt @map("updated_at")
+  id              String           @id @default(cuid())
+  organizationId  String           @map("organization_id")
+  companyId       String?          @map("company_id")
+  serviceKey      String?          @map("service_key")
+  name            String
+  scope           CostScope
+  amount          Decimal          @db.Decimal(12, 2)
+  currency        CostCurrency     @default(BRL)
+  billingCycle    CostBillingCycle @default(MONTHLY) @map("billing_cycle")
+  capacityLimit   Int?             @map("capacity_limit")
+  capacityUsed    Int?             @map("capacity_used")
+  creditsIncluded Int?             @map("credits_included")
+  isActive        Boolean          @default(true) @map("is_active")
+  notes           String?
+  createdAt       DateTime         @default(now()) @map("created_at")
+  updatedAt       DateTime         @updatedAt @map("updated_at")
 
   organization         Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   company              Company?              @relation(fields: [companyId], references: [id], onDelete: SetNull)
   pricingEstimateCosts PricingEstimateCost[]
+  costUsageEntries     CostUsageEntry[]
 
   @@index([organizationId, scope])
   @@index([organizationId, isActive])
@@ -1469,6 +1473,7 @@ model PricingEstimateCost {
   amount         Decimal          @db.Decimal(12, 2)
   currency       CostCurrency     @default(BRL)
   billingCycle   CostBillingCycle @default(MONTHLY) @map("billing_cycle")
+  isOneTime      Boolean          @default(false) @map("is_one_time")
 
   organization Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   estimate     PricingEstimate   @relation(fields: [estimateId], references: [id], onDelete: Cascade)
@@ -1476,4 +1481,30 @@ model PricingEstimateCost {
 
   @@index([organizationId, estimateId])
   @@map("pricing_estimate_costs")
+}
+
+// ---------------------------------------------------------------------------
+// Módulo Financeiro (Fase 5) -- Créditos por assinatura e consumo.
+// ---------------------------------------------------------------------------
+
+/// Lançamento de consumo de créditos de uma assinatura com `creditsIncluded`
+/// (ex.: Higgsfield) -- permite acompanhar quanto do plano mensal já foi
+/// usado, opcionalmente atribuído a um Company/cliente específico.
+model CostUsageEntry {
+  id             String   @id @default(cuid())
+  organizationId String   @map("organization_id")
+  subscriptionId String   @map("subscription_id")
+  companyId      String?  @map("company_id")
+  credits        Int
+  usedAt         DateTime @map("used_at")
+  note           String?
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  organization Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  subscription CostSubscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  company      Company?         @relation(fields: [companyId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, usedAt])
+  @@index([organizationId, subscriptionId])
+  @@map("cost_usage_entries")
 }

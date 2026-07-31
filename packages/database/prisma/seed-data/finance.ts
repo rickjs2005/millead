@@ -41,7 +41,7 @@ const CATALOG = [
     billingCycle: "MONTHLY" as const,
     defaultScope: "AGENCY" as const,
     bestFor: "Geração de imagem/vídeo (200 créditos/mês)",
-    billingNotes: "US$ 15/mês no plano anual",
+    billingNotes: "US$ 15/mês no plano anual -- créditos mensais rastreados por assinatura (ver `creditsIncluded`)",
   },
   {
     key: "higgsfield-ultra",
@@ -239,6 +239,7 @@ const RICK_SUBSCRIPTIONS = [
     amount: 239,
     currency: "BRL" as const,
     billingCycle: "MONTHLY" as const,
+    creditsIncluded: 1000,
     notes: "Plano mais barato, valor real no cartão",
   },
   {
