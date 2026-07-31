@@ -13,6 +13,10 @@ export interface EstimateCalcInput {
   supportReservePct: number;
   marginPct: number;
   usdToBrlRate: number;
+  /** Anos de registro de domínio contratados -- null quando o orçamento não tem domínio. */
+  domainYears: number | null;
+  /** Preço BRL por ano de domínio -- 0 quando `domainYears` é null. */
+  domainYearPriceBrl: number;
 }
 
 export interface EstimateComputed {
@@ -23,6 +27,8 @@ export interface EstimateComputed {
   oneTimeCost: number;
   infraCost: number;
   supportReserve: number;
+  /** (domainYears ?? 0) × domainYearPriceBrl -- campo próprio, NÃO entra em infraCost/oneTimeCost. */
+  domainCost: number;
   totalCost: number;
   priceMin: number;
   priceRecommended: number;
@@ -50,7 +56,10 @@ export function computeEstimate(input: EstimateCalcInput): EstimateComputed {
   const infraCost = (infraMonthlyBrl + input.agencyShareMonthly) * input.infraMonths + oneTimeCost;
 
   const supportReserve = devCost * (input.supportReservePct / 100);
-  const totalCost = devCost + infraCost + supportReserve;
+  // Domínio é campo próprio -- fora de infraCost/oneTimeCost (não é um
+  // costItem, e não faz sentido multiplicar por infraMonths).
+  const domainCost = (input.domainYears ?? 0) * input.domainYearPriceBrl;
+  const totalCost = devCost + infraCost + supportReserve + domainCost;
 
   const priceMin = totalCost;
   const priceRecommended = totalCost * (1 + input.marginPct / 100);
@@ -63,6 +72,7 @@ export function computeEstimate(input: EstimateCalcInput): EstimateComputed {
     oneTimeCost,
     infraCost,
     supportReserve,
+    domainCost,
     totalCost,
     priceMin,
     priceRecommended,

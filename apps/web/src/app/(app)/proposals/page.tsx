@@ -1,7 +1,10 @@
 "use client";
 
+import { Plus } from "lucide-react";
+import Link from "next/link";
 import { useState } from "react";
 import { ErrorState } from "@/components/error-state";
+import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Pagination } from "@/components/ui/pagination";
 import {
@@ -11,7 +14,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { CreateProposalDialog } from "@/features/proposals/components/create-proposal-dialog";
 import { ProposalsList } from "@/features/proposals/components/proposals-list";
 import { useProposals } from "@/features/proposals/hooks";
 import { PROPOSAL_STATUS_LABELS } from "@/features/proposals/proposal-labels";
@@ -36,7 +38,13 @@ export default function ProposalsPage() {
             {data ? `${data.total} proposta${data.total === 1 ? "" : "s"}` : "Carregando…"}
           </p>
         </div>
-        <CreateProposalDialog />
+        {/* Unificação (Fase 6): proposta só nasce de orçamento -- o dialog
+            manual de criação de proposta saiu daqui. */}
+        <Button asChild>
+          <Link href="/estimates/new">
+            <Plus /> Novo orçamento
+          </Link>
+        </Button>
       </div>
 
       <Select

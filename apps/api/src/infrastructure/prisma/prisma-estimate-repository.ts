@@ -24,6 +24,8 @@ function toDomainEstimate(row: PricingEstimateRow): PricingEstimateWithItems {
     agencyShareMonthly: row.agencyShareMonthly.toString(),
     supportReservePct: row.supportReservePct.toString(),
     marginPct: row.marginPct.toString(),
+    finalPrice: row.finalPrice ? row.finalPrice.toString() : null,
+    domainYearPriceBrl: row.domainYearPriceBrl ? row.domainYearPriceBrl.toString() : null,
     hoursBreakdown: (row.hoursBreakdown as unknown as HoursLine[]) ?? [],
     scopeItems: (row.scopeItems as unknown as string[]) ?? [],
     costItems: row.costItems.map(toDomainCostItem),

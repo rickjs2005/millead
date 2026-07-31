@@ -2,9 +2,16 @@
 
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
+import { useSearchParams } from "next/navigation";
 import { EstimateEditor } from "@/features/estimates/components/estimate-editor";
 
 export default function NewEstimatePage() {
+  // Unificação (Fase 6): "Novo orçamento" a partir do detalhe de um lead
+  // (quick action) e da página de Propostas linkam pra cá com `?leadId=...`
+  // -- o editor pré-seleciona o lead em vez de nascer sem vínculo.
+  const searchParams = useSearchParams();
+  const leadId = searchParams.get("leadId");
+
   return (
     <div className="flex flex-col gap-4">
       <div>
@@ -20,7 +27,7 @@ export default function NewEstimatePage() {
         </p>
       </div>
 
-      <EstimateEditor />
+      <EstimateEditor defaultLeadId={leadId ?? undefined} />
     </div>
   );
 }

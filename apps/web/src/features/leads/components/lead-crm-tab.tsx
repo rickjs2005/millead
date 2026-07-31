@@ -1,6 +1,7 @@
 "use client";
 
 import { CalendarCheck, CheckSquare, Handshake, Plus } from "lucide-react";
+import Link from "next/link";
 import { EmptyState } from "@/components/empty-state";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -8,7 +9,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CreateMeetingDialog } from "@/features/meetings/components/create-meeting-dialog";
 import { useMeetings } from "@/features/meetings/hooks";
-import { CreateProposalDialog } from "@/features/proposals/components/create-proposal-dialog";
 import { useProposals } from "@/features/proposals/hooks";
 import { CreateTaskDialog } from "@/features/tasks/components/create-task-dialog";
 import { useTasks } from "@/features/tasks/hooks";
@@ -125,14 +125,13 @@ export function LeadCrmTab({ leadId }: { leadId: string }) {
         isEmpty={!proposals.data || proposals.data.items.length === 0}
         emptyLabel="Nenhuma proposta"
         action={
-          <CreateProposalDialog
-            leadId={leadId}
-            trigger={
-              <Button variant="outline" size="sm">
-                <Plus /> Proposta
-              </Button>
-            }
-          />
+          // Unificação (Fase 6): proposta só nasce de orçamento -- linka pro
+          // editor de orçamento já com este lead pré-selecionado.
+          <Button asChild variant="outline" size="sm">
+            <Link href={`/estimates/new?leadId=${leadId}`}>
+              <Plus /> Orçamento
+            </Link>
+          </Button>
         }
       >
         {proposals.data?.items.map((proposal) => (

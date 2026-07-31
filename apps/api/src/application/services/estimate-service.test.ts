@@ -16,6 +16,7 @@ import type { ActivityRepository } from "../../domain/repositories/activity-repo
 import { ActivityLogger } from "./activity-logger.js";
 import { ConflictError, NotFoundError, ValidationError } from "../../domain/errors/app-error.js";
 import { EstimateService } from "./estimate-service.js";
+import { computeEstimate } from "./estimate-calc.js";
 
 const ORG = "org-1";
 const USER = "user-1";
@@ -81,6 +82,9 @@ function fakeEstimate(overrides: Partial<PricingEstimateWithItems> = {}): Pricin
     deadlineDays: 30,
     paymentTerms: "50% início, 50% entrega",
     validDays: 15,
+    finalPrice: null,
+    domainYears: null,
+    domainYearPriceBrl: null,
     createdAt: new Date("2026-07-31"),
     updatedAt: new Date("2026-07-31"),
     costItems: [
@@ -560,6 +564,114 @@ describe("EstimateService", () => {
       expect(result.proposalId).toBe(PROPOSAL_ID);
       expect(result.pdfUrl).toEqual(expect.any(String));
       expect(result.estimate.id).toBe("est-1");
+    });
+
+    it("convert sem body (price ausente) usa finalPrice salvo no orçamento", async () => {
+      const { service, proposals, renderPdf } = fakeRepos({
+        estimates: {
+          findById: vi
+            .fn()
+            .mockResolvedValue(fakeEstimate({ leadId: "lead-1", finalPrice: "7000" })),
+        },
+      });
+
+      const result = await service.convert(ORG, USER, "est-1", {});
+
+      expect(proposals.create).toHaveBeenCalledWith(expect.objectContaining({ value: "7000" }));
+      expect(renderPdf).toHaveBeenCalledWith(expect.objectContaining({ finalPrice: 7000 }));
+      expect(result.proposalId).toBe(PROPOSAL_ID);
+    });
+
+    it("convert sem body e sem finalPrice salvo usa o preço recomendado calculado", async () => {
+      const { service, proposals, renderPdf } = fakeRepos({
+        estimates: {
+          findById: vi
+            .fn()
+            .mockResolvedValue(fakeEstimate({ leadId: "lead-1", finalPrice: null })),
+        },
+      });
+
+      const result = await service.convert(ORG, USER, "est-1", {});
+
+      // Mesma conta que o service faz (toComputed a partir do fixture padrão de
+      // fakeEstimate/fakeSettings) -- via computeEstimate direto pra bater
+      // bit-a-bit com o float real (evita divergência de ponto flutuante
+      // entre recalcular "na mão" e o que o serviço de fato produz).
+      const expectedPrice = computeEstimate({
+        hourlyRate: 120,
+        hoursBreakdown: [
+          { label: "Design", hours: 10 },
+          { label: "Frontend", hours: 25 },
+          { label: "Testes", hours: 7 },
+        ],
+        costItems: [
+          { amount: 20, currency: "USD", billingCycle: "MONTHLY", isOneTime: false },
+          { amount: 40, currency: "BRL", billingCycle: "YEARLY", isOneTime: false },
+        ],
+        agencyShareMonthly: 80,
+        infraMonths: 12,
+        supportReservePct: 10,
+        marginPct: 30,
+        usdToBrlRate: 5,
+        domainYears: null,
+        domainYearPriceBrl: 0,
+      }).priceRecommended;
+
+      expect(proposals.create).toHaveBeenCalledWith(
+        expect.objectContaining({ value: String(expectedPrice) }),
+      );
+      expect(renderPdf).toHaveBeenCalledWith(
+        expect.objectContaining({ finalPrice: expectedPrice }),
+      );
+      expect(result.proposalId).toBe(PROPOSAL_ID);
+    });
+
+    it("convert com price explícito no body tem prioridade sobre finalPrice salvo", async () => {
+      const { service, proposals, renderPdf } = fakeRepos({
+        estimates: {
+          findById: vi
+            .fn()
+            .mockResolvedValue(fakeEstimate({ leadId: "lead-1", finalPrice: "7000" })),
+        },
+      });
+
+      await service.convert(ORG, USER, "est-1", { price: 9999 });
+
+      expect(proposals.create).toHaveBeenCalledWith(expect.objectContaining({ value: "9999" }));
+      expect(renderPdf).toHaveBeenCalledWith(expect.objectContaining({ finalPrice: 9999 }));
+    });
+
+    it("orçamento com domínio: passa domainYears e domainCostBrl (computed.domainCost) pro PDF", async () => {
+      const { service, renderPdf } = fakeRepos({
+        estimates: {
+          findById: vi.fn().mockResolvedValue(
+            fakeEstimate({
+              leadId: "lead-1",
+              finalPrice: "8000",
+              domainYears: 2,
+              domainYearPriceBrl: "40",
+            }),
+          ),
+        },
+      });
+
+      await service.convert(ORG, USER, "est-1", {});
+
+      expect(renderPdf).toHaveBeenCalledWith(
+        expect.objectContaining({ domainYears: 2, domainCostBrl: 80 }),
+      );
+    });
+
+    it("orçamento sem domínio: domainYears null e domainCostBrl 0 no PDF", async () => {
+      const { service, renderPdf } = fakeRepos({
+        estimates: { findById: vi.fn().mockResolvedValue(fakeEstimate({ leadId: "lead-1" })) },
+      });
+
+      await service.convert(ORG, USER, "est-1", { price: 5000 });
+
+      expect(renderPdf).toHaveBeenCalledWith(
+        expect.objectContaining({ domainYears: null, domainCostBrl: 0 }),
+      );
     });
 
     it("falha no upload: remove a proposal criada (cleanup) e não marca o estimate como convertido", async () => {

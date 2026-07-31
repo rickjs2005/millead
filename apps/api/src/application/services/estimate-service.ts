@@ -150,13 +150,18 @@ export class EstimateService {
       : null;
     const computed = this.toComputed(estimate, Number(settings.usdToBrlRate));
 
+    // Fase 6: `price` no body é opcional -- cascata price explícito >
+    // finalPrice decidido pelo dono (se salvo) > preço recomendado calculado.
+    const finalPrice = estimate.finalPrice != null ? Number(estimate.finalPrice) : null;
+    const price = input.price ?? finalPrice ?? computed.priceRecommended;
+
     const validUntil = new Date(Date.now() + estimate.validDays * MS_PER_DAY);
     const proposal = await this.proposals.create({
       organizationId,
       leadId: estimate.leadId,
       createdById: userId,
       title: estimate.title,
-      value: String(input.price),
+      value: String(price),
       currency: "BRL",
       validUntil,
     });
@@ -175,9 +180,11 @@ export class EstimateService {
         deadlineDays: estimate.deadlineDays,
         paymentTerms: estimate.paymentTerms,
         validDays: estimate.validDays,
-        finalPrice: input.price,
+        finalPrice: price,
         infraMonthlyBrl: computed.infraMonthlyBrl,
         infraMonths: estimate.infraMonths,
+        domainYears: estimate.domainYears,
+        domainCostBrl: computed.domainCost,
         createdAt: proposal.createdAt,
       });
 
@@ -279,6 +286,8 @@ export class EstimateService {
       supportReservePct: Number(estimate.supportReservePct),
       marginPct: Number(estimate.marginPct),
       usdToBrlRate,
+      domainYears: estimate.domainYears,
+      domainYearPriceBrl: estimate.domainYearPriceBrl ? Number(estimate.domainYearPriceBrl) : 0,
     });
   }
 }

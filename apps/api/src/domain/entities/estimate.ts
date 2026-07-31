@@ -37,6 +37,11 @@ export interface PricingEstimateWithItems {
   deadlineDays: number;
   paymentTerms: string;
   validDays: number;
+  // Fase 6: preço final decidido pelo dono e domínio por anos -- ambos
+  // opcionais, Decimal do Prisma serializa como string, null quando ausente.
+  finalPrice: string | null;
+  domainYears: number | null;
+  domainYearPriceBrl: string | null;
   createdAt: Date;
   updatedAt: Date;
   costItems: EstimateCostItem[];
