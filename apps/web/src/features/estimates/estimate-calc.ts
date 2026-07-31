@@ -56,12 +56,12 @@ export function computeEstimate(input: EstimateCalcInput): EstimateComputed {
       (acc, item) => acc + monthlyAmountBrl(item.amount, item.currency, item.billingCycle, input.usdToBrlRate),
       0,
     );
+  // One-time IGNORA billingCycle -- só converte moeda, nunca divide por 12
+  // (um item YEARLY aqui não é "por ano", é um valor único; `monthlyAmountBrl`
+  // dividiria silenciosamente e mascararia o custo real).
   const oneTimeCost = input.costItems
     .filter((item) => item.isOneTime)
-    .reduce(
-      (acc, item) => acc + monthlyAmountBrl(item.amount, item.currency, item.billingCycle, input.usdToBrlRate),
-      0,
-    );
+    .reduce((acc, item) => acc + (item.currency === "USD" ? item.amount * input.usdToBrlRate : item.amount), 0);
   // One-time soma 1x, fora do × infraMonths (créditos de projeto não são recorrentes).
   const infraCost = (infraMonthlyBrl + input.agencyShareMonthly) * input.infraMonths + oneTimeCost;
 

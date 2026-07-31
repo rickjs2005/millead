@@ -87,4 +87,27 @@ describe("computeEstimate", () => {
     expect(r.oneTimeCost).toBe(50);
     expect(r.infraCost).toBe(50);
   });
+
+  it("item one-time IGNORA billingCycle -- YEARLY não divide por 12 (bug real: R$1200 não pode virar R$100)", () => {
+    const r = computeEstimate({
+      ...BASE,
+      hoursBreakdown: [...BASE.hoursBreakdown],
+      costItems: [{ amount: 1200, currency: "BRL", billingCycle: "YEARLY", isOneTime: true }],
+      agencyShareMonthly: 0,
+    });
+    expect(r.oneTimeCost).toBe(1200);
+    expect(r.infraCost).toBe(1200);
+  });
+
+  it("item one-time USD + YEARLY -- converte moeda, ainda ignora o ciclo", () => {
+    const r = computeEstimate({
+      ...BASE,
+      hoursBreakdown: [...BASE.hoursBreakdown],
+      costItems: [{ amount: 100, currency: "USD", billingCycle: "YEARLY", isOneTime: true }],
+      agencyShareMonthly: 0,
+      usdToBrlRate: 5,
+    });
+    expect(r.oneTimeCost).toBe(500);
+    expect(r.infraCost).toBe(500);
+  });
 });
