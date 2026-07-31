@@ -179,7 +179,25 @@ export class EstimateService {
 
       await this.proposals.update(proposal.id, organizationId, { pdfUrl });
     } catch (error) {
-      await this.proposals.delete(proposal.id, organizationId);
+      // Cleanup best-effort: a causa raiz é o erro de render/upload acima --
+      // se o PRÓPRIO delete falhar (ex.: DB transitório), só logamos e ainda
+      // assim relançamos o erro ORIGINAL, nunca o do cleanup.
+      try {
+        await this.proposals.delete(proposal.id, organizationId);
+      } catch (cleanupError) {
+        // `config/logger.js` (pino) importa `config/env.js`, que valida
+        // DATABASE_URL/JWT_ACCESS_SECRET/BLOB_READ_WRITE_TOKEN no import --
+        // essa camada (`application/services`) é coberta por testes de
+        // lógica pura (vitest.config.ts) sem esse ambiente configurado, e
+        // nenhum outro service aqui importa o logger de infra. `console.error`
+        // com contexto explícito evita acoplar o service ao setup de env só
+        // pra logar uma falha de cleanup best-effort.
+        console.error("convert: falha ao limpar proposal órfã após erro no PDF/upload", {
+          proposalId: proposal.id,
+          organizationId,
+          cleanupError,
+        });
+      }
       throw error;
     }
 

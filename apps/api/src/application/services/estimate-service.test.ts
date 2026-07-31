@@ -506,5 +506,21 @@ describe("EstimateService", () => {
       expect(estimates.markConverted).not.toHaveBeenCalled();
       expect(proposals.update).not.toHaveBeenCalled();
     });
+
+    it("falha no upload E no delete do cleanup: propaga o erro do UPLOAD (causa raiz), não o do cleanup", async () => {
+      const { service, estimates, proposals } = fakeRepos({
+        estimates: { findById: vi.fn().mockResolvedValue(fakeEstimate({ leadId: "lead-1" })) },
+        blobStorage: { upload: vi.fn().mockRejectedValue(new Error("blob indisponível")) },
+        proposals: { delete: vi.fn().mockRejectedValue(new Error("db indisponível")) },
+      });
+
+      await expect(service.convert(ORG, USER, "est-1", { price: 5000 })).rejects.toThrow(
+        "blob indisponível",
+      );
+
+      expect(proposals.delete).toHaveBeenCalledWith(PROPOSAL_ID, ORG);
+      expect(estimates.markConverted).not.toHaveBeenCalled();
+      expect(proposals.update).not.toHaveBeenCalled();
+    });
   });
 });
