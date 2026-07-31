@@ -92,10 +92,6 @@ const costItemSchema = z.object({
   currency: z.enum(["BRL", "USD"]),
   billingCycle: z.enum(["MONTHLY", "YEARLY"]),
   subscriptionId: z.string().nullable().optional(),
-  /** Bookkeeping só de UI -- marca "adicionado via este checkbox" pra permitir
-   * desmarcar sem tentar resincronizar com o que já veio do banco na edição
-   * (cuidado explícito do brief da Task 6). Nunca vai pro payload da API. */
-  originKey: z.string().optional(),
 });
 
 const schema = z.object({
@@ -313,42 +309,52 @@ function EstimateForm({
     }
   }
 
+  // O estado "marcado" de cada checkbox é sempre derivado dos `costItems`
+  // atuais (por subscriptionId pra assinaturas, por label pra itens de
+  // catálogo) -- nunca de um estado de UI à parte. Isso vale tanto pra
+  // orçamento novo quanto pra edição: se o item já veio carregado do banco
+  // com aquele subscriptionId, a caixa já nasce marcada, e desmarcar remove
+  // essa linha (nunca duplica). Correção pós-revisão da Task 6.
+  function isSubscriptionChecked(subscriptionId: string) {
+    return (values.costItems ?? []).some((c) => c?.subscriptionId === subscriptionId);
+  }
+
+  function isCatalogChecked(item: CostServiceCatalogItem) {
+    return (values.costItems ?? []).some((c) => !c?.subscriptionId && c?.label === item.name);
+  }
+
   function toggleSubscription(subscription: CostSubscription, checked: boolean) {
-    const key = `subscription:${subscription.id}`;
     if (checked) {
+      if (isSubscriptionChecked(subscription.id)) return;
       appendCost({
         label: subscription.name,
         amount: Number(subscription.amount),
         currency: subscription.currency,
         billingCycle: subscription.billingCycle,
         subscriptionId: subscription.id,
-        originKey: key,
       });
     } else {
-      const idx = getValues("costItems").findIndex((c) => c.originKey === key);
+      const idx = getValues("costItems").findIndex((c) => c.subscriptionId === subscription.id);
       if (idx >= 0) removeCost(idx);
     }
   }
 
   function toggleCatalogItem(item: CostServiceCatalogItem, checked: boolean) {
-    const key = `catalog:${item.key}`;
     if (checked) {
+      if (isCatalogChecked(item)) return;
       appendCost({
         label: item.name,
         amount: Number(item.defaultAmount),
         currency: item.currency,
         billingCycle: item.billingCycle,
         subscriptionId: null,
-        originKey: key,
       });
     } else {
-      const idx = getValues("costItems").findIndex((c) => c.originKey === key);
+      const idx = getValues("costItems").findIndex(
+        (c) => !c.subscriptionId && c.label === item.name,
+      );
       if (idx >= 0) removeCost(idx);
     }
-  }
-
-  function isChecked(key: string) {
-    return (values.costItems ?? []).some((c) => c?.originKey === key);
   }
 
   async function submit(formValues: FormValues, status: EstimateStatus) {
@@ -506,55 +512,45 @@ function EstimateForm({
                 <p className="text-xs font-medium text-muted-foreground">
                   Marque pra adicionar como item de custo
                 </p>
-                {clientSubscriptions.map((subscription) => {
-                  const key = `subscription:${subscription.id}`;
-                  return (
-                    <label
-                      key={subscription.id}
-                      className="flex cursor-pointer items-center gap-2 text-sm"
-                    >
-                      <Checkbox
-                        checked={isChecked(key)}
-                        onCheckedChange={(checked) =>
-                          toggleSubscription(subscription, checked === true)
-                        }
-                      />
-                      {subscription.name} —{" "}
-                      {subscription.currency === "USD"
-                        ? `US$ ${Number(subscription.amount).toFixed(2)}`
-                        : formatCurrency(subscription.amount)}
-                      {subscription.billingCycle === "YEARLY" ? "/ano" : "/mês"}
-                    </label>
-                  );
-                })}
-                {catalog.map((item) => {
-                  const key = `catalog:${item.key}`;
-                  return (
-                    <label key={item.key} className="flex cursor-pointer items-center gap-2 text-sm">
-                      <Checkbox
-                        checked={isChecked(key)}
-                        onCheckedChange={(checked) => toggleCatalogItem(item, checked === true)}
-                      />
-                      {item.name} —{" "}
-                      {item.currency === "USD"
-                        ? `US$ ${Number(item.defaultAmount).toFixed(2)}`
-                        : formatCurrency(item.defaultAmount)}
-                      {item.billingCycle === "YEARLY" ? "/ano" : "/mês"}{" "}
-                      <span className="text-xs text-muted-foreground">(catálogo)</span>
-                    </label>
-                  );
-                })}
+                {clientSubscriptions.map((subscription) => (
+                  <label
+                    key={subscription.id}
+                    className="flex cursor-pointer items-center gap-2 text-sm"
+                  >
+                    <Checkbox
+                      checked={isSubscriptionChecked(subscription.id)}
+                      onCheckedChange={(checked) =>
+                        toggleSubscription(subscription, checked === true)
+                      }
+                    />
+                    {subscription.name} —{" "}
+                    {subscription.currency === "USD"
+                      ? `US$ ${Number(subscription.amount).toFixed(2)}`
+                      : formatCurrency(subscription.amount)}
+                    {subscription.billingCycle === "YEARLY" ? "/ano" : "/mês"}
+                  </label>
+                ))}
+                {catalog.map((item) => (
+                  <label key={item.key} className="flex cursor-pointer items-center gap-2 text-sm">
+                    <Checkbox
+                      checked={isCatalogChecked(item)}
+                      onCheckedChange={(checked) => toggleCatalogItem(item, checked === true)}
+                    />
+                    {item.name} —{" "}
+                    {item.currency === "USD"
+                      ? `US$ ${Number(item.defaultAmount).toFixed(2)}`
+                      : formatCurrency(item.defaultAmount)}
+                    {item.billingCycle === "YEARLY" ? "/ano" : "/mês"}{" "}
+                    <span className="text-xs text-muted-foreground">(catálogo)</span>
+                  </label>
+                ))}
               </div>
             )}
 
             <div className="flex flex-col gap-2">
               {costFields.map((field, index) => {
                 const item = values.costItems?.[index];
-                const origin = item?.subscriptionId
-                  ? "Assinatura"
-                  : item?.originKey?.startsWith("catalog:")
-                    ? "Catálogo"
-                    : "Avulso";
+                const origin = item?.subscriptionId ? "Assinatura" : "Avulso";
                 return (
                   <div
                     key={field.id}
