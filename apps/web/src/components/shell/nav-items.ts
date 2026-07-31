@@ -1,6 +1,7 @@
 import {
   BarChart3,
   Building2,
+  Calculator,
   Calendar,
   Clapperboard,
   ClipboardList,
@@ -69,6 +70,7 @@ export const NAV_SECTIONS: NavSection[] = [
   {
     title: "Financeiro",
     items: [
+      { label: "Orçamentos", href: "/estimates", icon: Calculator, permission: "proposals:read" },
       { label: "Centro de Custos", href: "/costs", icon: Wallet, permission: "proposals:read" },
     ],
   },
