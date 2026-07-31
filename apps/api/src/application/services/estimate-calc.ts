@@ -6,7 +6,8 @@ type Cycle = "MONTHLY" | "YEARLY";
 export interface EstimateCalcInput {
   hourlyRate: number;
   hoursBreakdown: { label: string; hours: number }[];
-  costItems: { amount: number; currency: Currency; billingCycle: Cycle }[];
+  // `isOneTime` ausente equivale a false (item recorrente/mensal).
+  costItems: { amount: number; currency: Currency; billingCycle: Cycle; isOneTime?: boolean }[];
   agencyShareMonthly: number;
   infraMonths: number;
   supportReservePct: number;
@@ -18,6 +19,8 @@ export interface EstimateComputed {
   totalHours: number;
   devCost: number;
   infraMonthlyBrl: number;
+  /** Soma 1x dos itens `isOneTime` (ex.: créditos estimados de projeto). */
+  oneTimeCost: number;
   infraCost: number;
   supportReserve: number;
   totalCost: number;
@@ -31,11 +34,20 @@ export function computeEstimate(input: EstimateCalcInput): EstimateComputed {
   const totalHours = input.hoursBreakdown.reduce((acc, h) => acc + h.hours, 0);
   const devCost = totalHours * input.hourlyRate;
 
-  const infraMonthlyBrl = input.costItems.reduce(
-    (acc, item) => acc + monthlyAmountBrl(item.amount, item.currency, item.billingCycle, input.usdToBrlRate),
-    0,
-  );
-  const infraCost = (infraMonthlyBrl + input.agencyShareMonthly) * input.infraMonths;
+  const infraMonthlyBrl = input.costItems
+    .filter((item) => !item.isOneTime)
+    .reduce(
+      (acc, item) => acc + monthlyAmountBrl(item.amount, item.currency, item.billingCycle, input.usdToBrlRate),
+      0,
+    );
+  const oneTimeCost = input.costItems
+    .filter((item) => item.isOneTime)
+    .reduce(
+      (acc, item) => acc + monthlyAmountBrl(item.amount, item.currency, item.billingCycle, input.usdToBrlRate),
+      0,
+    );
+  // One-time soma 1x, fora do × infraMonths (créditos de projeto não são recorrentes).
+  const infraCost = (infraMonthlyBrl + input.agencyShareMonthly) * input.infraMonths + oneTimeCost;
 
   const supportReserve = devCost * (input.supportReservePct / 100);
   const totalCost = devCost + infraCost + supportReserve;
@@ -48,6 +60,7 @@ export function computeEstimate(input: EstimateCalcInput): EstimateComputed {
     totalHours,
     devCost,
     infraMonthlyBrl,
+    oneTimeCost,
     infraCost,
     supportReserve,
     totalCost,

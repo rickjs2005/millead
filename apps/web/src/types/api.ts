@@ -757,6 +757,8 @@ export interface EstimateCostItem {
   amount: string; // Decimal do Prisma serializa como string
   currency: CostCurrency;
   billingCycle: CostBillingCycle;
+  /** Custo único (ex.: créditos de projeto) -- não multiplica por infraMonths. */
+  isOneTime: boolean;
 }
 
 /** Espelho de EstimateComputed em apps/api/src/application/services/estimate-calc.ts. */
@@ -764,6 +766,8 @@ export interface EstimateComputed {
   totalHours: number;
   devCost: number;
   infraMonthlyBrl: number;
+  /** Soma 1x dos itens `isOneTime` (ex.: créditos estimados de projeto). */
+  oneTimeCost: number;
   infraCost: number;
   supportReserve: number;
   totalCost: number;
@@ -817,6 +821,8 @@ export interface EstimateCostItemPayload {
   currency?: CostCurrency;
   billingCycle?: CostBillingCycle;
   subscriptionId?: string | null;
+  /** Ausente equivale a false (item recorrente/mensal). */
+  isOneTime?: boolean;
 }
 
 export interface EstimatePayload {

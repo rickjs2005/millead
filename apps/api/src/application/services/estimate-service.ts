@@ -15,7 +15,6 @@ import type {
   UpdateEstimateInput,
 } from "../dto/estimate.dto.js";
 import { computeEstimate, type EstimateComputed } from "./estimate-calc.js";
-import { computeSummary } from "./cost-service.js";
 import type { ActivityLogger } from "./activity-logger.js";
 import {
   renderProposalPdf,
@@ -67,12 +66,12 @@ export class EstimateService {
   ): Promise<EstimateWithComputed> {
     await this.validateOwnership(organizationId, input);
 
-    const agencyShareMonthly =
-      input.agencyShareMonthly ?? (await this.defaultAgencyShareMonthly(organizationId));
-
+    // Fase 5: sem auto-preenchimento -- ausente vira 0 (o rateio da agência
+    // passa a ser coberto pela margem; o front pode ler /costs/summary e
+    // usar o rateio atual via botão dedicado).
     const estimate = await this.repository.create(organizationId, createdById, {
       ...input,
-      agencyShareMonthly,
+      agencyShareMonthly: input.agencyShareMonthly ?? 0,
     });
     return this.withComputed(estimate);
   }
@@ -260,31 +259,6 @@ export class EstimateService {
     }
   }
 
-  /** Sem `agencyShareMonthly` explícito no CREATE, usa o rateio atual (mesma conta do resumo de custos). */
-  private async defaultAgencyShareMonthly(organizationId: string): Promise<number> {
-    const [subscriptions, settings, wonLeadsCount] = await Promise.all([
-      this.costs.listSubscriptions(organizationId),
-      this.costs.getSettings(organizationId),
-      this.costs.countWonLeads(organizationId),
-    ]);
-    const summary = computeSummary(
-      subscriptions.map((s) => ({
-        id: s.id,
-        name: s.name,
-        scope: s.scope,
-        amount: Number(s.amount),
-        currency: s.currency,
-        billingCycle: s.billingCycle,
-        isActive: s.isActive,
-        capacityUsed: s.capacityUsed,
-        capacityLimit: s.capacityLimit,
-      })),
-      { usdToBrlRate: Number(settings.usdToBrlRate), activeClientsCount: settings.activeClientsCount },
-      wonLeadsCount,
-    );
-    return summary.perClientShareBrl;
-  }
-
   private async withComputed(estimate: PricingEstimateWithItems): Promise<EstimateWithComputed> {
     const settings = await this.costs.getSettings(estimate.organizationId);
     return { ...estimate, computed: this.toComputed(estimate, Number(settings.usdToBrlRate)) };
@@ -298,6 +272,7 @@ export class EstimateService {
         amount: Number(item.amount),
         currency: item.currency,
         billingCycle: item.billingCycle,
+        isOneTime: item.isOneTime,
       })),
       agencyShareMonthly: Number(estimate.agencyShareMonthly),
       infraMonths: estimate.infraMonths,

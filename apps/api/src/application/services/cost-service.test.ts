@@ -1,9 +1,16 @@
 import { describe, expect, it, vi } from "vitest";
 import type { CompanyRepository } from "../../domain/repositories/company-repository.js";
 import type { CostRepository } from "../../domain/repositories/cost-repository.js";
-import type { CostSubscription, FinanceSettings } from "../../domain/entities/cost.js";
+import type { CostSubscription, CostUsageEntry, FinanceSettings } from "../../domain/entities/cost.js";
 import { NotFoundError } from "../../domain/errors/app-error.js";
-import { CostService, monthlyAmountBrl, computeSummary, computeCapacity } from "./cost-service.js";
+import {
+  CostService,
+  monthlyAmountBrl,
+  computeSummary,
+  computeCapacity,
+  computeUsageSummary,
+  currentMonthInTimeZone,
+} from "./cost-service.js";
 
 describe("monthlyAmountBrl", () => {
   it("mantém BRL mensal como está", () => {
@@ -183,10 +190,26 @@ function fakeSubscription(overrides: Partial<CostSubscription> = {}): CostSubscr
     billingCycle: "MONTHLY",
     capacityLimit: null,
     capacityUsed: null,
+    creditsIncluded: null,
     isActive: true,
     notes: null,
     createdAt: new Date("2026-07-31"),
     updatedAt: new Date("2026-07-31"),
+    ...overrides,
+  };
+}
+
+function fakeUsageEntry(overrides: Partial<CostUsageEntry> = {}): CostUsageEntry {
+  return {
+    id: "usage-1",
+    organizationId: ORG,
+    subscriptionId: "sub-1",
+    companyId: null,
+    companyName: null,
+    credits: 100,
+    usedAt: new Date("2026-07-15"),
+    note: null,
+    createdAt: new Date("2026-07-15"),
     ...overrides,
   };
 }
@@ -217,6 +240,9 @@ function fakeRepos(costOverrides: Partial<CostRepository> = {}) {
     getSettings: vi.fn().mockResolvedValue(fakeSettings()),
     updateSettings: vi.fn().mockResolvedValue(fakeSettings()),
     countWonLeads: vi.fn().mockResolvedValue(0),
+    listUsage: vi.fn().mockResolvedValue([]),
+    createUsage: vi.fn().mockResolvedValue(fakeUsageEntry()),
+    deleteUsage: vi.fn().mockResolvedValue(false),
     ...costOverrides,
   } as unknown as CostRepository;
   const companies = {
@@ -224,6 +250,109 @@ function fakeRepos(costOverrides: Partial<CostRepository> = {}) {
   } as unknown as CompanyRepository;
   return { costs, companies, service: new CostService(costs, companies) };
 }
+
+describe("currentMonthInTimeZone", () => {
+  it("formata YYYY-MM no fuso informado", () => {
+    // 2026-07-31T02:00:00Z ainda é 30/06 em UTC-3 (America/Sao_Paulo) -- então
+    // o mês corrente lá é junho, mesmo já sendo dia 31 em UTC.
+    expect(currentMonthInTimeZone(new Date("2026-07-01T02:00:00Z"))).toBe("2026-06");
+    expect(currentMonthInTimeZone(new Date("2026-07-01T12:00:00Z"))).toBe("2026-07");
+  });
+});
+
+describe("computeUsageSummary", () => {
+  const higgsfield = {
+    id: "sub-hf",
+    name: "Higgsfield",
+    amount: 239,
+    currency: "BRL" as const,
+    billingCycle: "MONTHLY" as const,
+    creditsIncluded: 1000,
+  };
+  const semCreditos = {
+    id: "sub-nc",
+    name: "Vercel Pro",
+    amount: 100,
+    currency: "BRL" as const,
+    billingCycle: "MONTHLY" as const,
+    creditsIncluded: null,
+  };
+
+  it("unitário derivado = monthlyAmountBrl(sub) / creditsIncluded", () => {
+    const s = computeUsageSummary(
+      [{ subscriptionId: "sub-hf", companyId: null, companyName: null, credits: 400 }],
+      [higgsfield],
+      5,
+    );
+    expect(s.bySubscription).toEqual([
+      {
+        subscriptionId: "sub-hf",
+        name: "Higgsfield",
+        credits: 400,
+        creditsIncluded: 1000,
+        unitPriceBrl: 0.239,
+        costBrl: 400 * 0.239,
+      },
+    ]);
+    expect(s.unitPriceBrl).toBeCloseTo(0.239, 3);
+    expect(s.totalCredits).toBe(400);
+  });
+
+  it("agrega por cliente -- companyId null vira 'Sem cliente'", () => {
+    const s = computeUsageSummary(
+      [
+        { subscriptionId: "sub-hf", companyId: "company-1", companyName: "Cliente A", credits: 300 },
+        { subscriptionId: "sub-hf", companyId: "company-1", companyName: "Cliente A", credits: 100 },
+        { subscriptionId: "sub-hf", companyId: null, companyName: null, credits: 50 },
+      ],
+      [higgsfield],
+      5,
+    );
+    expect(s.byClient).toEqual([
+      { companyId: "company-1", companyName: "Cliente A", credits: 400, costBrl: 400 * 0.239 },
+      { companyId: null, companyName: "Sem cliente", credits: 50, costBrl: 50 * 0.239 },
+    ]);
+    expect(s.totalCredits).toBe(450);
+  });
+
+  it("assinatura sem creditsIncluded -> unitPrice null e costBrl 0", () => {
+    const s = computeUsageSummary(
+      [{ subscriptionId: "sub-nc", companyId: null, companyName: null, credits: 20 }],
+      [semCreditos],
+      5,
+    );
+    expect(s.bySubscription).toEqual([
+      {
+        subscriptionId: "sub-nc",
+        name: "Vercel Pro",
+        credits: 20,
+        creditsIncluded: null,
+        unitPriceBrl: null,
+        costBrl: 0,
+      },
+    ]);
+    expect(s.unitPriceBrl).toBeNull();
+    expect(s.byClient).toEqual([{ companyId: null, companyName: "Sem cliente", credits: 20, costBrl: 0 }]);
+  });
+
+  it("mês vazio -- sem lançamentos dá resumo zerado", () => {
+    const s = computeUsageSummary([], [higgsfield], 5);
+    expect(s).toEqual({ unitPriceBrl: null, totalCredits: 0, bySubscription: [], byClient: [] });
+  });
+
+  it("mais de uma assinatura com creditsIncluded no período -> unitPriceBrl de topo fica null (ambíguo)", () => {
+    const s = computeUsageSummary(
+      [
+        { subscriptionId: "sub-hf", companyId: null, companyName: null, credits: 100 },
+        { subscriptionId: "sub-2", companyId: null, companyName: null, credits: 50 },
+      ],
+      [higgsfield, { ...higgsfield, id: "sub-2", name: "Higgsfield 2", amount: 478, creditsIncluded: 2000 }],
+      5,
+    );
+    expect(s.unitPriceBrl).toBeNull();
+    expect(s.bySubscription).toHaveLength(2);
+  });
+});
 
 describe("CostService", () => {
   it("updateSubscription lança NotFoundError quando a assinatura não é da org", async () => {
@@ -299,5 +428,107 @@ describe("CostService", () => {
     expect(s.activeSubscriptions).toBe(2);
     expect(s.capacity).toEqual([{ id: "sub-1", name: "Claude Max 5x", used: 12, limit: 15, pct: 80 }]);
     expect(s.maxCapacityPct).toBe(80);
+  });
+
+  describe("usage", () => {
+    it("listUsage com mês explícito filtra by from/to em UTC", async () => {
+      const { service, costs } = fakeRepos();
+      await service.listUsage(ORG, "2026-07");
+      expect(costs.listUsage).toHaveBeenCalledWith(ORG, {
+        from: new Date("2026-07-01T00:00:00.000Z"),
+        to: new Date("2026-08-01T00:00:00.000Z"),
+      });
+    });
+
+    it("listUsage sem mês usa o mês corrente (America/Sao_Paulo)", async () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date("2026-07-15T12:00:00Z"));
+      try {
+        const { service, costs } = fakeRepos();
+        await service.listUsage(ORG);
+        expect(costs.listUsage).toHaveBeenCalledWith(ORG, {
+          from: new Date("2026-07-01T00:00:00.000Z"),
+          to: new Date("2026-08-01T00:00:00.000Z"),
+        });
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it("createUsage rejeita subscriptionId de outra org sem gravar", async () => {
+      const { service, costs } = fakeRepos({ findSubscriptionById: vi.fn().mockResolvedValue(null) });
+      await expect(
+        service.createUsage(ORG, {
+          subscriptionId: "sub-x",
+          companyId: null,
+          credits: 10,
+          usedAt: new Date("2026-07-15"),
+        }),
+      ).rejects.toThrow(NotFoundError);
+      expect(costs.createUsage).not.toHaveBeenCalled();
+    });
+
+    it("createUsage rejeita companyId de outra org sem gravar", async () => {
+      const { service, costs, companies } = fakeRepos({
+        findSubscriptionById: vi.fn().mockResolvedValue(fakeSubscription()),
+      });
+      await expect(
+        service.createUsage(ORG, {
+          subscriptionId: "sub-1",
+          companyId: "company-de-outra-org",
+          credits: 10,
+          usedAt: new Date("2026-07-15"),
+        }),
+      ).rejects.toThrow(NotFoundError);
+      expect(companies.findByIdForOrg).toHaveBeenCalledWith("company-de-outra-org", ORG);
+      expect(costs.createUsage).not.toHaveBeenCalled();
+    });
+
+    it("createUsage sem companyId não consulta companies e grava", async () => {
+      const { service, costs, companies } = fakeRepos({
+        findSubscriptionById: vi.fn().mockResolvedValue(fakeSubscription()),
+      });
+      await service.createUsage(ORG, {
+        subscriptionId: "sub-1",
+        credits: 10,
+        usedAt: new Date("2026-07-15"),
+      });
+      expect(companies.findByIdForOrg).not.toHaveBeenCalled();
+      expect(costs.createUsage).toHaveBeenCalledWith(
+        ORG,
+        expect.objectContaining({ subscriptionId: "sub-1", credits: 10 }),
+      );
+    });
+
+    it("deleteUsage lança NotFoundError quando o repo não encontra", async () => {
+      const { service } = fakeRepos({ deleteUsage: vi.fn().mockResolvedValue(false) });
+      await expect(service.deleteUsage(ORG, "usage-x")).rejects.toThrow(NotFoundError);
+    });
+
+    it("getUsageSummary monta o resumo a partir de listUsage/listSubscriptions/getSettings", async () => {
+      const { service } = fakeRepos({
+        listUsage: vi.fn().mockResolvedValue([
+          fakeUsageEntry({ subscriptionId: "sub-1", credits: 400 }),
+        ]),
+        listSubscriptions: vi.fn().mockResolvedValue([
+          fakeSubscription({ id: "sub-1", name: "Higgsfield", amount: "239", creditsIncluded: 1000 }),
+        ]),
+        getSettings: vi.fn().mockResolvedValue(fakeSettings({ usdToBrlRate: "5.00" })),
+      });
+      const summary = await service.getUsageSummary(ORG, "2026-07");
+      expect(summary.month).toBe("2026-07");
+      expect(summary.totalCredits).toBe(400);
+      expect(summary.unitPriceBrl).toBeCloseTo(0.239, 3);
+      expect(summary.bySubscription).toEqual([
+        {
+          subscriptionId: "sub-1",
+          name: "Higgsfield",
+          credits: 400,
+          creditsIncluded: 1000,
+          unitPriceBrl: 0.239,
+          costBrl: 400 * 0.239,
+        },
+      ]);
+    });
   });
 });
