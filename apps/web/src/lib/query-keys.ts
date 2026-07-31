@@ -59,6 +59,8 @@ export const queryKeys = {
     catalog: () => ["costs", "catalog"] as const,
     settings: () => ["costs", "settings"] as const,
     summary: () => ["costs", "summary"] as const,
+    usage: (month: string) => ["costs", "usage", month] as const,
+    usageSummary: (month: string) => ["costs", "usageSummary", month] as const,
   },
   estimates: {
     list: (params: object) => ["estimates", "list", params] as const,

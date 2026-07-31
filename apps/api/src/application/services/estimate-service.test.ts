@@ -33,6 +33,7 @@ function fakeSubscription(overrides: Partial<CostSubscription> = {}): CostSubscr
     billingCycle: "MONTHLY",
     capacityLimit: null,
     capacityUsed: null,
+    creditsIncluded: null,
     isActive: true,
     notes: null,
     createdAt: new Date("2026-07-31"),
@@ -92,6 +93,7 @@ function fakeEstimate(overrides: Partial<PricingEstimateWithItems> = {}): Pricin
         amount: "20",
         currency: "USD",
         billingCycle: "MONTHLY",
+        isOneTime: false,
       },
       {
         id: "item-2",
@@ -102,6 +104,7 @@ function fakeEstimate(overrides: Partial<PricingEstimateWithItems> = {}): Pricin
         amount: "40",
         currency: "BRL",
         billingCycle: "YEARLY",
+        isOneTime: false,
       },
     ],
     ...overrides,
@@ -317,7 +320,9 @@ const CREATE_INPUT = {
     { label: "Frontend", hours: 25 },
     { label: "Testes", hours: 7 },
   ],
-  costItems: [{ label: "Vercel Pro", amount: 20, currency: "USD" as const, billingCycle: "MONTHLY" as const }],
+  costItems: [
+    { label: "Vercel Pro", amount: 20, currency: "USD" as const, billingCycle: "MONTHLY" as const, isOneTime: false },
+  ],
   agencyShareMonthly: 80,
   infraMonths: 12,
   supportReservePct: 10,
@@ -346,30 +351,40 @@ describe("EstimateService", () => {
       service.create(ORG, USER, {
         ...CREATE_INPUT,
         costItems: [
-          { label: "Assinatura fantasma", amount: 10, currency: "BRL", billingCycle: "MONTHLY", subscriptionId: "sub-x" },
+          {
+            label: "Assinatura fantasma",
+            amount: 10,
+            currency: "BRL",
+            billingCycle: "MONTHLY",
+            subscriptionId: "sub-x",
+            isOneTime: false,
+          },
         ],
       }),
     ).rejects.toThrow(NotFoundError);
     expect(estimates.create).not.toHaveBeenCalled();
   });
 
-  it("create sem agencyShareMonthly puxa o rateio do resumo (perClientShareBrl)", async () => {
-    const { service, estimates } = fakeRepos({
-      costs: {
-        listSubscriptions: vi.fn().mockResolvedValue([
-          fakeSubscription({ scope: "AGENCY", amount: "550", currency: "BRL" }),
-        ]),
-        getSettings: vi.fn().mockResolvedValue(fakeSettings({ usdToBrlRate: "5.00", activeClientsCount: 2 })),
-        countWonLeads: vi.fn().mockResolvedValue(3),
-      },
-    });
+  it("create sem agencyShareMonthly grava 0 -- Fase 5 removeu o auto-preenchimento", async () => {
+    const { service, estimates, costs } = fakeRepos();
     const { agencyShareMonthly: _drop, ...withoutShare } = CREATE_INPUT;
     await service.create(ORG, USER, withoutShare);
-    // perClientShareBrl = 550 / 2 = 275
     expect(estimates.create).toHaveBeenCalledWith(
       ORG,
       USER,
-      expect.objectContaining({ agencyShareMonthly: 275 }),
+      expect.objectContaining({ agencyShareMonthly: 0 }),
+    );
+    // Nenhuma consulta ao resumo de custos -- o rateio não é mais derivado no CREATE.
+    expect(costs.countWonLeads).not.toHaveBeenCalled();
+  });
+
+  it("create com agencyShareMonthly explícito (mesmo 0) respeita o valor informado", async () => {
+    const { service, estimates } = fakeRepos();
+    await service.create(ORG, USER, { ...CREATE_INPUT, agencyShareMonthly: 0 });
+    expect(estimates.create).toHaveBeenCalledWith(
+      ORG,
+      USER,
+      expect.objectContaining({ agencyShareMonthly: 0 }),
     );
   });
 
@@ -379,7 +394,37 @@ describe("EstimateService", () => {
     expect(result.computed.totalHours).toBe(42);
     expect(result.computed.devCost).toBe(42 * 120);
     expect(result.computed.infraMonthlyBrl).toBeCloseTo(100 + 40 / 12, 2);
+    expect(result.computed.oneTimeCost).toBe(0);
     expect(result.computed.totalCost).toBeCloseTo(5040 + 2200 + 504, 1);
+  });
+
+  it("get mapeia isOneTime do costItem pro computeEstimate (custo único não multiplica por infraMonths)", async () => {
+    const { service } = fakeRepos({
+      estimates: {
+        findById: vi.fn().mockResolvedValue(
+          fakeEstimate({
+            costItems: [
+              {
+                id: "item-hf",
+                organizationId: ORG,
+                estimateId: "est-1",
+                subscriptionId: "sub-1",
+                label: "Higgsfield (1000 créditos)",
+                amount: "239",
+                currency: "BRL",
+                billingCycle: "MONTHLY",
+                isOneTime: true,
+              },
+            ],
+          }),
+        ),
+      },
+    });
+    const result = await service.get(ORG, "est-1");
+    expect(result.computed.infraMonthlyBrl).toBe(0);
+    expect(result.computed.oneTimeCost).toBe(239);
+    // (0 + agencyShareMonthly=80) * infraMonths=12 + 239 (não 239 * 12)
+    expect(result.computed.infraCost).toBeCloseTo(80 * 12 + 239, 5);
   });
 
   it("update lança NotFoundError quando o orçamento não é da org", async () => {

@@ -101,6 +101,7 @@ export class PrismaEstimateRepository implements EstimateRepository {
               currency: item.currency,
               billingCycle: item.billingCycle,
               subscriptionId: item.subscriptionId ?? null,
+              isOneTime: item.isOneTime,
             })),
           },
         },
@@ -137,6 +138,7 @@ export class PrismaEstimateRepository implements EstimateRepository {
               currency: item.currency,
               billingCycle: item.billingCycle,
               subscriptionId: item.subscriptionId ?? null,
+              isOneTime: item.isOneTime,
             })),
           });
         }

@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { CapacitySection } from "@/features/finance/components/capacity-section";
 import { CostSubscriptionDialog } from "@/features/finance/components/cost-subscription-dialog";
+import { CreditUsageSection } from "@/features/finance/components/credit-usage-section";
 import { CostSubscriptionsList } from "@/features/finance/components/cost-subscriptions-list";
 import { CostSummaryCards } from "@/features/finance/components/cost-summary-cards";
 import { FinanceSettingsDialog } from "@/features/finance/components/finance-settings-dialog";
@@ -40,6 +41,8 @@ export default function CostsPage() {
       <CostSummaryCards />
 
       <CapacitySection />
+
+      <CreditUsageSection />
 
       <Card className="overflow-hidden p-0">
         <CostSubscriptionsList />

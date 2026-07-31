@@ -1,9 +1,15 @@
 import type {
   CreateCostSubscriptionInput,
+  CreateUsageEntryInput,
   UpdateCostSubscriptionInput,
   UpdateFinanceSettingsInput,
 } from "../../application/dto/cost.dto.js";
-import type { CostSubscription, CostServiceCatalog, FinanceSettings } from "../entities/cost.js";
+import type {
+  CostSubscription,
+  CostServiceCatalog,
+  CostUsageEntry,
+  FinanceSettings,
+} from "../entities/cost.js";
 
 export interface CostRepository {
   listSubscriptions(organizationId: string): Promise<CostSubscription[]>;
@@ -25,4 +31,7 @@ export interface CostRepository {
     data: UpdateFinanceSettingsInput,
   ): Promise<FinanceSettings>;
   countWonLeads(organizationId: string): Promise<number>;
+  listUsage(organizationId: string, range: { from: Date; to: Date }): Promise<CostUsageEntry[]>;
+  createUsage(organizationId: string, data: CreateUsageEntryInput): Promise<CostUsageEntry>;
+  deleteUsage(organizationId: string, id: string): Promise<boolean>;
 }

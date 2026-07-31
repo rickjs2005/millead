@@ -14,6 +14,8 @@ export interface EstimateCostItem {
   amount: string; // Decimal do Prisma serializa como string
   currency: CostCurrency;
   billingCycle: CostBillingCycle;
+  /** Custo único (ex.: créditos de projeto) -- não multiplica por infraMonths. */
+  isOneTime: boolean;
 }
 
 export interface PricingEstimateWithItems {

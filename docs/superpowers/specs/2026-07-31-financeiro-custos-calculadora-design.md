@@ -126,6 +126,18 @@ Seção nova **"Financeiro"** em `nav-items.ts` (permission `proposals:read`):
 
 Cada fase: migration aplicada em produção (`pnpm db:migrate:deploy` manual, padrão atual), deploy API (Render auto via push) + web (Vercel), verificação no ar em `millead.milweb.com.br`.
 
+### Fase 5 — Créditos por cliente (aprovada pelo Rick em 31/07/2026, após uso real das fases 1-4)
+
+Motivação: "na conta do cliente deveria cair apenas o Higgsfield — calcular quantos créditos gastei com aquele cliente". Modelo: custo por consumo em vez de rateio cego. Decisões do Rick: plano Higgsfield = **1.000 créditos/mês por R$ 239** (crédito ≈ R$ 0,239); estimar créditos no orçamento **e** registrar consumo real por cliente; **rateio da agência zerado por padrão** na calculadora (campo continua editável, com botão "usar rateio atual"; o custo da agência passa a ser coberto pela margem).
+
+Modelagem:
+- `CostSubscription.creditsIncluded Int?` — créditos/mês do plano; preço unitário derivado = mensal BRL ÷ creditsIncluded.
+- `CostUsageEntry` (nova, org-scoped, RLS): subscriptionId, companyId?, credits Int, usedAt DateTime, note?; lançamentos manuais do consumo real.
+- `PricingEstimateCost.isOneTime Boolean @default(false)` — créditos de projeto são custo ÚNICO, não mensal: `computeEstimate` passa a somar itens one-time 1× (fora do × infraMonths), API e espelho client.
+- API: `GET/POST/DELETE /api/v1/costs/usage` (+ `GET /api/v1/costs/usage/summary?month=` → total de créditos do mês, % do incluído, agregado por cliente, custo BRL por cliente).
+- UI: campo "créditos inclusos/mês" no dialog de assinatura; seção "Consumo de créditos" no Centro de Custos (lançar + listar + barra usados/incluídos + total por cliente); na calculadora, estimador "créditos previstos" (para assinaturas com creditsIncluded) que gera linha one-time `N créditos × R$ unit`, e rateio default 0.
+- PDF: sem mudança (custos one-time entram no valor de desenvolvimento).
+
 ### Fora de escopo (YAGNI, anotado para o futuro)
 
 - Consulta automática às APIs de billing/usage da Vercel/Supabase/Render (contadores são manuais no v1; a conta Vercel conectada ao MCP só enxerga 1 projeto, então automação exigiria tokens por conta).

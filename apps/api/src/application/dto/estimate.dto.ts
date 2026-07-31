@@ -9,13 +9,24 @@ export const hoursLineSchema = z.object({
 });
 export type HoursLineInput = z.infer<typeof hoursLineSchema>;
 
-export const costItemSchema = z.object({
-  label: z.string().min(1).max(80),
-  amount: money,
-  currency: z.enum(["BRL", "USD"]).default("BRL"),
-  billingCycle: z.enum(["MONTHLY", "YEARLY"]).default("MONTHLY"),
-  subscriptionId: z.string().min(1).optional().nullable(),
-});
+export const costItemSchema = z
+  .object({
+    label: z.string().min(1).max(80),
+    amount: money,
+    currency: z.enum(["BRL", "USD"]).default("BRL"),
+    billingCycle: z.enum(["MONTHLY", "YEARLY"]).default("MONTHLY"),
+    subscriptionId: z.string().min(1).optional().nullable(),
+    // Custo único (ex.: créditos estimados de um projeto) -- não multiplica
+    // por infraMonths no computeEstimate, some 1x em oneTimeCost. Ignora
+    // billingCycle no cálculo (computeEstimate/estimate-calc.ts) -- o refine
+    // abaixo é cinto e suspensório pra nem deixar gravar a combinação
+    // ambígua (YEARLY não tem sentido pra um custo único).
+    isOneTime: z.boolean().default(false),
+  })
+  .refine((item) => !item.isOneTime || item.billingCycle === "MONTHLY", {
+    message: "Custo único deve usar ciclo mensal.",
+    path: ["billingCycle"],
+  });
 export type CostItemInput = z.infer<typeof costItemSchema>;
 
 export const createEstimateSchema = z.object({
@@ -27,7 +38,9 @@ export const createEstimateSchema = z.object({
   hourlyRate: money,
   hoursBreakdown: z.array(hoursLineSchema).max(20),
   costItems: z.array(costItemSchema).max(30),
-  // Ausente no CREATE -- o service preenche com o rateio atual (perClientShareBrl).
+  // Ausente no CREATE vira 0 (Fase 5: sem auto-preenchimento -- o rateio é
+  // coberto pela margem; o front pode ler /costs/summary e usar o valor
+  // atual via botão "usar rateio atual").
   agencyShareMonthly: money.optional(),
   infraMonths: z.number().int().min(0).max(60),
   supportReservePct: z.number().min(0).max(100),

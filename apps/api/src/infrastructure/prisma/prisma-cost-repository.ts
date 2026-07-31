@@ -1,11 +1,17 @@
 import { prisma, Prisma } from "@millead/database";
 import type {
   CreateCostSubscriptionInput,
+  CreateUsageEntryInput,
   UpdateCostSubscriptionInput,
   UpdateFinanceSettingsInput,
 } from "../../application/dto/cost.dto.js";
 import type { CostRepository } from "../../domain/repositories/cost-repository.js";
-import type { CostSubscription, CostServiceCatalog, FinanceSettings } from "../../domain/entities/cost.js";
+import type {
+  CostSubscription,
+  CostServiceCatalog,
+  CostUsageEntry,
+  FinanceSettings,
+} from "../../domain/entities/cost.js";
 
 interface CostSubscriptionRow {
   id: string;
@@ -19,6 +25,7 @@ interface CostSubscriptionRow {
   billingCycle: CostSubscription["billingCycle"];
   capacityLimit: number | null;
   capacityUsed: number | null;
+  creditsIncluded: number | null;
   isActive: boolean;
   notes: string | null;
   createdAt: Date;
@@ -61,6 +68,32 @@ interface FinanceSettingsRow {
   activeClientsCount: number;
   createdAt: Date;
   updatedAt: Date;
+}
+
+interface CostUsageEntryRow {
+  id: string;
+  organizationId: string;
+  subscriptionId: string;
+  companyId: string | null;
+  credits: number;
+  usedAt: Date;
+  note: string | null;
+  createdAt: Date;
+  company: { name: string } | null;
+}
+
+function toDomainUsage(row: CostUsageEntryRow): CostUsageEntry {
+  return {
+    id: row.id,
+    organizationId: row.organizationId,
+    subscriptionId: row.subscriptionId,
+    companyId: row.companyId,
+    companyName: row.company?.name ?? null,
+    credits: row.credits,
+    usedAt: row.usedAt,
+    note: row.note,
+    createdAt: row.createdAt,
+  };
 }
 
 function toDomainSettings(row: FinanceSettingsRow): FinanceSettings {
@@ -151,5 +184,42 @@ export class PrismaCostRepository implements CostRepository {
 
   countWonLeads(organizationId: string): Promise<number> {
     return prisma.lead.count({ where: { organizationId, status: "WON" } });
+  }
+
+  async listUsage(
+    organizationId: string,
+    range: { from: Date; to: Date },
+  ): Promise<CostUsageEntry[]> {
+    const rows = await prisma.costUsageEntry.findMany({
+      where: { organizationId, usedAt: { gte: range.from, lt: range.to } },
+      include: { company: { select: { name: true } } },
+      orderBy: { usedAt: "desc" },
+    });
+    return rows.map(toDomainUsage);
+  }
+
+  async createUsage(
+    organizationId: string,
+    data: CreateUsageEntryInput,
+  ): Promise<CostUsageEntry> {
+    const row = await prisma.costUsageEntry.create({
+      data: {
+        organizationId,
+        subscriptionId: data.subscriptionId,
+        companyId: data.companyId ?? null,
+        credits: data.credits,
+        usedAt: data.usedAt,
+        note: data.note ?? null,
+      },
+      include: { company: { select: { name: true } } },
+    });
+    return toDomainUsage(row);
+  }
+
+  async deleteUsage(organizationId: string, id: string): Promise<boolean> {
+    const existing = await prisma.costUsageEntry.findFirst({ where: { id, organizationId } });
+    if (!existing) return false;
+    await prisma.costUsageEntry.delete({ where: { id } });
+    return true;
   }
 }
