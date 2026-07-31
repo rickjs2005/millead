@@ -9,7 +9,7 @@ export const createCostSubscriptionSchema = z.object({
   currency: z.enum(["BRL", "USD"]).default("BRL"),
   billingCycle: z.enum(["MONTHLY", "YEARLY"]).default("MONTHLY"),
   serviceKey: z.string().max(60).optional().nullable(),
-  companyId: z.string().cuid().optional().nullable(),
+  companyId: z.string().min(1).optional().nullable(),
   capacityLimit: z.number().int().min(0).max(100000).optional().nullable(),
   capacityUsed: z.number().int().min(0).max(100000).optional().nullable(),
   isActive: z.boolean().default(true),
