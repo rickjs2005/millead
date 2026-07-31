@@ -1294,16 +1294,22 @@ model PushSubscription {
 enum CostScope {
   AGENCY
   CLIENT
+
+  @@map("cost_scope")
 }
 
 enum CostCurrency {
   BRL
   USD
+
+  @@map("cost_currency")
 }
 
 enum CostBillingCycle {
   MONTHLY
   YEARLY
+
+  @@map("cost_billing_cycle")
 }
 
 enum CostCategory {
@@ -1314,6 +1320,8 @@ enum CostCategory {
   EMAIL
   SIGNATURE
   OTHER
+
+  @@map("cost_category")
 }
 
 model CostSubscription {
