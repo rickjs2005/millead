@@ -319,10 +319,6 @@ function EstimateForm({
     return (values.costItems ?? []).some((c) => c?.subscriptionId === subscriptionId);
   }
 
-  function isCatalogChecked(item: CostServiceCatalogItem) {
-    return (values.costItems ?? []).some((c) => !c?.subscriptionId && c?.label === item.name);
-  }
-
   function toggleSubscription(subscription: CostSubscription, checked: boolean) {
     if (checked) {
       if (isSubscriptionChecked(subscription.id)) return;
@@ -339,22 +335,36 @@ function EstimateForm({
     }
   }
 
-  function toggleCatalogItem(item: CostServiceCatalogItem, checked: boolean) {
-    if (checked) {
-      if (isCatalogChecked(item)) return;
-      appendCost({
-        label: item.name,
-        amount: Number(item.defaultAmount),
-        currency: item.currency,
-        billingCycle: item.billingCycle,
-        subscriptionId: null,
-      });
-    } else {
-      const idx = getValues("costItems").findIndex(
-        (c) => !c.subscriptionId && c.label === item.name,
-      );
-      if (idx >= 0) removeCost(idx);
-    }
+  // Itens de catálogo não têm uma chave estável no snapshot persistido
+  // (`EstimateCostItem` só guarda label/amount/currency/billingCycle) --
+  // "nome de catálogo" não é único (dois itens podem ter o mesmo nome, ou um
+  // avulso pode coincidir com um nome de catálogo), então um checkbox
+  // sincronizado por label dá falso-marcado e remove a linha errada. Por
+  // isso isto é um botão "Adicionar" (sem estado marcado): clicar sempre
+  // adiciona uma linha nova, e só fica desabilitado como guarda anti-duplo-
+  // clique quando já existe uma linha SEM subscriptionId idêntica em
+  // label+amount+currency+billingCycle. Remover é sempre feito na própria
+  // linha da lista de custItems (nunca por aqui). Correção pós-revisão.
+  function isCatalogItemAdded(item: CostServiceCatalogItem) {
+    return (values.costItems ?? []).some(
+      (c) =>
+        !c?.subscriptionId &&
+        c?.label === item.name &&
+        Number(c?.amount ?? NaN) === Number(item.defaultAmount) &&
+        c?.currency === item.currency &&
+        c?.billingCycle === item.billingCycle,
+    );
+  }
+
+  function addCatalogItem(item: CostServiceCatalogItem) {
+    if (isCatalogItemAdded(item)) return;
+    appendCost({
+      label: item.name,
+      amount: Number(item.defaultAmount),
+      currency: item.currency,
+      billingCycle: item.billingCycle,
+      subscriptionId: null,
+    });
   }
 
   async function submit(formValues: FormValues, status: EstimateStatus) {
@@ -507,10 +517,10 @@ function EstimateForm({
             <CardTitle>Infra do cliente</CardTitle>
           </CardHeader>
           <CardContent className="flex flex-col gap-4">
-            {(clientSubscriptions.length > 0 || catalog.length > 0) && (
+            {clientSubscriptions.length > 0 && (
               <div className="flex flex-col gap-2 rounded-lg border border-border p-3">
                 <p className="text-xs font-medium text-muted-foreground">
-                  Marque pra adicionar como item de custo
+                  Assinaturas do cliente — marque pra adicionar como item de custo
                 </p>
                 {clientSubscriptions.map((subscription) => (
                   <label
@@ -530,20 +540,38 @@ function EstimateForm({
                     {subscription.billingCycle === "YEARLY" ? "/ano" : "/mês"}
                   </label>
                 ))}
-                {catalog.map((item) => (
-                  <label key={item.key} className="flex cursor-pointer items-center gap-2 text-sm">
-                    <Checkbox
-                      checked={isCatalogChecked(item)}
-                      onCheckedChange={(checked) => toggleCatalogItem(item, checked === true)}
-                    />
-                    {item.name} —{" "}
-                    {item.currency === "USD"
-                      ? `US$ ${Number(item.defaultAmount).toFixed(2)}`
-                      : formatCurrency(item.defaultAmount)}
-                    {item.billingCycle === "YEARLY" ? "/ano" : "/mês"}{" "}
-                    <span className="text-xs text-muted-foreground">(catálogo)</span>
-                  </label>
-                ))}
+              </div>
+            )}
+
+            {catalog.length > 0 && (
+              <div className="flex flex-col gap-2 rounded-lg border border-border p-3">
+                <p className="text-xs font-medium text-muted-foreground">
+                  Catálogo de serviços — adiciona uma linha nova a cada clique
+                </p>
+                {catalog.map((item) => {
+                  const added = isCatalogItemAdded(item);
+                  return (
+                    <div key={item.key} className="flex items-center justify-between gap-2 text-sm">
+                      <span>
+                        {item.name} —{" "}
+                        {item.currency === "USD"
+                          ? `US$ ${Number(item.defaultAmount).toFixed(2)}`
+                          : formatCurrency(item.defaultAmount)}
+                        {item.billingCycle === "YEARLY" ? "/ano" : "/mês"}
+                      </span>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="shrink-0 gap-1"
+                        disabled={added}
+                        onClick={() => addCatalogItem(item)}
+                      >
+                        <Plus className="h-3.5 w-3.5" /> {added ? "Adicionado" : "Adicionar"}
+                      </Button>
+                    </div>
+                  );
+                })}
               </div>
             )}
 
