@@ -21,7 +21,7 @@ export function CostSummaryTiles() {
   const hasPermission = useAuthStore((s) => s.hasPermission);
   const canView = hasPermission("proposals:read");
 
-  const { data: summary, isLoading } = useCostSummary();
+  const { data: summary, isLoading } = useCostSummary({ enabled: canView });
 
   if (!canView) return null;
 
