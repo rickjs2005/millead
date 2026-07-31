@@ -394,6 +394,32 @@ describe("EstimateService", () => {
     await expect(service.delete(ORG, "est-x")).rejects.toThrow(NotFoundError);
   });
 
+  it("update rejeita orçamento CONVERTED sem chamar repo.update", async () => {
+    const { service, estimates } = fakeRepos({
+      estimates: {
+        findById: vi
+          .fn()
+          .mockResolvedValue(fakeEstimate({ status: "CONVERTED", proposalId: PROPOSAL_ID })),
+      },
+    });
+    await expect(service.update(ORG, "est-1", { title: "Novo título" })).rejects.toThrow(
+      ConflictError,
+    );
+    expect(estimates.update).not.toHaveBeenCalled();
+  });
+
+  it("delete rejeita orçamento CONVERTED sem chamar repo.delete", async () => {
+    const { service, estimates } = fakeRepos({
+      estimates: {
+        findById: vi
+          .fn()
+          .mockResolvedValue(fakeEstimate({ status: "CONVERTED", proposalId: PROPOSAL_ID })),
+      },
+    });
+    await expect(service.delete(ORG, "est-1")).rejects.toThrow(ConflictError);
+    expect(estimates.delete).not.toHaveBeenCalled();
+  });
+
   it("update com leadId null desvincula sem validar ownership", async () => {
     const updated = fakeEstimate({ leadId: null });
     const { service, estimates, leads } = fakeRepos({

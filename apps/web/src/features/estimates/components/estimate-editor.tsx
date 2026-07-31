@@ -258,7 +258,7 @@ function EstimateForm({
     handleSubmit,
     getValues,
     setValue,
-    formState: { errors },
+    formState: { errors, isDirty },
   } = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues,
@@ -814,16 +814,28 @@ function EstimateForm({
                   estimate={estimate}
                   computed={computed}
                   trigger={
-                    <Button type="button" variant="secondary" className="gap-1.5">
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      className="gap-1.5"
+                      disabled={isDirty}
+                      title={
+                        isDirty ? "Salve o orçamento antes de gerar a proposta." : undefined
+                      }
+                    >
                       <FileText className="h-4 w-4" /> Gerar proposta
                     </Button>
                   }
                 />
-                {!estimate.leadId && (
+                {isDirty ? (
+                  <span className="text-xs text-muted-foreground">
+                    Salve o orçamento antes de gerar a proposta.
+                  </span>
+                ) : !estimate.leadId ? (
                   <span className="text-xs text-muted-foreground">
                     Vincule um lead pra habilitar a conversão em proposta.
                   </span>
-                )}
+                ) : null}
               </>
             )}
           </div>

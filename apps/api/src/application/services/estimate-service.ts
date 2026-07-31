@@ -82,6 +82,12 @@ export class EstimateService {
     id: string,
     input: UpdateEstimateInput,
   ): Promise<EstimateWithComputed> {
+    const existing = await this.repository.findById(organizationId, id);
+    if (!existing) throw new NotFoundError("Orçamento não encontrado.");
+    if (existing.status === "CONVERTED") {
+      throw new ConflictError("Orçamento convertido não pode ser alterado.");
+    }
+
     await this.validateOwnership(organizationId, input);
 
     const estimate = await this.repository.update(organizationId, id, input);
@@ -90,6 +96,12 @@ export class EstimateService {
   }
 
   async delete(organizationId: string, id: string): Promise<void> {
+    const existing = await this.repository.findById(organizationId, id);
+    if (!existing) throw new NotFoundError("Orçamento não encontrado.");
+    if (existing.status === "CONVERTED") {
+      throw new ConflictError("Orçamento convertido não pode ser excluído.");
+    }
+
     const ok = await this.repository.delete(organizationId, id);
     if (!ok) throw new NotFoundError("Orçamento não encontrado.");
   }

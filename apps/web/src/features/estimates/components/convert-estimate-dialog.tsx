@@ -40,7 +40,7 @@ const schema = z
       parseDecimal,
       z
         .number({ invalid_type_error: "Informe um valor válido." })
-        .min(0.01, "Informe um valor válido.")
+        .min(1, "O valor personalizado deve ser de pelo menos R$ 1,00.")
         .optional(),
     ),
   })
