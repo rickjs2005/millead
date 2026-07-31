@@ -727,6 +727,112 @@ export interface FinanceSettingsPayload {
   activeClientsCount?: number;
 }
 
+// ---------- Calculadora de Orçamentos (Financeiro Fase 2) ----------
+
+export type EstimateStatus = "DRAFT" | "READY" | "CONVERTED";
+export type EstimateStatusWrite = "DRAFT" | "READY"; // CONVERTED só via endpoint de conversão (Fase 3)
+
+export interface HoursLine {
+  label: string;
+  hours: number;
+}
+
+export interface EstimateCostItem {
+  id: string;
+  organizationId: string;
+  estimateId: string;
+  subscriptionId: string | null;
+  label: string;
+  amount: string; // Decimal do Prisma serializa como string
+  currency: CostCurrency;
+  billingCycle: CostBillingCycle;
+}
+
+/** Espelho de EstimateComputed em apps/api/src/application/services/estimate-calc.ts. */
+export interface EstimateComputed {
+  totalHours: number;
+  devCost: number;
+  infraMonthlyBrl: number;
+  infraCost: number;
+  supportReserve: number;
+  totalCost: number;
+  priceMin: number;
+  priceRecommended: number;
+  pricePremium: number;
+}
+
+export interface PricingEstimate {
+  id: string;
+  organizationId: string;
+  leadId: string | null;
+  createdById: string;
+  productId: string | null;
+  proposalId: string | null;
+  title: string;
+  status: EstimateStatus;
+  hourlyRate: string; // Decimal do Prisma serializa como string
+  hoursBreakdown: HoursLine[];
+  agencyShareMonthly: string; // Decimal do Prisma serializa como string
+  infraMonths: number;
+  supportReservePct: string; // Decimal do Prisma serializa como string
+  marginPct: string; // Decimal do Prisma serializa como string
+  scopeItems: string[];
+  deadlineDays: number;
+  paymentTerms: string;
+  validDays: number;
+  createdAt: string;
+  updatedAt: string;
+  costItems: EstimateCostItem[];
+  computed: EstimateComputed;
+}
+
+export interface ProjectProduct {
+  id: string;
+  organizationId: string | null;
+  name: string;
+  priceMin: string; // Decimal do Prisma serializa como string
+  priceMax: string; // Decimal do Prisma serializa como string
+  baseHours: number | null;
+  description: string | null;
+  order: number;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface EstimateCostItemPayload {
+  label: string;
+  amount: number;
+  currency?: CostCurrency;
+  billingCycle?: CostBillingCycle;
+  subscriptionId?: string | null;
+}
+
+export interface EstimatePayload {
+  title: string;
+  leadId?: string | null;
+  productId?: string | null;
+  hourlyRate: number;
+  hoursBreakdown: HoursLine[];
+  costItems: EstimateCostItemPayload[];
+  agencyShareMonthly?: number;
+  infraMonths: number;
+  supportReservePct: number;
+  marginPct: number;
+  scopeItems: string[];
+  deadlineDays: number;
+  paymentTerms: string;
+  validDays: number;
+  status?: EstimateStatusWrite;
+}
+
+/** Lista paginada de orçamentos -- a API devolve só `{items, total}`, sem
+ * page/pageSize/totalPages (diferente de `PaginatedResult<T>`). */
+export interface EstimatesListResult {
+  items: PricingEstimate[];
+  total: number;
+}
+
 // ---------- Erros ----------
 
 export interface ApiErrorBody {

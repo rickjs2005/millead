@@ -8,6 +8,7 @@ import { BriefingFileService } from "../application/services/briefing-file-servi
 import { BriefingService } from "../application/services/briefing-service.js";
 import { ContractService } from "../application/services/contract-service.js";
 import { CostService } from "../application/services/cost-service.js";
+import { EstimateService } from "../application/services/estimate-service.js";
 import { MessageService } from "../application/services/message-service.js";
 import { CompanyService } from "../application/services/company-service.js";
 import { LeadService } from "../application/services/lead-service.js";
@@ -50,6 +51,7 @@ import { PrismaCompanyRepository } from "../infrastructure/prisma/prisma-company
 import { PrismaLeadRepository } from "../infrastructure/prisma/prisma-lead-repository.js";
 import { PrismaContractRepository } from "../infrastructure/prisma/prisma-contract-repository.js";
 import { PrismaCostRepository } from "../infrastructure/prisma/prisma-cost-repository.js";
+import { PrismaEstimateRepository } from "../infrastructure/prisma/prisma-estimate-repository.js";
 import { PrismaMeetingRepository } from "../infrastructure/prisma/prisma-meeting-repository.js";
 import { PrismaMessageRepository } from "../infrastructure/prisma/prisma-message-repository.js";
 import { PrismaMessageTemplateRepository } from "../infrastructure/prisma/prisma-message-template-repository.js";
@@ -69,6 +71,7 @@ import { AuthController } from "../interfaces/http/controllers/auth-controller.j
 import { BriefingController } from "../interfaces/http/controllers/briefing-controller.js";
 import { ContractController } from "../interfaces/http/controllers/contract-controller.js";
 import { CostController } from "../interfaces/http/controllers/cost-controller.js";
+import { EstimateController } from "../interfaces/http/controllers/estimate-controller.js";
 import { MessageController } from "../interfaces/http/controllers/message-controller.js";
 import { CompanyController } from "../interfaces/http/controllers/company-controller.js";
 import { LeadController } from "../interfaces/http/controllers/lead-controller.js";
@@ -89,6 +92,7 @@ export interface Container {
   companyController: CompanyController;
   contractController: ContractController;
   costController: CostController;
+  estimateController: EstimateController;
   messageController: MessageController;
   leadController: LeadController;
   meetingController: MeetingController;
@@ -132,6 +136,7 @@ export function buildContainer(): Container {
   const messageTemplateRepository = new PrismaMessageTemplateRepository();
   const contractRepository = new PrismaContractRepository();
   const costRepository = new PrismaCostRepository();
+  const estimateRepository = new PrismaEstimateRepository();
   // Cacheado em memória (5min): estrutura de template (seções/campos) só
   // muda por seed manual, que reinicia o processo e já limpa o cache.
   const briefingTemplateRepository = new CachedBriefingTemplateRepository(
@@ -183,6 +188,7 @@ export function buildContainer(): Container {
     new DefaultContractNotifier(),
   );
   const costService = new CostService(costRepository, companyRepository);
+  const estimateService = new EstimateService(estimateRepository, costRepository, leadRepository);
   const blobStorage = new VercelBlobStorage();
   const briefingService = new BriefingService(
     briefingRepository,
@@ -276,6 +282,7 @@ export function buildContainer(): Container {
   const messageController = new MessageController(messageService);
   const contractController = new ContractController(contractService);
   const costController = new CostController(costService);
+  const estimateController = new EstimateController(estimateService);
   const briefingController = new BriefingController(
     briefingService,
     briefingAnswerService,
@@ -291,6 +298,7 @@ export function buildContainer(): Container {
     briefingController,
     contractController,
     costController,
+    estimateController,
     messageController,
     companyController,
     leadController,

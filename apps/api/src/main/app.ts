@@ -23,6 +23,7 @@ import {
 import { createMessageRoutes } from "../interfaces/http/routes/message-routes.js";
 import { createCompanyRoutes } from "../interfaces/http/routes/company-routes.js";
 import { createCostRoutes } from "../interfaces/http/routes/cost-routes.js";
+import { createEstimateRoutes } from "../interfaces/http/routes/estimate-routes.js";
 import { createHealthRoutes } from "../interfaces/http/routes/health-routes.js";
 import { createLeadRoutes } from "../interfaces/http/routes/lead-routes.js";
 import { createMeetingRoutes } from "../interfaces/http/routes/meeting-routes.js";
@@ -78,6 +79,10 @@ export function createApp(container: Container): Express {
     createContractRoutes(container.contractController, container.authenticate),
   );
   app.use("/api/v1/costs", createCostRoutes(container.costController, container.authenticate));
+  app.use(
+    "/api/v1/estimates",
+    createEstimateRoutes(container.estimateController, container.authenticate),
+  );
   app.use(
     "/api/v1/briefings",
     createBriefingRoutes(container.briefingController, container.authenticate),

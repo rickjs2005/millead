@@ -60,4 +60,9 @@ export const queryKeys = {
     settings: () => ["costs", "settings"] as const,
     summary: () => ["costs", "summary"] as const,
   },
+  estimates: {
+    list: (params: object) => ["estimates", "list", params] as const,
+    detail: (id: string) => ["estimates", "detail", id] as const,
+    products: () => ["estimates", "products"] as const,
+  },
 };

@@ -1,16 +1,17 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { Check, ChevronsUpDown } from "lucide-react";
+import { Check, ChevronsUpDown, X } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Command,
   CommandEmpty,
   CommandGroup,
-  CommandInput,
   CommandItem,
+  CommandInput,
   CommandList,
+  CommandSeparator,
 } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useDebounce } from "@/hooks/use-debounce";
@@ -39,6 +40,19 @@ export function LeadCombobox({
     enabled: open,
   });
 
+  // Resolve o título de um lead pré-vinculado (ex.: editor de orçamento
+  // aberto com `value` já vindo do banco) -- sem isso o botão mostrava só
+  // "Lead selecionado" genérico, porque `selectedLabel` só era setado no
+  // onSelect do próprio combobox. Só busca quando ainda não sabemos o
+  // título, pra não gerar um fetch extra no fluxo normal de criação (onde
+  // `selectedLabel` já vem do onSelect).
+  const { data: selectedLead } = useQuery({
+    queryKey: ["combobox", "leads", "byId", value],
+    queryFn: () => leadsService.get(value!),
+    enabled: !!value && !selectedLabel,
+  });
+  const resolvedLabel = selectedLabel ?? selectedLead?.title;
+
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
@@ -49,7 +63,7 @@ export function LeadCombobox({
           className="w-full justify-between font-normal"
         >
           <span className={cn("truncate", !value && "text-muted-foreground")}>
-            {value ? (selectedLabel ?? "Lead selecionado") : placeholder}
+            {value ? (resolvedLabel ?? "Lead selecionado") : placeholder}
           </span>
           <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50" />
         </Button>
@@ -76,6 +90,24 @@ export function LeadCombobox({
                 </CommandItem>
               ))}
             </CommandGroup>
+            {value && (
+              <>
+                <CommandSeparator />
+                <CommandGroup>
+                  <CommandItem
+                    onSelect={() => {
+                      onChange(undefined, undefined);
+                      setSelectedLabel(undefined);
+                      setOpen(false);
+                    }}
+                    className="text-muted-foreground"
+                  >
+                    <X className="h-4 w-4" />
+                    Remover lead
+                  </CommandItem>
+                </CommandGroup>
+              </>
+            )}
           </CommandList>
         </Command>
       </PopoverContent>
