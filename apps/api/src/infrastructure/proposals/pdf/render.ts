@@ -1,4 +1,4 @@
-import { PDFDocument } from "pdf-lib";
+import { PDFDocument, type PDFFont } from "pdf-lib";
 import {
   COLORS,
   CONTENT_W,
@@ -12,6 +12,7 @@ import {
   embedFonts,
   ensureSpace,
   sanitize,
+  wrapText,
   type Doc,
   type Fonts,
 } from "../../pdf/layout.js";
@@ -39,12 +40,74 @@ export interface ProposalPdfData {
 const fmtDataLonga = (d: Date) =>
   new Intl.DateTimeFormat("pt-BR", { dateStyle: "long", timeZone: "America/Sao_Paulo" }).format(d);
 
+const SUMMARY_VALUE_SIZE = 10;
+const SUMMARY_VALUE_LINE_H = 12;
+const SUMMARY_VALUE_MAX_LINES = 2;
+
+// Corta `text` (já garantido caber em maxWidth por wrapText linha a linha) e
+// acrescenta "..." quando há conteúdo além do que coube nas linhas mantidas --
+// nunca desenha além do início da próxima coluna.
+function truncateWithEllipsis(font: PDFFont, text: string, size: number, maxWidth: number): string {
+  const suffix = "...";
+  let s = text;
+  while (s.length > 0 && font.widthOfTextAtSize(s + suffix, size) > maxWidth) {
+    s = s.slice(0, -1);
+  }
+  s = s.trimEnd();
+  return s.length > 0 ? `${s}${suffix}` : suffix;
+}
+
+// Quebra o valor de uma célula do card em até `maxLines` linhas que cabem em
+// `maxWidth` (usa wrapText do layout, que já sanitiza); se sobrar conteúdo
+// além disso, a última linha mantida ganha reticências.
+function wrapCellValue(
+  font: PDFFont,
+  text: string,
+  size: number,
+  maxWidth: number,
+  maxLines: number,
+): string[] {
+  const lines = wrapText(text, font, size, maxWidth);
+  if (lines.length <= maxLines) return lines;
+  const kept = lines.slice(0, maxLines);
+  const lastLine = kept[maxLines - 1] ?? "";
+  kept[maxLines - 1] = truncateWithEllipsis(font, lastLine, size, maxWidth);
+  return kept;
+}
+
 // Card de resumo (mesma técnica do card de resumo financeiro de contracts/pdf/render.ts:
 // retângulo com fundo brandWeak/borda brandBorder, rótulos pequenos em maiúsculas + valor
-// em negrito, distribuídos em colunas).
+// em negrito, distribuídos em colunas). O valor de cada coluna é limitado à LARGURA da
+// própria coluna (widthOfTextAtSize via wrapText), quebrando em até 2 linhas e cortando
+// com "..." se ainda exceder -- nunca invade a coluna vizinha.
 function drawSummaryCard(doc: Doc, data: ProposalPdfData): void {
   const pad = 12;
-  const cardH = 78;
+
+  const projeto = data.productName
+    ? `${data.projectTitle} - ${data.productName}`
+    : data.projectTitle;
+
+  const cells: Array<{ label: string; value: string }> = [
+    { label: "PROJETO", value: projeto },
+    { label: "PRAZO", value: `${data.deadlineDays} dias` },
+    { label: "INVESTIMENTO", value: fmtBRL(data.finalPrice) },
+  ];
+  const cellW = (CONTENT_W - pad * 2) / cells.length;
+  const valueMaxWidth = cellW - 6;
+
+  const cellLines = cells.map((cell) =>
+    wrapCellValue(
+      doc.fonts.bold,
+      sanitize(cell.value),
+      SUMMARY_VALUE_SIZE,
+      valueMaxWidth,
+      SUMMARY_VALUE_MAX_LINES,
+    ),
+  );
+  const maxLines = Math.max(1, ...cellLines.map((lines) => lines.length));
+  // Altura base (1 linha de valor) + linhas extras quando o título quebra.
+  const cardH = 78 + (maxLines - 1) * SUMMARY_VALUE_LINE_H;
+
   ensureSpace(doc, cardH + 8);
 
   const topY = doc.y;
@@ -60,19 +123,8 @@ function drawSummaryCard(doc: Doc, data: ProposalPdfData): void {
     borderWidth: 1,
   });
 
-  const projeto = data.productName
-    ? `${data.projectTitle} - ${data.productName}`
-    : data.projectTitle;
-
-  const cells: Array<{ label: string; value: string }> = [
-    { label: "PROJETO", value: projeto },
-    { label: "PRAZO", value: `${data.deadlineDays} dias` },
-    { label: "INVESTIMENTO", value: fmtBRL(data.finalPrice) },
-  ];
-  const cellW = (CONTENT_W - pad * 2) / cells.length;
   const labelY = topY - pad - 6.5;
-  const valueY = topY - pad - 6.5 - 18;
-  const valueMaxWidth = cellW - 6;
+  const firstValueY = labelY - 18;
 
   cells.forEach((cell, i) => {
     const cellX = MARGIN + pad + i * cellW;
@@ -83,19 +135,14 @@ function drawSummaryCard(doc: Doc, data: ProposalPdfData): void {
       font: doc.fonts.regular,
       color: COLORS.muted,
     });
-    // Valor pode ser mais longo que a coluna (ex.: título do projeto) --
-    // reduz o tamanho da fonte se necessário em vez de estourar a coluna.
-    let size = 10.5;
-    const value = sanitize(cell.value);
-    while (size > 7.5 && doc.fonts.bold.widthOfTextAtSize(value, size) > valueMaxWidth) {
-      size -= 0.5;
-    }
-    doc.page.drawText(value, {
-      x: cellX,
-      y: valueY,
-      size,
-      font: doc.fonts.bold,
-      color: COLORS.ink,
+    (cellLines[i] ?? []).forEach((line, lineIdx) => {
+      doc.page.drawText(line, {
+        x: cellX,
+        y: firstValueY - lineIdx * SUMMARY_VALUE_LINE_H,
+        size: SUMMARY_VALUE_SIZE,
+        font: doc.fonts.bold,
+        color: COLORS.ink,
+      });
     });
   });
 
