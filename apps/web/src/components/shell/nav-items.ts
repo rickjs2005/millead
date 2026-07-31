@@ -12,6 +12,7 @@ import {
   Settings,
   ShieldCheck,
   Users2,
+  Wallet,
   type LucideIcon,
 } from "lucide-react";
 import type { PermissionKey } from "@/types/api";
@@ -63,6 +64,12 @@ export const NAV_SECTIONS: NavSection[] = [
         permission: "leads:read",
         children: [{ label: "Templates", href: "/briefings/templates", icon: LayoutList }],
       },
+    ],
+  },
+  {
+    title: "Financeiro",
+    items: [
+      { label: "Centro de Custos", href: "/costs", icon: Wallet, permission: "proposals:read" },
     ],
   },
   {
