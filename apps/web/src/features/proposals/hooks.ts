@@ -17,6 +17,17 @@ export function useProposals(params: ListProposalsParams) {
   });
 }
 
+/** Busca uma proposta pontual por id -- usado pelo editor de orçamento
+ * (estado CONVERTED) pra resolver o `pdfUrl` do link "Abrir PDF" a partir do
+ * `proposalId` já presente em PricingEstimate, sem exigir mudança no back. */
+export function useProposal(id?: string | null) {
+  return useQuery({
+    queryKey: queryKeys.proposals.detail(id ?? ""),
+    queryFn: () => proposalsService.get(id!),
+    enabled: !!id,
+  });
+}
+
 export function useCreateProposal() {
   const queryClient = useQueryClient();
   return useMutation({

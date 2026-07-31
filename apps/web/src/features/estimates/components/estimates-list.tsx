@@ -1,6 +1,7 @@
 "use client";
 
 import { Calculator, Trash2 } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo } from "react";
 import { useConfirmDialog } from "@/components/confirm-dialog";
@@ -52,9 +53,20 @@ function EstimateRow({
         {formatCurrency(estimate.computed.priceRecommended)}
       </TableCell>
       <TableCell>
-        <Badge variant={ESTIMATE_STATUS_VARIANT[estimate.status]}>
-          {ESTIMATE_STATUS_LABELS[estimate.status]}
-        </Badge>
+        <div className="flex flex-col items-start gap-1">
+          <Badge variant={ESTIMATE_STATUS_VARIANT[estimate.status]}>
+            {ESTIMATE_STATUS_LABELS[estimate.status]}
+          </Badge>
+          {estimate.status === "CONVERTED" && estimate.proposalId && (
+            <Link
+              href="/proposals"
+              className="text-xs text-primary hover:underline"
+              onClick={(e) => e.stopPropagation()}
+            >
+              Ver proposta
+            </Link>
+          )}
+        </div>
       </TableCell>
       <TableCell className="text-muted-foreground">{formatDate(estimate.updatedAt)}</TableCell>
       <TableCell onClick={(e) => e.stopPropagation()}>

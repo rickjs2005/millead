@@ -1,5 +1,6 @@
 import { api } from "./api-client";
 import type {
+  ConvertEstimateResult,
   EstimatesListResult,
   EstimatePayload,
   EstimateStatus,
@@ -22,4 +23,6 @@ export const estimatesService = {
     api.patch<PricingEstimate>(`/api/v1/estimates/${id}`, payload),
   remove: (id: string) => api.delete<void>(`/api/v1/estimates/${id}`),
   products: () => api.get<ProjectProduct[]>("/api/v1/estimates/products"),
+  convert: (id: string, price: number) =>
+    api.post<ConvertEstimateResult>(`/api/v1/estimates/${id}/convert`, { price }),
 };

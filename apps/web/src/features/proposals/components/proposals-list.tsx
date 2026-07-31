@@ -49,6 +49,20 @@ function ProposalRow({ proposal }: { proposal: Proposal }) {
       </TableCell>
       <TableCell className="text-muted-foreground">{formatDate(proposal.validUntil)}</TableCell>
       <TableCell className="text-muted-foreground">{formatDate(proposal.sentAt)}</TableCell>
+      <TableCell>
+        {proposal.pdfUrl ? (
+          <a
+            href={proposal.pdfUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="text-sm text-primary hover:underline"
+          >
+            Ver PDF
+          </a>
+        ) : (
+          <span className="text-sm text-muted-foreground">—</span>
+        )}
+      </TableCell>
     </TableRow>
   );
 }
@@ -89,6 +103,7 @@ export function ProposalsList({
           <TableHead>Status</TableHead>
           <TableHead>Válida até</TableHead>
           <TableHead>Enviada em</TableHead>
+          <TableHead>PDF</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
