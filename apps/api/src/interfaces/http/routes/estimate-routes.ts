@@ -1,6 +1,7 @@
 import { PERMISSIONS } from "@millead/database/permissions";
 import { Router, type RequestHandler } from "express";
 import {
+  convertEstimateSchema,
   createEstimateSchema,
   listEstimatesQuerySchema,
   updateEstimateSchema,
@@ -36,6 +37,12 @@ export function createEstimateRoutes(
     asyncHandler(controller.update),
   );
   router.delete("/:id", write, asyncHandler(controller.remove));
+  router.post(
+    "/:id/convert",
+    write,
+    validateBody(convertEstimateSchema),
+    asyncHandler(controller.convert),
+  );
 
   return router;
 }

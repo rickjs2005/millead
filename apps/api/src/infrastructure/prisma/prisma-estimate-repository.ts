@@ -157,6 +157,13 @@ export class PrismaEstimateRepository implements EstimateRepository {
     return true;
   }
 
+  async markConverted(organizationId: string, id: string, proposalId: string): Promise<void> {
+    await prisma.pricingEstimate.updateMany({
+      where: { id, organizationId },
+      data: { status: "CONVERTED", proposalId },
+    });
+  }
+
   async listProducts(organizationId: string): Promise<ProjectProduct[]> {
     const rows = await prisma.projectProduct.findMany({
       where: { isActive: true, OR: [{ organizationId: null }, { organizationId }] },

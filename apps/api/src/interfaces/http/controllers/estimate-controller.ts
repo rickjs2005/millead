@@ -1,5 +1,8 @@
 import type { Request, Response } from "express";
-import type { ListEstimatesQuery } from "../../../application/dto/estimate.dto.js";
+import type {
+  ConvertEstimateInput,
+  ListEstimatesQuery,
+} from "../../../application/dto/estimate.dto.js";
 import type { EstimateService } from "../../../application/services/estimate-service.js";
 import { requireAuth } from "../require-auth.js";
 
@@ -39,5 +42,17 @@ export class EstimateController {
   products = async (req: Request, res: Response): Promise<void> => {
     const auth = requireAuth(req);
     res.status(200).json(await this.estimates.listProducts(auth.organizationId));
+  };
+
+  convert = async (req: Request, res: Response): Promise<void> => {
+    const auth = requireAuth(req);
+    const input = req.body as ConvertEstimateInput;
+    const result = await this.estimates.convert(
+      auth.organizationId,
+      auth.userId,
+      req.params.id!,
+      input,
+    );
+    res.status(200).json(result);
   };
 }

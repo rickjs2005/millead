@@ -1,24 +1,42 @@
-import { NotFoundError } from "../../domain/errors/app-error.js";
+import { ConflictError, NotFoundError, ValidationError } from "../../domain/errors/app-error.js";
 import type { CostRepository } from "../../domain/repositories/cost-repository.js";
 import type { EstimateRepository } from "../../domain/repositories/estimate-repository.js";
 import type { LeadRepository } from "../../domain/repositories/lead-repository.js";
+import type { CompanyRepository } from "../../domain/repositories/company-repository.js";
+import type { OrganizationRepository } from "../../domain/repositories/organization-repository.js";
+import type { ProposalRepository } from "../../domain/repositories/proposal-repository.js";
+import type { BlobStorage } from "../../domain/services/blob-storage.js";
 import type { PricingEstimateWithItems } from "../../domain/entities/estimate.js";
 import type {
   CostItemInput,
+  ConvertEstimateInput,
   CreateEstimateInput,
   ListEstimatesQuery,
   UpdateEstimateInput,
 } from "../dto/estimate.dto.js";
 import { computeEstimate, type EstimateComputed } from "./estimate-calc.js";
 import { computeSummary } from "./cost-service.js";
+import type { ActivityLogger } from "./activity-logger.js";
+import {
+  renderProposalPdf,
+  type ProposalPdfData,
+} from "../../infrastructure/proposals/pdf/render.js";
 
 type EstimateWithComputed = PricingEstimateWithItems & { computed: EstimateComputed };
+
+const MS_PER_DAY = 86_400_000;
 
 export class EstimateService {
   constructor(
     private readonly repository: EstimateRepository,
     private readonly costs: CostRepository,
     private readonly leads: LeadRepository,
+    private readonly companies: CompanyRepository,
+    private readonly organizations: OrganizationRepository,
+    private readonly proposals: ProposalRepository,
+    private readonly blobStorage: BlobStorage,
+    private readonly activityLogger: ActivityLogger,
+    private readonly renderPdf: (data: ProposalPdfData) => Promise<Uint8Array> = renderProposalPdf,
   ) {}
 
   async list(
@@ -78,6 +96,102 @@ export class EstimateService {
 
   listProducts(organizationId: string) {
     return this.repository.listProducts(organizationId);
+  }
+
+  /**
+   * Converte um orçamento em proposta: cria a Proposal (DRAFT), gera o PDF
+   * comercial (Task 1) e sobe pro Blob, marca o orçamento como CONVERTED e
+   * loga a atividade na timeline do lead.
+   *
+   * Ordem de falha segura: se render/upload/update do PDF falhar DEPOIS de
+   * criar a Proposal, a Proposal criada é apagada (cleanup) -- nunca fica
+   * órfã sem pdfUrl, e o orçamento permanece intacto (não convertido).
+   */
+  async convert(
+    organizationId: string,
+    userId: string,
+    id: string,
+    input: ConvertEstimateInput,
+  ): Promise<{ estimate: EstimateWithComputed; proposalId: string; pdfUrl: string }> {
+    const estimate = await this.repository.findById(organizationId, id);
+    if (!estimate) throw new NotFoundError("Orçamento não encontrado.");
+    if (estimate.status === "CONVERTED") {
+      throw new ConflictError("Este orçamento já foi convertido em proposta.");
+    }
+    if (!estimate.leadId) {
+      throw new ValidationError("Vincule um lead ao orçamento antes de gerar a proposta.");
+    }
+
+    const lead = await this.leads.findByIdForOrg(estimate.leadId, organizationId);
+    if (!lead) throw new NotFoundError("Lead não encontrado.");
+
+    const [company, org, products, settings] = await Promise.all([
+      lead.companyId ? this.companies.findByIdForOrg(lead.companyId, organizationId) : null,
+      this.organizations.findById(organizationId),
+      this.repository.listProducts(organizationId),
+      this.costs.getSettings(organizationId),
+    ]);
+
+    const clientName = company?.name ?? lead.title;
+    const orgName = org?.name ?? "MilLead";
+    const productName = estimate.productId
+      ? (products.find((p) => p.id === estimate.productId)?.name ?? null)
+      : null;
+    const computed = this.toComputed(estimate, Number(settings.usdToBrlRate));
+
+    const validUntil = new Date(Date.now() + estimate.validDays * MS_PER_DAY);
+    const proposal = await this.proposals.create({
+      organizationId,
+      leadId: estimate.leadId,
+      createdById: userId,
+      title: estimate.title,
+      value: String(input.price),
+      currency: "BRL",
+      validUntil,
+    });
+
+    const proposalNumber = `${new Date().getFullYear()}-${proposal.id.slice(-6).toUpperCase()}`;
+
+    let pdfUrl: string;
+    try {
+      const pdfBytes = await this.renderPdf({
+        proposalNumber,
+        orgName,
+        clientName,
+        projectTitle: estimate.title,
+        productName,
+        scopeItems: estimate.scopeItems,
+        deadlineDays: estimate.deadlineDays,
+        paymentTerms: estimate.paymentTerms,
+        validDays: estimate.validDays,
+        finalPrice: input.price,
+        infraMonthlyBrl: computed.infraMonthlyBrl,
+        infraMonths: estimate.infraMonths,
+        createdAt: proposal.createdAt,
+      });
+
+      const upload = await this.blobStorage.upload({
+        pathname: `proposals/${organizationId}/${proposal.id}.pdf`,
+        buffer: Buffer.from(pdfBytes),
+        contentType: "application/pdf",
+      });
+      pdfUrl = upload.url;
+
+      await this.proposals.update(proposal.id, organizationId, { pdfUrl });
+    } catch (error) {
+      await this.proposals.delete(proposal.id, organizationId);
+      throw error;
+    }
+
+    await this.repository.markConverted(organizationId, id, proposal.id);
+    await this.activityLogger.log(organizationId, estimate.leadId, userId, "OTHER", {
+      kind: "estimate_converted",
+      estimateId: id,
+      proposalId: proposal.id,
+    });
+
+    const reloaded = await this.get(organizationId, id);
+    return { estimate: reloaded, proposalId: proposal.id, pdfUrl };
   }
 
   /**

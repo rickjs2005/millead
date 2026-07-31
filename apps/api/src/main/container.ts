@@ -188,8 +188,17 @@ export function buildContainer(): Container {
     new DefaultContractNotifier(),
   );
   const costService = new CostService(costRepository, companyRepository);
-  const estimateService = new EstimateService(estimateRepository, costRepository, leadRepository);
   const blobStorage = new VercelBlobStorage();
+  const estimateService = new EstimateService(
+    estimateRepository,
+    costRepository,
+    leadRepository,
+    companyRepository,
+    organizationRepository,
+    proposalRepository,
+    blobStorage,
+    activityLogger,
+  );
   const briefingService = new BriefingService(
     briefingRepository,
     briefingTemplateRepository,
