@@ -25,7 +25,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import { BriefingPrefillSelect } from "@/features/contracts/components/briefing-prefill-select";
 import { ContractForm } from "@/features/contracts/components/contract-form";
+import type { ContractPrefill } from "@/features/contracts/briefing-prefill";
 import {
   CONTRACT_STATUS_LABELS,
   CONTRACT_STATUS_VARIANT,
@@ -58,6 +60,7 @@ export default function ContractsPage() {
   const [tipo, setTipo] = useState<ContractType | "ALL">("ALL");
   const [search, setSearch] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
+  const [prefill, setPrefill] = useState<ContractPrefill | undefined>(undefined);
   const debouncedSearch = useDebounce(search, 300);
 
   const { data: kpis } = useContractKpis();
@@ -79,7 +82,13 @@ export default function ContractsPage() {
             Fechamento, PDF e assinatura eletrônica — migrado do milweb-contratos.
           </p>
         </div>
-        <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+        <Dialog
+          open={createOpen}
+          onOpenChange={(open) => {
+            setCreateOpen(open);
+            if (!open) setPrefill(undefined);
+          }}
+        >
           <DialogTrigger asChild>
             <Button>
               <Plus /> Novo contrato
@@ -89,9 +98,13 @@ export default function ContractsPage() {
             <DialogHeader>
               <DialogTitle>Novo contrato</DialogTitle>
             </DialogHeader>
+            {/* O briefing já tem nome, CNPJ, contato e endereço do cliente —
+                escolher um aqui preenche os dados do contratante sozinho. */}
+            <BriefingPrefillSelect onPrefill={setPrefill} />
             <ContractForm
               pending={createContract.isPending}
               submitLabel="Criar contrato"
+              prefill={prefill}
               onSubmit={async (values) => {
                 await createContract.mutateAsync(values);
                 setCreateOpen(false);

@@ -1,6 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
+import { useEffect } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
@@ -18,6 +19,7 @@ import {
   CONTRACT_PAYMENT_LABELS,
   CONTRACT_TYPE_LABELS,
 } from "@/features/contracts/contract-labels";
+import type { ContractPrefill } from "@/features/contracts/briefing-prefill";
 import type { CreateContractPayload } from "@/services/contracts";
 
 const schema = z.object({
@@ -49,16 +51,21 @@ export function ContractForm({
   onSubmit,
   pending,
   submitLabel,
+  prefill,
 }: {
   onSubmit: (values: CreateContractPayload) => Promise<void>;
   pending: boolean;
   submitLabel: string;
+  /** Valores vindos do briefing (painel): aplicados por cima do formulário
+   * quando chegam, sem tocar nos campos que o prefill não cobre. */
+  prefill?: ContractPrefill;
 }) {
   const {
     register,
     control,
     handleSubmit,
     watch,
+    setValue,
     formState: { errors },
   } = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -71,6 +78,15 @@ export function ContractForm({
     },
   });
   const tipoPessoa = watch("tipoPessoa");
+
+  useEffect(() => {
+    if (!prefill) return;
+    for (const [key, value] of Object.entries(prefill)) {
+      if (value !== undefined && value !== null && value !== "") {
+        setValue(key as keyof FormValues, value, { shouldValidate: true, shouldDirty: true });
+      }
+    }
+  }, [prefill, setValue]);
 
   async function submit(values: FormValues) {
     await onSubmit({
