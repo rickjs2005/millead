@@ -22,6 +22,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { BriefingPicker } from "@/features/briefings/components/briefing-picker";
+import { estimatePrefillFromBriefing } from "@/features/estimates/briefing-prefill";
 import { EstimateResultPanel } from "@/features/estimates/components/estimate-result-panel";
 import { computeEstimate, type EstimateCalcInput } from "@/features/estimates/estimate-calc";
 import {
@@ -597,9 +599,26 @@ function EstimateForm({
     });
   }
 
+  // Prefill do briefing (só orçamento novo): título = nome da empresa,
+  // lead = o vinculado ao briefing, escopo = objetivos/funcionalidades
+  // marcados pelo cliente. Horas/custos/preço seguem manuais — decisão do
+  // dono, não resposta de cliente.
+  function applyBriefing(detail: Parameters<typeof estimatePrefillFromBriefing>[0]) {
+    const prefill = estimatePrefillFromBriefing(detail);
+    if (prefill.title) setValue("title", prefill.title, { shouldValidate: true, shouldDirty: true });
+    if (prefill.leadId) setValue("leadId", prefill.leadId, { shouldDirty: true });
+    if (prefill.scopeText) setValue("scopeText", prefill.scopeText, { shouldDirty: true });
+  }
+
   return (
     <form onSubmit={saveDraft} className="grid gap-6 lg:grid-cols-[1fr_320px]">
       <div className="flex flex-col gap-4">
+        {!isEdit && (
+          <BriefingPicker
+            onDetail={applyBriefing}
+            hint="Preenche título, lead e escopo com o que o cliente respondeu. Revise antes de salvar."
+          />
+        )}
         {isConverted && (
           <Card className="border-success/50 bg-success/5">
             <CardContent className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between">

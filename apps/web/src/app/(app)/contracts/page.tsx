@@ -25,9 +25,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { BriefingPrefillSelect } from "@/features/contracts/components/briefing-prefill-select";
+import { BriefingPicker } from "@/features/briefings/components/briefing-picker";
 import { ContractForm } from "@/features/contracts/components/contract-form";
-import type { ContractPrefill } from "@/features/contracts/briefing-prefill";
+import {
+  contractPrefillFromBriefing,
+  type ContractPrefill,
+} from "@/features/contracts/briefing-prefill";
 import {
   CONTRACT_STATUS_LABELS,
   CONTRACT_STATUS_VARIANT,
@@ -100,7 +103,10 @@ export default function ContractsPage() {
             </DialogHeader>
             {/* O briefing já tem nome, CNPJ, contato e endereço do cliente —
                 escolher um aqui preenche os dados do contratante sozinho. */}
-            <BriefingPrefillSelect onPrefill={setPrefill} />
+            <BriefingPicker
+              onDetail={(detail) => setPrefill(contractPrefillFromBriefing(detail))}
+              hint="As respostas do cliente preenchem os dados do contratante. Revise antes de criar."
+            />
             <ContractForm
               pending={createContract.isPending}
               submitLabel="Criar contrato"

@@ -10,25 +10,25 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useBriefing, useBriefings } from "@/features/briefings/hooks";
-import {
-  contractPrefillFromBriefing,
-  type ContractPrefill,
-} from "@/features/contracts/briefing-prefill";
 import { formatDate } from "@/utils/format";
+import type { BriefingDetail } from "@/types/api";
 
 /**
- * Seletor "Preencher do briefing" do diálogo de novo contrato: escolher um
- * briefing puxa as respostas do cliente e preenche os dados do contratante
- * automaticamente — nada de redigitar o que o cliente já informou.
+ * Seletor genérico "Preencher do briefing": lista briefings com alguma
+ * resposta (concluídos primeiro) e, ao escolher um, busca o detalhe e o
+ * entrega ao consumidor via `onDetail` — cada formulário (contrato,
+ * orçamento…) faz o próprio mapeamento de respostas → campos.
  *
- * Lista briefings com alguma resposta (concluídos primeiro). O estado vive
- * aqui dentro; o Dialog desmonta o conteúdo ao fechar, então a seleção
- * zera sozinha.
+ * O estado da seleção vive aqui; montado dentro de um Dialog, zera sozinho
+ * ao fechar (o conteúdo desmonta). Some quando não há briefing respondido.
  */
-export function BriefingPrefillSelect({
-  onPrefill,
+export function BriefingPicker({
+  onDetail,
+  hint,
 }: {
-  onPrefill: (prefill: ContractPrefill) => void;
+  onDetail: (detail: BriefingDetail) => void;
+  /** Texto de apoio explicando O QUE será preenchido neste formulário. */
+  hint: string;
 }) {
   const [briefingId, setBriefingId] = useState<string | undefined>(undefined);
   const { data } = useBriefings({ pageSize: 100 });
@@ -39,10 +39,8 @@ export function BriefingPrefillSelect({
     .sort((a, b) => (a.status === "COMPLETED" ? 0 : 1) - (b.status === "COMPLETED" ? 0 : 1));
 
   useEffect(() => {
-    if (detail && detail.id === briefingId) {
-      onPrefill(contractPrefillFromBriefing(detail));
-    }
-  }, [detail, briefingId, onPrefill]);
+    if (detail && detail.id === briefingId) onDetail(detail);
+  }, [detail, briefingId, onDetail]);
 
   if (options.length === 0) return null;
 
@@ -63,9 +61,7 @@ export function BriefingPrefillSelect({
         </SelectContent>
       </Select>
       <p className="text-xs text-muted-foreground">
-        {isFetching
-          ? "Carregando respostas do briefing…"
-          : "As respostas do cliente preenchem os dados do contratante. Revise antes de criar."}
+        {isFetching ? "Carregando respostas do briefing…" : hint}
       </p>
     </div>
   );
