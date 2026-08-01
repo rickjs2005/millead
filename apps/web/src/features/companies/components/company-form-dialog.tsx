@@ -16,8 +16,10 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { BriefingPicker } from "@/features/briefings/components/briefing-picker";
+import { companyPrefillFromBriefing } from "@/features/companies/briefing-prefill";
 import { useCreateCompany, useUpdateCompany } from "@/features/companies/hooks";
-import type { Company } from "@/types/api";
+import type { BriefingDetail, Company } from "@/types/api";
 
 const schema = z.object({
   name: z.string().min(1, "Informe o nome da empresa."),
@@ -59,6 +61,7 @@ export function CompanyFormDialog({ company, trigger }: { company?: Company; tri
     register,
     handleSubmit,
     reset,
+    setValue,
     formState: { errors },
   } = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -74,6 +77,18 @@ export function CompanyFormDialog({ company, trigger }: { company?: Company; tri
       notes: company?.notes ?? "",
     },
   });
+
+  // Prefill do briefing (só criação): o cliente já informou tudo isso no
+  // formulário — espelho client-side do "Criar empresa a partir do briefing"
+  // que existe no detalhe do briefing.
+  function applyBriefing(detail: BriefingDetail) {
+    const prefill = companyPrefillFromBriefing(detail);
+    for (const [key, value] of Object.entries(prefill)) {
+      if (value) {
+        setValue(key as keyof FormValues, value, { shouldValidate: true, shouldDirty: true });
+      }
+    }
+  }
 
   async function onSubmit(values: FormValues) {
     if (isEdit) {
@@ -94,6 +109,12 @@ export function CompanyFormDialog({ company, trigger }: { company?: Company; tri
             <DialogTitle>{isEdit ? "Editar empresa" : "Nova empresa"}</DialogTitle>
           </DialogHeader>
           <div className="flex flex-col gap-4 py-4">
+            {!isEdit && (
+              <BriefingPicker
+                onDetail={applyBriefing}
+                hint="As respostas do cliente preenchem o cadastro. Revise antes de criar."
+              />
+            )}
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="company-name">Nome</Label>
               <Input id="company-name" {...register("name")} />
