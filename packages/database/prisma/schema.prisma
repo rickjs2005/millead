@@ -115,6 +115,7 @@ model Organization {
   pricingEstimates        PricingEstimate[]
   pricingEstimateCosts    PricingEstimateCost[]
   costUsageEntries        CostUsageEntry[]
+  receivables             Receivable[]
 
   @@map("organizations")
 }
@@ -900,6 +901,13 @@ enum ContractSignatureProvider {
   @@map("contract_signature_provider")
 }
 
+enum ReceivableKind {
+  ENTRADA
+  PARCELA
+
+  @@map("receivable_kind")
+}
+
 /// Contrato de prestação de serviço. O "cliente" do sistema antigo virou a
 /// Company do millead (upsert por documento); os dados do contratante NO
 /// MOMENTO do contrato ficam em `contractorSnapshot` (imutabilidade
@@ -950,6 +958,7 @@ model Contract {
   createdBy    User?            @relation("ContractCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
   signers      ContractSigner[]
   events       ContractEvent[]
+  receivables  Receivable[]
 
   @@unique([organizationId, numero])
   @@index([organizationId, status])
@@ -1004,6 +1013,29 @@ model ContractSequence {
 
   @@id([organizationId, ano])
   @@map("contract_sequences")
+}
+
+/// Parcela do plano de recebimento de um contrato. "Vencida" e derivado
+/// (paidAt null && dueDate < hoje) -- nunca materializado.
+model Receivable {
+  id               String         @id @default(cuid())
+  organizationId   String         @map("organization_id")
+  contractId       String         @map("contract_id")
+  kind             ReceivableKind
+  installmentIndex Int            @map("installment_index")
+  amount           Decimal        @db.Decimal(12, 2)
+  dueDate          DateTime       @map("due_date")
+  paidAt           DateTime?      @map("paid_at")
+  paidNote         String?        @map("paid_note")
+  createdAt        DateTime       @default(now()) @map("created_at")
+  updatedAt        DateTime       @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  contract     Contract     @relation(fields: [contractId], references: [id], onDelete: Cascade)
+
+  @@unique([contractId, installmentIndex])
+  @@index([organizationId, dueDate])
+  @@map("receivables")
 }
 
 // ===================================================================
