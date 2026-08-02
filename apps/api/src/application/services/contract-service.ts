@@ -1,6 +1,7 @@
 import type { ContractStatus } from "@millead/database";
 import { env } from "../../config/env.js";
-import type { ContractedSnapshot, ContractorSnapshot } from "../../domain/entities/contract.js";
+import type { Contract, ContractedSnapshot, ContractorSnapshot } from "../../domain/entities/contract.js";
+import type { Proposal } from "../../domain/entities/proposal.js";
 import {
   NotFoundError,
   UnauthorizedError,
@@ -19,6 +20,24 @@ import type {
   WebhookHeaders,
 } from "../../domain/services/contract-signature.js";
 import type { PaginationParams } from "../../shared/pagination.js";
+
+/** Entrada de `createDraftFromProposal` -- dados já resolvidos pelo chamador
+ *  (Task 4) pra não acoplar este service aos repositórios de lead/estimate. */
+export interface DraftFromProposalInput {
+  proposal: Proposal;
+  estimate: {
+    scopeItems: string[];
+    deadlineDays: number;
+  } | null;
+  company: {
+    id: string;
+    name: string;
+    document: string | null;
+    email: string | null;
+    phone: string | null;
+  } | null;
+  contact: { name: string; email: string | null; phone: string | null } | null;
+}
 
 export interface CreateContractRequestData {
   // Contratante
@@ -127,6 +146,61 @@ export class ContractService {
     const organization = await this.organizations.findBySlug(organizationSlug);
     if (!organization) throw new NotFoundError("Organização não encontrada.");
     return this.create(organization.id, null, input, "PUBLIC_FORM");
+  }
+
+  /**
+   * Cria contrato RASCUNHO herdado da proposta aceita publicamente. NÃO
+   * enfileira o worker (PDF/assinatura ficam pra quando o dono revisar e
+   * disparar) -- essa é a diferença deliberada em relação a `create()`.
+   * Lança ValidationError se faltar dado obrigatório (empresa sem
+   * documento, sem empresa) -- o chamador trata como best-effort.
+   */
+  async createDraftFromProposal(input: DraftFromProposalInput): Promise<Contract> {
+    const existing = await this.contracts.findByProposalId(input.proposal.id);
+    if (existing) return existing; // aceite repetido/retry não duplica
+
+    if (!input.company) throw new ValidationError("Lead da proposta não tem empresa vinculada.");
+    const documento = (input.company.document ?? "").replace(/\D/g, "");
+    if (!documento) throw new ValidationError("Empresa do lead não tem CPF/CNPJ cadastrado.");
+
+    const organization = await this.organizations.findById(input.proposal.organizationId);
+    if (!organization) throw new NotFoundError("Organização não encontrada.");
+
+    const escopo = input.estimate?.scopeItems?.length
+      ? `${input.proposal.title}\n${input.estimate.scopeItems.map((s) => `- ${s}`).join("\n")}`
+      : input.proposal.title;
+
+    const contractorSnapshot: ContractorSnapshot = {
+      tipoPessoa: documento.length === 14 ? "PJ" : "PF",
+      nome: input.contact?.name ?? input.company.name,
+      documento,
+      email: input.contact?.email ?? input.company.email ?? "",
+      telefone: input.contact?.phone ?? input.company.phone ?? "",
+      endereco: "", // dono preenche na revisão
+      nomeEmpresa: input.company.name,
+    };
+
+    const numeroPrefix = organization.slug.replace(/[^a-zA-Z0-9]/g, "").toUpperCase() || "CONTRATO";
+    return this.contracts.create({
+      organizationId: input.proposal.organizationId,
+      companyId: input.company.id,
+      leadId: input.proposal.leadId,
+      createdById: null,
+      proposalId: input.proposal.id,
+      numeroPrefix,
+      tipo: "SITE",
+      descricaoProjeto: escopo,
+      valorTotal: input.proposal.value, // já é string Decimal "1234.00"
+      formaPagamento: "PIX",
+      percentualEntrada: "50.00",
+      prazoEntregaDias: input.estimate?.deadlineDays ?? 30,
+      limiteRevisoes: 2,
+      contractorSnapshot,
+      contractedSnapshot: this.contractedSnapshot(organization.name),
+      provider: this.gateway.nome,
+      origem: "APP",
+    });
+    // SEM this.queue.enqueue -- deliberado (rascunho pra revisão do dono).
   }
 
   list(organizationId: string, filters: ContractFilters, pagination: PaginationParams) {

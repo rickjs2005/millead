@@ -12,6 +12,8 @@ export interface CreateContractInput {
   companyId: string;
   leadId?: string | null;
   createdById?: string | null;
+  /** Proposta aceita que originou este contrato (rascunho herdado). */
+  proposalId?: string;
   /** Prefixo do número (ex.: "MILWEB") -- vem do slug da organização. */
   numeroPrefix: string;
   tipo: ContractType;
@@ -49,6 +51,8 @@ export interface ContractRepository {
   create(input: CreateContractInput): Promise<Contract>;
   findByIdForOrg(id: string, organizationId: string): Promise<ContractDetail | null>;
   findBySignatureDocId(docId: string): Promise<Contract | null>;
+  /** Contrato já gerado a partir desta proposta (idempotência do aceite). */
+  findByProposalId(proposalId: string): Promise<Contract | null>;
   list(
     organizationId: string,
     filters: ContractFilters,
