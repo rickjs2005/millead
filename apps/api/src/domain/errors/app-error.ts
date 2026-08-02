@@ -56,3 +56,15 @@ export class AiNotConfiguredError extends AppError {
     );
   }
 }
+
+/** MilSocial sem token do Instagram configurado -- 503 acionavel. */
+export class SocialNotConfiguredError extends AppError {
+  readonly statusCode = 503;
+  readonly code = "SOCIAL_NOT_CONFIGURED";
+
+  constructor() {
+    super(
+      "O MilSocial nao esta configurado. Defina INSTAGRAM_ACCESS_TOKEN no .env e reinicie a API.",
+    );
+  }
+}

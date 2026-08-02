@@ -47,6 +47,14 @@ const envSchema = z.object({
   ANTHROPIC_API_KEY: z.string().min(1).optional(),
   AI_MODEL: z.string().default("claude-opus-5"),
 
+  // ===== MilSocial (ferramenta interna do dono) =====
+  // Opcionais: sem eles as rotas /admin/social respondem 503.
+  // INSTAGRAM_ACCESS_TOKEN é o seed inicial do token long-lived; apos o
+  // primeiro refresh, a linha de SocialConfig no banco vira a fonte de verdade.
+  INSTAGRAM_ACCESS_TOKEN: z.string().min(1).optional(),
+  // Chave do cron externo (n8n) pro sync diario sem sessao de usuario.
+  MILSOCIAL_SYNC_KEY: z.string().min(24).optional(),
+
   // ===== Contratos (Fase 9 -- migrado do milweb-contratos) =====
   // URL pública da API (webhooks de assinatura apontam pra cá).
   APP_PUBLIC_URL: z.string().default("http://localhost:4000"),
