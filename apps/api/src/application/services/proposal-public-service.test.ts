@@ -156,6 +156,7 @@ function fakeContract(overrides: Partial<Contract> = {}): Contract {
     companyId: "company-1",
     leadId: LEAD_ID,
     createdById: null,
+    proposalId: null,
     numero: "MILWEB-2026-000001",
     tipo: "SITE",
     status: "RASCUNHO",
