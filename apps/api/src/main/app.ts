@@ -28,7 +28,10 @@ import { createHealthRoutes } from "../interfaces/http/routes/health-routes.js";
 import { createLeadRoutes } from "../interfaces/http/routes/lead-routes.js";
 import { createMeetingRoutes } from "../interfaces/http/routes/meeting-routes.js";
 import { createPipelineRoutes } from "../interfaces/http/routes/pipeline-routes.js";
-import { createProposalRoutes } from "../interfaces/http/routes/proposal-routes.js";
+import {
+  createProposalRoutes,
+  createPublicProposalRoutes,
+} from "../interfaces/http/routes/proposal-routes.js";
 import { createSettingsRoutes } from "../interfaces/http/routes/settings-routes.js";
 import { createSocialRoutes } from "../interfaces/http/routes/social-routes.js";
 import { publicRateLimit } from "../interfaces/http/middlewares/rate-limit.js";
@@ -100,6 +103,12 @@ export function createApp(container: Container): Express {
     "/api/v1/public",
     publicRateLimit,
     createPublicBriefingRoutes(container.briefingController),
+  );
+  // Vista + aceite/recusa público da proposta (/p/:token no front) -- rate-limit por IP, sem login.
+  app.use(
+    "/api/v1/public",
+    publicRateLimit,
+    createPublicProposalRoutes(container.proposalController),
   );
   // Webhook do provedor de assinatura (sem login). O ZapSign não assina o
   // webhook, então a autenticidade vem da reconsulta na API do provedor

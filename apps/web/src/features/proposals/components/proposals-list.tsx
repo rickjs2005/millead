@@ -13,6 +13,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ProposalDetailDialog } from "@/features/proposals/components/proposal-detail-dialog";
 import { useUpdateProposal } from "@/features/proposals/hooks";
 import {
   PROPOSAL_STATUS_LABELS,
@@ -63,6 +64,9 @@ function ProposalRow({ proposal }: { proposal: Proposal }) {
           <span className="text-sm text-muted-foreground">—</span>
         )}
       </TableCell>
+      <TableCell>
+        <ProposalDetailDialog proposal={proposal} />
+      </TableCell>
     </TableRow>
   );
 }
@@ -104,6 +108,7 @@ export function ProposalsList({
           <TableHead>Válida até</TableHead>
           <TableHead>Enviada em</TableHead>
           <TableHead>PDF</TableHead>
+          <TableHead className="w-10" />
         </TableRow>
       </TableHeader>
       <TableBody>

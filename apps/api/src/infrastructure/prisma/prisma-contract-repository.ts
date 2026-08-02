@@ -72,6 +72,7 @@ export class PrismaContractRepository implements ContractRepository {
           companyId: input.companyId,
           leadId: input.leadId ?? null,
           createdById: input.createdById ?? null,
+          proposalId: input.proposalId ?? null,
           numero,
           tipo: input.tipo,
           descricaoProjeto: input.descricaoProjeto,
@@ -135,6 +136,14 @@ export class PrismaContractRepository implements ContractRepository {
       select: baseSelect,
     });
     return row ? toDomain(row, true, false) : null;
+  }
+
+  async findByProposalId(proposalId: string): Promise<Contract | null> {
+    const row = await prisma.contract.findFirst({
+      where: { proposalId },
+      select: baseSelect,
+    });
+    return row ? toDomain(row, false, false) : null;
   }
 
   async list(

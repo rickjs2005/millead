@@ -45,6 +45,12 @@ export class ConflictError extends AppError {
   readonly code = "CONFLICT";
 }
 
+/** Recurso que existiu mas não está mais disponível -- ex.: proposta pública expirada. */
+export class GoneError extends AppError {
+  readonly statusCode = 410;
+  readonly code = "GONE";
+}
+
 /** IA sem chave configurada -- 503 com mensagem acionável, não um 500. */
 export class AiNotConfiguredError extends AppError {
   readonly statusCode = 503;

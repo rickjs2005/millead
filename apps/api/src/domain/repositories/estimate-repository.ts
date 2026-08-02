@@ -22,4 +22,10 @@ export interface EstimateRepository {
   listProducts(organizationId: string): Promise<ProjectProduct[]>;
   /** Marca o orçamento como convertido e vincula a proposta gerada -- passo final do `convert`. */
   markConverted(organizationId: string, id: string, proposalId: string): Promise<void>;
+  /**
+   * Relação inversa de `markConverted` -- `proposalId` é @unique no schema,
+   * então no máximo um orçamento aponta pra uma proposta dada. Usado pelo
+   * aceite público pra herdar scopeItems/deadlineDays no contrato rascunho.
+   */
+  findByProposalId(proposalId: string): Promise<PricingEstimateWithItems | null>;
 }
