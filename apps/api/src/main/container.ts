@@ -14,6 +14,7 @@ import { CompanyService } from "../application/services/company-service.js";
 import { LeadService } from "../application/services/lead-service.js";
 import { MeetingService } from "../application/services/meeting-service.js";
 import { PipelineService } from "../application/services/pipeline-service.js";
+import { ProposalPublicService } from "../application/services/proposal-public-service.js";
 import { ProposalService } from "../application/services/proposal-service.js";
 import { SettingsService } from "../application/services/settings-service.js";
 import { SocialService } from "../application/services/social-service.js";
@@ -167,12 +168,13 @@ export function buildContainer(): Container {
   const tagService = new TagService(tagRepository);
   const taskService = new TaskService(taskRepository);
   const meetingService = new MeetingService(meetingRepository);
+  const proposalNotifier = new DefaultProposalNotifier();
   const proposalService = new ProposalService(
     proposalRepository,
     activityLogger,
     leadRepository,
     organizationRepository,
-    new DefaultProposalNotifier(),
+    proposalNotifier,
   );
   const settingsService = new SettingsService(userRepository, organizationRepository);
   const auditService = new AuditService(auditRepository, companyRepository, new PgBossAuditQueue());
@@ -195,6 +197,17 @@ export function buildContainer(): Container {
     new PgBossContractQueue(),
     createSignatureGateway(),
     new DefaultContractNotifier(),
+  );
+  const proposalPublicService = new ProposalPublicService(
+    proposalRepository,
+    estimateRepository,
+    leadRepository,
+    companyRepository,
+    organizationRepository,
+    contractService,
+    proposalNotifier,
+    new WebPushSender(),
+    activityLogger,
   );
   const costService = new CostService(costRepository, companyRepository);
   const blobStorage = new VercelBlobStorage();
@@ -302,7 +315,7 @@ export function buildContainer(): Container {
   const tagController = new TagController(tagService);
   const taskController = new TaskController(taskService);
   const meetingController = new MeetingController(meetingService);
-  const proposalController = new ProposalController(proposalService);
+  const proposalController = new ProposalController(proposalService, proposalPublicService);
   const settingsController = new SettingsController(settingsService);
   const auditController = new AuditController(auditService);
   const aiController = new AiController(aiService);
