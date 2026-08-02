@@ -210,6 +210,24 @@ describe("ProposalService.get", () => {
 
     await expect(service.get(ORG, PROPOSAL_ID)).rejects.toThrow(NotFoundError);
   });
+
+  it("best-effort de verdade: se a query do contrato falhar, resolve com contractId null (e o resto do detalhe intacto), sem derrubar o GET", async () => {
+    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const { service } = makeService({
+      contracts: {
+        findByProposalId: vi.fn().mockRejectedValue(new Error("db indisponível")),
+      },
+    });
+
+    const result = await service.get(ORG, PROPOSAL_ID);
+
+    expect(result.contractId).toBeNull();
+    expect(result.id).toBe(PROPOSAL_ID);
+    expect(result.title).toBe("Site institucional");
+    expect(consoleErrorSpy).toHaveBeenCalledTimes(1);
+
+    consoleErrorSpy.mockRestore();
+  });
 });
 
 describe("ProposalService.update", () => {

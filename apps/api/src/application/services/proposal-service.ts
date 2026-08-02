@@ -33,12 +33,26 @@ export class ProposalService {
 
   /** Detalhe autenticado: inclui `contractId` do contrato já gerado a partir
    * desta proposta (best-effort, 1 query extra -- null se ainda não houver
-   * contrato). Usado pela tela de detalhe da proposta pra linkar "Ver contrato". */
+   * contrato). Usado pela tela de detalhe da proposta pra linkar "Ver contrato".
+   * Best-effort de verdade: se a query do contrato falhar, loga e segue com
+   * contractId null -- o GET não pode virar 500 por causa de um dado
+   * acessório que a tela só usa pra mostrar um botão a mais. */
   async get(organizationId: string, id: string) {
     const proposal = await this.repository.findByIdForOrg(id, organizationId);
     if (!proposal) throw new NotFoundError("Proposta não encontrada.");
-    const contract = await this.contracts.findByProposalId(id);
-    return { ...proposal, contractId: contract?.id ?? null };
+
+    let contractId: string | null = null;
+    try {
+      const contract = await this.contracts.findByProposalId(id);
+      contractId = contract?.id ?? null;
+    } catch (err) {
+      console.error(
+        "get: falha ao buscar contrato vinculado à proposta (best-effort, detalhe mantido)",
+        { proposalId: id, organizationId, err },
+      );
+    }
+
+    return { ...proposal, contractId };
   }
 
   list(organizationId: string, filters: ProposalFilters, pagination: PaginationParams) {
