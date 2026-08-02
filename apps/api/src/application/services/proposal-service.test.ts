@@ -3,6 +3,8 @@ import type { ActivityRepository } from "../../domain/repositories/activity-repo
 import { ActivityLogger } from "./activity-logger.js";
 import { env } from "../../config/env.js";
 import { ConflictError, NotFoundError } from "../../domain/errors/app-error.js";
+import type { Contract } from "../../domain/entities/contract.js";
+import type { ContractRepository } from "../../domain/repositories/contract-repository.js";
 import type { LeadContact, LeadDetail } from "../../domain/entities/lead.js";
 import type { LeadRepository } from "../../domain/repositories/lead-repository.js";
 import type { Organization } from "../../domain/entities/organization.js";
@@ -90,12 +92,43 @@ function fakeOrganization(overrides: Partial<Organization> = {}): Organization {
   };
 }
 
+function fakeContract(overrides: Partial<Contract> = {}): Contract {
+  return {
+    id: "contract-1",
+    organizationId: ORG,
+    companyId: "company-1",
+    leadId: "lead-1",
+    createdById: USER,
+    numero: "MILWEB-2026-0001",
+    tipo: "SITE",
+    status: "RASCUNHO",
+    descricaoProjeto: "Site institucional",
+    valorTotal: "5000",
+    formaPagamento: "PIX",
+    percentualEntrada: "50",
+    prazoEntregaDias: 30,
+    limiteRevisoes: 2,
+    contractorSnapshot: {},
+    contractedSnapshot: {},
+    provider: "AUTENTIQUE",
+    signatureDocId: null,
+    signatureUrl: null,
+    assinadoEm: null,
+    hasPdfOriginal: false,
+    hasPdfAssinado: false,
+    createdAt: new Date("2026-07-31"),
+    updatedAt: new Date("2026-07-31"),
+    ...overrides,
+  };
+}
+
 function makeService(
   overrides: {
     proposals?: Partial<ProposalRepository>;
     leads?: Partial<LeadRepository>;
     organizations?: Partial<OrganizationRepository>;
     notifier?: Partial<ProposalNotifier>;
+    contracts?: Partial<ContractRepository>;
   } = {},
 ) {
   const proposals = {
@@ -133,10 +166,51 @@ function makeService(
     ...overrides.notifier,
   } as unknown as ProposalNotifier;
 
-  const service = new ProposalService(proposals, activityLogger, leads, organizations, notifier);
+  const contracts = {
+    findByProposalId: vi.fn().mockResolvedValue(null),
+    ...overrides.contracts,
+  } as unknown as ContractRepository;
 
-  return { service, proposals, leads, organizations, activityRepository, notifier };
+  const service = new ProposalService(
+    proposals,
+    activityLogger,
+    leads,
+    organizations,
+    notifier,
+    contracts,
+  );
+
+  return { service, proposals, leads, organizations, activityRepository, notifier, contracts };
 }
+
+describe("ProposalService.get", () => {
+  it("sem contrato gerado, devolve contractId null", async () => {
+    const { service } = makeService();
+
+    const result = await service.get(ORG, PROPOSAL_ID);
+
+    expect(result.contractId).toBeNull();
+  });
+
+  it("com contrato já gerado a partir da proposta, devolve o id dele", async () => {
+    const { service, contracts } = makeService({
+      contracts: { findByProposalId: vi.fn().mockResolvedValue(fakeContract({ id: "contract-9" })) },
+    });
+
+    const result = await service.get(ORG, PROPOSAL_ID);
+
+    expect(result.contractId).toBe("contract-9");
+    expect(contracts.findByProposalId).toHaveBeenCalledWith(PROPOSAL_ID);
+  });
+
+  it("proposta inexistente lança NotFoundError", async () => {
+    const { service } = makeService({
+      proposals: { findByIdForOrg: vi.fn().mockResolvedValue(null) },
+    });
+
+    await expect(service.get(ORG, PROPOSAL_ID)).rejects.toThrow(NotFoundError);
+  });
+});
 
 describe("ProposalService.update", () => {
   const originalWebPublicUrl = env.WEB_PUBLIC_URL;

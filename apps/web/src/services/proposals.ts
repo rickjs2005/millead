@@ -1,5 +1,5 @@
 import { api } from "./api-client";
-import type { PaginatedResult, Proposal, ProposalStatus } from "@/types/api";
+import type { PaginatedResult, Proposal, ProposalDetail, ProposalStatus } from "@/types/api";
 
 export interface CreateProposalPayload {
   leadId: string;
@@ -29,7 +29,7 @@ export interface ListProposalsParams {
 export const proposalsService = {
   list: (params: ListProposalsParams = {}) =>
     api.get<PaginatedResult<Proposal>>("/api/v1/proposals", params),
-  get: (id: string) => api.get<Proposal>(`/api/v1/proposals/${id}`),
+  get: (id: string) => api.get<ProposalDetail>(`/api/v1/proposals/${id}`),
   create: (payload: CreateProposalPayload) => api.post<Proposal>("/api/v1/proposals", payload),
   update: (id: string, payload: UpdateProposalPayload) =>
     api.patch<Proposal>(`/api/v1/proposals/${id}`, payload),

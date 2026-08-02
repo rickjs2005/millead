@@ -175,6 +175,7 @@ export function buildContainer(): Container {
     leadRepository,
     organizationRepository,
     proposalNotifier,
+    contractRepository,
   );
   const settingsService = new SettingsService(userRepository, organizationRepository);
   const auditService = new AuditService(auditRepository, companyRepository, new PgBossAuditQueue());

@@ -316,8 +316,20 @@ export interface Proposal {
   pdfUrl: string | null;
   sentAt: string | null;
   respondedAt: string | null;
+  // Aceite público (/p/:token)
+  publicToken: string | null;
+  viewedAt: string | null;
+  decidedAt: string | null;
+  rejectReason: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+/** Detalhe autenticado de uma proposta (`GET /api/v1/proposals/:id`) --
+ * `contractId` é o contrato já gerado a partir dela (aceite -> contrato
+ * herdado), null se ainda não houver. Só existe no detalhe, não na listagem. */
+export interface ProposalDetail extends Proposal {
+  contractId: string | null;
 }
 
 /** Resposta pública da proposta (`/p/[token]`). Projeção enxuta de Proposal:

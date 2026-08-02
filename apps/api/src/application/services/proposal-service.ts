@@ -1,6 +1,7 @@
 import { Prisma } from "@millead/database";
 import { env } from "../../config/env.js";
 import { ConflictError, NotFoundError } from "../../domain/errors/app-error.js";
+import type { ContractRepository } from "../../domain/repositories/contract-repository.js";
 import type { LeadRepository } from "../../domain/repositories/lead-repository.js";
 import type { OrganizationRepository } from "../../domain/repositories/organization-repository.js";
 import type {
@@ -23,16 +24,21 @@ export class ProposalService {
     private readonly leads: LeadRepository,
     private readonly organizations: OrganizationRepository,
     private readonly notifier: ProposalNotifier,
+    private readonly contracts: ContractRepository,
   ) {}
 
   create(organizationId: string, createdById: string, input: CreateProposalInput) {
     return this.repository.create({ organizationId, createdById, ...input });
   }
 
+  /** Detalhe autenticado: inclui `contractId` do contrato já gerado a partir
+   * desta proposta (best-effort, 1 query extra -- null se ainda não houver
+   * contrato). Usado pela tela de detalhe da proposta pra linkar "Ver contrato". */
   async get(organizationId: string, id: string) {
     const proposal = await this.repository.findByIdForOrg(id, organizationId);
     if (!proposal) throw new NotFoundError("Proposta não encontrada.");
-    return proposal;
+    const contract = await this.contracts.findByProposalId(id);
+    return { ...proposal, contractId: contract?.id ?? null };
   }
 
   list(organizationId: string, filters: ProposalFilters, pagination: PaginationParams) {
