@@ -7,7 +7,7 @@ import { usePathname, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { NAV_SECTIONS, type NavItem } from "./nav-items";
+import { isOwnerEmail, NAV_SECTIONS, type NavItem } from "./nav-items";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/stores/auth-store";
 
@@ -21,10 +21,15 @@ export function SidebarNav({
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const hasPermission = useAuthStore((s) => s.hasPermission);
+  const userEmail = useAuthStore((s) => s.user?.email);
 
   const sections = NAV_SECTIONS.map((section) => ({
     ...section,
-    items: section.items.filter((item) => !item.permission || hasPermission(item.permission)),
+    items: section.items.filter(
+      (item) =>
+        (!item.permission || hasPermission(item.permission)) &&
+        (!item.ownerOnly || isOwnerEmail(userEmail)),
+    ),
   })).filter((section) => section.items.length > 0);
 
   return (

@@ -18,19 +18,24 @@ import { companiesService } from "@/services/companies";
 import { leadsService } from "@/services/leads";
 import { useAuthStore } from "@/stores/auth-store";
 import { useUiStore } from "@/stores/ui-store";
-import { NAV_ITEMS } from "./nav-items";
+import { isOwnerEmail, NAV_ITEMS } from "./nav-items";
 
 export function CommandPalette() {
   const open = useUiStore((s) => s.commandOpen);
   const setOpen = useUiStore((s) => s.setCommandOpen);
   const router = useRouter();
   const hasPermission = useAuthStore((s) => s.hasPermission);
+  const userEmail = useAuthStore((s) => s.user?.email);
   const [search, setSearch] = useState("");
   const debouncedSearch = useDebounce(search, 250);
 
   // Mesmo filtro da sidebar -- sem isso o palette virava porta dos fundos
   // pra módulos que o usuário não tem permissão de ver.
-  const navItems = NAV_ITEMS.filter((item) => !item.permission || hasPermission(item.permission));
+  const navItems = NAV_ITEMS.filter(
+    (item) =>
+      (!item.permission || hasPermission(item.permission)) &&
+      (!item.ownerOnly || isOwnerEmail(userEmail)),
+  );
 
   const { data: leadResults } = useQuery({
     queryKey: ["command", "leads", debouncedSearch],

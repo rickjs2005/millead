@@ -6,6 +6,7 @@ import {
   Clapperboard,
   ClipboardList,
   FileSignature,
+  Instagram,
   LayoutDashboard,
   LayoutList,
   MessageSquare,
@@ -23,10 +24,19 @@ export interface NavItem {
   href: string;
   icon: LucideIcon;
   permission?: PermissionKey;
+  /** So aparece pro dono (e-mail logado === NEXT_PUBLIC_OWNER_EMAIL). A
+   *  protecao real e da API (requireOwner, 404); aqui e so visibilidade. */
+  ownerOnly?: boolean;
   /** Sem API ainda (Fase 6/7) -- aparece no menu, mas leva pra um estado "em breve". */
   comingSoon?: boolean;
   /** Submenu de 1 nível só -- ver SidebarNav, sem componente de árvore genérico. */
   children?: Omit<NavItem, "children">[];
+}
+
+/** True quando o usuario logado e o dono configurado no build. */
+export function isOwnerEmail(email: string | undefined | null): boolean {
+  const owner = process.env.NEXT_PUBLIC_OWNER_EMAIL?.trim().toLowerCase();
+  return !!owner && !!email && email.trim().toLowerCase() === owner;
 }
 
 export interface NavSection {
@@ -81,6 +91,13 @@ export const NAV_SECTIONS: NavSection[] = [
       { label: "Diretor criativo", href: "/landing-pages", icon: Rocket, permission: "leads:read" },
       { label: "Vídeos", href: "/videos", icon: Clapperboard, permission: "leads:read" },
       { label: "Mensagens", href: "/messages", icon: MessageSquare, permission: "messages:read" },
+    ],
+  },
+  {
+    title: "Interno",
+    items: [
+      // Ferramenta pessoal do dono -- invisivel pra qualquer outro usuario.
+      { label: "MilSocial", href: "/admin/milsocial", icon: Instagram, ownerOnly: true },
     ],
   },
   {
