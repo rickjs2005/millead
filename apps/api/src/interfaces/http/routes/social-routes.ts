@@ -16,7 +16,7 @@ function safeEqual(a: string, b: string): boolean {
  * OU header X-Sync-Key (cron do n8n, sem sessao). Header presente decide a
  * rota de auth na hora -- invalido e 401 direto, sem fallback pra sessao.
  */
-function ownerOrSyncKey(
+export function ownerOrSyncKey(
   syncKey: string | undefined,
   authenticate: RequestHandler,
   requireOwner: RequestHandler,

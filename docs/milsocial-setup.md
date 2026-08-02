@@ -1,6 +1,6 @@
 # MilSocial: Setup de Token Instagram e Sincronização com n8n
 
-MilSocial é a ferramenta interna do dono para sincronizar métricas e análise de retenção dos reels do Instagram em tempo real. Este guia cobre a configuração completa: conversão de conta, criação do app Meta, configuração de variáveis de ambiente, primeiro sync manual e automação via n8n.
+MilSocial é a ferramenta interna do dono para sincronizar métricas do Instagram (@milweb) e gerar análise por IA sobre o desempenho por formato de post. Este guia cobre a configuração completa: conversão de conta, criação do app Meta, configuração de variáveis de ambiente, primeiro sync manual e automação via n8n.
 
 ## 1. Converter a Conta do Instagram para Profissional
 
@@ -33,10 +33,9 @@ A conta agora aparecerá como profissional e todos os reels terão métricas dis
 13. Abra o app do Instagram na conta @milweb, vá em Configurações > Apps e Sites > Aplicativos e sites, e aceite o convite de tester
 14. Volte ao dashboard do Meta e aguarde a aceitação ser refletida (refresh a página)
 15. Na seção **Usuários de Teste**, clique em **Gerar Token**
-16. Selecione as permissões:
-    - `instagram_basic`
-    - `instagram_graph_user_media`
-    - `instagram_graph_user_lifetime_value`
+16. Selecione as permissões (fluxo "Instagram API with Instagram Login"):
+    - `instagram_business_basic`
+    - `instagram_business_manage_insights`
 17. Clique em **Gerar Token de Acesso** — este é o token long-lived (60 dias de validade)
 18. Copie o token inteiro (será uma string longa começando com `IGQVJheW...`)
 
@@ -102,16 +101,16 @@ Após configurar os envs em desenvolvimento e fazer deploy para Render/Vercel:
 
 1. Acesse [millead.milweb.com.br/admin/milsocial](https://millead.milweb.com.br/admin/milsocial) logado como o dono
 2. Verifique que o e-mail na barra superior coincide com `NEXT_PUBLIC_OWNER_EMAIL`
-3. Clique em **Sincronizar Agora**
-4. Aguarde até 30 segundos (a chamada pode ser lenta se for o primeiro cold start do Render)
-5. Verifique que os 4 blocos de métricas são preenchidos:
-   - Reels totais
-   - Média de plays
-   - Taxa de retenção média
-   - Reels analisados (com formato válido)
-6. Desça para a tabela de reels e confirme que há pelo menos um reel listado com suas métricas
+3. Clique em **Sincronizar agora**
+4. Aguarde a sincronização terminar (veja o aviso sobre a primeira carga logo abaixo — ela pode demorar bem mais que uma sync normal)
+5. Depois de concluída, o painel mostra:
+   - Uma tabela de **comparação por formato** (reach, views, tempo médio assistido e interações, agrupados por formato de post)
+   - Um **gráfico temporal** de alcance/views ao longo do tempo
+   - Uma **lista de posts**, cada um com um badge de formato que pode ser corrigido manualmente (útil quando a classificação por IA erra)
 
 Se tudo aparecer, o token foi renovado e armazenado no banco. A partir daqui, o n8n pode sincronizar automaticamente sem intervenção manual.
+
+**Atenção — primeira carga histórica:** a primeira sincronização pagina todos os posts existentes do Instagram e busca insights de cada um; para contas com muito conteúdo isso pode levar minutos (bem mais que os ~30s de uma sync incremental do dia a dia). Prefira disparar a primeira sync pelo workflow do n8n (que já usa timeout de 120s, seção 5.2) em vez do botão do painel — o proxy do painel pode dar timeout antes da API terminar em background. Se isso acontecer, não é um erro real: o sync continua rodando no servidor e é idempotente (upsert por `igMediaId` e snapshot por dia), então basta aguardar e clicar em **Sincronizar agora** de novo mais tarde para confirmar que os dados chegaram.
 
 **Aviso:** Se o painel avisa que o token expirou após alguns dias de inatividade, repita a seção 2 (gerar novo token) e atualize `INSTAGRAM_ACCESS_TOKEN` no Render. O ciclo de 60 dias reinicia.
 
@@ -160,10 +159,10 @@ A partir daí, o workflow dispara automaticamente todo dia às 05:00 e sincroniz
 **Causa:** Header `X-Sync-Key` incorreto ou fora de sincronização com a chave no Render.  
 **Solução:** Copie o valor exato de `MILSOCIAL_SYNC_KEY` novamente do Render e cole no header do n8n. Teste o workflow manualmente clicando em "Execute Workflow".
 
-### Sync completa mas tabela de reels vazia
+### Sync completa mas a lista de posts está vazia
 
-**Causa:** Conta não tem reels, ou os reels não têm o formato esperado (não são vídeos rotulados como "Reel" no Instagram).  
-**Solução:** Esperado se a conta não tem reels. Publique um reel novo na @milweb e sincronize novamente em até 5 minutos.
+**Causa:** Conta ainda não tem nenhum post publicado, ou o token não tem acesso à mídia da conta.  
+**Solução:** Publique um post novo na @milweb e sincronize novamente — o próximo sync (manual ou do n8n) traz o post e seus insights.
 
 ### Painel avisa "Token expirado"
 

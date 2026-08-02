@@ -1,6 +1,7 @@
 import type {
   InstagramClient, InstagramInsights, InstagramMedia, InstagramMediaPage,
 } from "../../domain/services/instagram-client.js";
+import { AppError } from "../../domain/errors/app-error.js";
 
 const BASE = "https://graph.instagram.com/v23.0";
 
@@ -12,11 +13,19 @@ const SAFE_METRICS = "reach,likes,comments,saved,shares";
 
 interface InsightValue { name: string; values?: Array<{ value: number }>; total_value?: { value: number } }
 
-/** Erro tipado da Graph API, com deteccao por codigo. */
-class GraphApiError extends Error {
-  constructor(message: string, public code: number | null) {
+/**
+ * Erro tipado da Graph API, com deteccao por codigo. Estende AppError pra
+ * virar 502 (bad gateway) com mensagem clara no errorHandler, em vez de
+ * um 500 generico -- a falha e do lado do Instagram, nao da nossa API.
+ * `graphCode` guarda o codigo de erro devolvido pela propria Graph API
+ * (ex.: 100 = metrica nao suportada); `code` (herdado) e o code do AppError.
+ */
+class GraphApiError extends AppError {
+  readonly statusCode = 502;
+  readonly code = "INSTAGRAM_API_ERROR";
+
+  constructor(message: string, public readonly graphCode: number | null) {
     super(message);
-    this.name = "GraphApiError";
   }
 }
 
@@ -56,14 +65,14 @@ export class GraphApiInstagramClient implements InstagramClient {
 
   async fetchInsights(token: string, igMediaId: string, mediaType: string): Promise<InstagramInsights> {
     const isReel = mediaType === "REELS" || mediaType === "VIDEO";
-    let metrics = isReel ? REEL_METRICS : STATIC_METRICS;
+    const metrics = isReel ? REEL_METRICS : STATIC_METRICS;
     let rows: InsightValue[];
     try {
       rows = await this.fetchInsightRows(token, igMediaId, metrics);
     } catch (err) {
       // Erro #100 (metrica nao suportada): tentar extrair as metricas citadas e remover;
       // se nao conseguir identificar, retry uma unica vez com conjunto seguro.
-      if (err instanceof GraphApiError && err.code === 100) {
+      if (err instanceof GraphApiError && err.graphCode === 100) {
         const errMsg = err.message;
         const metricList = metrics.split(",");
         let removedAny = false;

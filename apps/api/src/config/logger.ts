@@ -12,6 +12,7 @@ export const logger = pino({
       'req.headers["set-cookie"]',
       "req.headers.cookie",
       "res.headers['set-cookie']",
+      'req.headers["x-sync-key"]',
     ],
     censor: "[redacted]",
   },

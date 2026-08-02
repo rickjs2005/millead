@@ -9,6 +9,7 @@ import type {
   SocialPostFormat,
   SocialPostWithMetrics,
 } from "../../domain/entities/social.js";
+import { truncateToUtcDay } from "./social-snapshot-day.js";
 
 const SOCIAL_CONFIG_ID = "singleton";
 
@@ -156,9 +157,7 @@ export class PrismaSocialRepository implements SocialRepository {
 
   async addSnapshot(postId: string, collectedAt: Date, metrics: SocialMetrics): Promise<void> {
     // Trunca pro inicio do dia (UTC): torna o sync re-rodavel no mesmo dia sem duplicar.
-    const day = new Date(Date.UTC(
-      collectedAt.getUTCFullYear(), collectedAt.getUTCMonth(), collectedAt.getUTCDate(),
-    ));
+    const day = truncateToUtcDay(collectedAt);
     await prisma.socialMetricSnapshot.upsert({
       where: { postId_collectedAt: { postId, collectedAt: day } },
       create: { postId, collectedAt: day, ...toDb(metrics) },

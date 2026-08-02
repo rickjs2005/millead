@@ -116,9 +116,16 @@ export class SocialService {
     let snapshotsSaved = 0;
     const now = new Date();
     for (const post of active) {
-      const metrics = await this.instagram.fetchInsights(token, post.igMediaId, post.mediaType);
-      await this.repo.addSnapshot(post.id, now, metrics);
-      snapshotsSaved++;
+      // Best-effort por post (espelha a classificacao abaixo): um post com
+      // erro na Graph API (rate limit, midia removida etc.) nao pode abortar
+      // o sync inteiro -- ele so fica sem snapshot novo e o proximo sync tenta de novo.
+      try {
+        const metrics = await this.instagram.fetchInsights(token, post.igMediaId, post.mediaType);
+        await this.repo.addSnapshot(post.id, now, metrics);
+        snapshotsSaved++;
+      } catch {
+        /* post pulado; proxima sync tenta de novo */
+      }
     }
 
     // 5. Classificacao IA (best-effort; erro de UM post nao derruba o sync).
