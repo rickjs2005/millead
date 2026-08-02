@@ -20,23 +20,16 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { PublicProposalError, proposalsPublicService } from "@/services/proposals-public";
 import type { PublicProposalStatus } from "@/types/api";
+import { formatCurrency } from "@/utils/format";
 
 const WHATSAPP_URL = "https://wa.me/553399877375";
 
-function formatCurrency(value: string, currency: string): string {
-  const amount = Number(value);
-  if (Number.isNaN(amount)) return value;
-  try {
-    return new Intl.NumberFormat("pt-BR", { style: "currency", currency: currency || "BRL" }).format(
-      amount,
-    );
-  } catch {
-    return `${currency} ${amount.toFixed(2)}`;
-  }
-}
-
+// `timeZone: "UTC"` é obrigatório aqui: `validUntil` chega como data (meia-noite
+// UTC) e sem fixar o fuso, toLocaleDateString converte pro fuso local do
+// navegador -- no Brasil (UTC-3) isso mostra o dia ANTERIOR. Mesmo padrão de
+// features/finance/components/credit-usage-section.tsx:60.
 function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString("pt-BR");
+  return new Date(iso).toLocaleDateString("pt-BR", { timeZone: "UTC" });
 }
 
 function CenteredState({

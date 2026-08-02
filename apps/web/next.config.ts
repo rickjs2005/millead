@@ -54,6 +54,10 @@ const csp = [
   // `https://vercel.com/api/blob/...`. Sem essa origem o CSP bloqueia o
   // upload do briefing silenciosamente (fetch recusado antes de sair).
   `connect-src 'self' ${API_URL} https://vercel.com https://*.public.blob.vercel-storage.com https://blob.vercel-storage.com`,
+  // O PDF embutido da proposta pública (/p/[token]) vem de um <iframe> apontando
+  // pro Vercel Blob -- sem frame-src liberando essa origem, default-src 'self'
+  // bloqueia o embed silenciosamente (PDF em branco em produção).
+  "frame-src 'self' https://*.public.blob.vercel-storage.com https://blob.vercel-storage.com",
   "frame-ancestors 'none'",
   "object-src 'none'",
   "base-uri 'self'",
