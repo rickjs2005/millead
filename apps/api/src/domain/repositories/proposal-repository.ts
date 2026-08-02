@@ -22,6 +22,11 @@ export interface UpdateProposalInput {
   status?: ProposalStatus;
   sentAt?: Date | null;
   respondedAt?: Date | null;
+  publicToken?: string;
+  viewedAt?: Date | null;
+  decidedAt?: Date | null;
+  decisionIp?: string | null;
+  rejectReason?: string | null;
 }
 
 export interface ProposalFilters {

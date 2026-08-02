@@ -1,4 +1,4 @@
-import { randomBytes, randomInt } from "node:crypto";
+import { randomBytes } from "node:crypto";
 import { NotFoundError, ValidationError } from "../../domain/errors/app-error.js";
 import type {
   BriefingFilters,
@@ -11,28 +11,11 @@ import type {
 import type { CompanyRepository } from "../../domain/repositories/company-repository.js";
 import type { LeadRepository } from "../../domain/repositories/lead-repository.js";
 import { extractCompanyData } from "./briefing-company-extractor.js";
+import { generatePublicToken } from "./public-token.js";
 import type { BriefingNotifier } from "../../domain/services/briefing-notifier.js";
 import type { PaginationParams } from "../../shared/pagination.js";
 import type { CreateCustomBriefingRequest } from "../dto/briefing.dto.js";
 import type { ActivityLogger } from "./activity-logger.js";
-
-// Sem O/0/I/1 -- evita confusão caso o cliente precise ler o código.
-const TOKEN_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-
-/**
- * Token do link público (/b/:token). 20 chars sobre alfabeto de 32 ≈ 100
- * bits de entropia -- o link protege PII do lead/empresa e permite gerar
- * tokens de upload no escopo da org, então precisa ser imprevisível, não só
- * "único". Antes eram 6 chars (~1bi), enumerável. O link é enviado por
- * WhatsApp/e-mail (copiado, não digitado), então o comprimento não atrapalha.
- */
-function generatePublicToken(length = 20): string {
-  let token = "";
-  for (let i = 0; i < length; i++) {
-    token += TOKEN_ALPHABET[randomInt(TOKEN_ALPHABET.length)];
-  }
-  return token;
-}
 
 /** "Quais marcas você trabalha?" → "quais_marcas_voce_trabalha". */
 function slugify(label: string): string {

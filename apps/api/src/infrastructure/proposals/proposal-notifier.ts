@@ -19,6 +19,7 @@ export class DefaultProposalNotifier implements ProposalNotifier {
     emailCliente: string;
     pdfUrl: string | null;
     nomeOrganizacao: string;
+    publicUrl: string | null;
   }): Promise<void> {
     try {
       const validade = input.validUntil
@@ -26,6 +27,9 @@ export class DefaultProposalNotifier implements ProposalNotifier {
         : "";
       const pdf = input.pdfUrl
         ? `<p><a href="${input.pdfUrl}">Abrir a proposta completa (PDF)</a></p>`
+        : "";
+      const aceite = input.publicUrl
+        ? `<p><a href="${input.publicUrl}" style="display:inline-block;padding:10px 20px;background:#2563eb;color:#fff;text-decoration:none;border-radius:6px;">Ver e aceitar a proposta</a></p>`
         : "";
       await sendEmail({
         to: input.emailCliente,
@@ -35,6 +39,7 @@ export class DefaultProposalNotifier implements ProposalNotifier {
           <p>Segue a proposta <strong>${input.titulo}</strong> no valor de
           <strong>${formatValor(input.valor, input.currency)}</strong>.</p>
           ${validade}
+          ${aceite}
           ${pdf}
           <p>Qualquer dúvida, é só responder este e-mail.</p>
           <p>— ${input.nomeOrganizacao}</p>

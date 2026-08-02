@@ -26,6 +26,11 @@ interface ProposalRow {
   pdfUrl: string | null;
   sentAt: Date | null;
   respondedAt: Date | null;
+  publicToken: string | null;
+  viewedAt: Date | null;
+  decidedAt: Date | null;
+  decisionIp: string | null;
+  rejectReason: string | null;
   createdAt: Date;
   updatedAt: Date;
 }

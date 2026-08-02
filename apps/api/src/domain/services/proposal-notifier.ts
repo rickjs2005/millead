@@ -12,5 +12,6 @@ export interface ProposalNotifier {
     emailCliente: string;
     pdfUrl: string | null;
     nomeOrganizacao: string;
+    publicUrl: string | null;
   }): Promise<void>;
 }
