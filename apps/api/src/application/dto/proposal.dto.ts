@@ -34,3 +34,9 @@ export const listProposalsQuerySchema = paginationSchema.extend({
   status: z.enum(["DRAFT", "SENT", "VIEWED", "ACCEPTED", "REJECTED", "EXPIRED"]).optional(),
 });
 export type ListProposalsQuery = z.infer<typeof listProposalsQuerySchema>;
+
+/** Recusa pelo link público (/p/:token) -- motivo é opcional e curto. */
+export const rejectPublicSchema = z.object({
+  reason: z.string().max(2000).optional(),
+});
+export type RejectPublicInput = z.infer<typeof rejectPublicSchema>;

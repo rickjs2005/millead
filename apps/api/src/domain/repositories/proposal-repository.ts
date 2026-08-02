@@ -54,4 +54,28 @@ export interface ProposalRepository {
   ensurePublicToken(id: string, organizationId: string, token: string): Promise<string | null>;
   /** Cleanup do fluxo de conversão orçamento→proposta: some se o PDF/upload falhar após criar a proposal. */
   delete(id: string, organizationId: string): Promise<boolean>;
+
+  /**
+   * Busca pública pelo token do link (/p/:token) -- exclui propostas em
+   * DRAFT de propósito, pra devolver 404 uniforme tanto pra token
+   * inexistente quanto pra proposta que ainda não foi enviada.
+   */
+  findByPublicToken(token: string): Promise<Proposal | null>;
+  /**
+   * CAS: SENT -> VIEWED. `false` (count 0) quando a proposta já não está
+   * mais em SENT (já foi vista ou decidida) -- não é erro, só idempotência.
+   */
+  markViewed(id: string, viewedAt: Date): Promise<boolean>;
+  /**
+   * CAS: SENT|VIEWED -> ACCEPTED|REJECTED, gravando decidedAt/decisionIp/
+   * respondedAt/rejectReason. `null` (count 0) quando a proposta perdeu a
+   * corrida pra outra decisão concorrente ou já não está em SENT/VIEWED.
+   */
+  decide(
+    id: string,
+    decision: "ACCEPTED" | "REJECTED",
+    data: { decidedAt: Date; decisionIp: string | null; rejectReason?: string },
+  ): Promise<Proposal | null>;
+  /** updateMany condicionado: SENT|VIEWED -> EXPIRED. Idempotente. */
+  markExpired(id: string): Promise<void>;
 }

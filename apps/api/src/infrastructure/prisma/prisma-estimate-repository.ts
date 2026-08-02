@@ -168,6 +168,14 @@ export class PrismaEstimateRepository implements EstimateRepository {
     });
   }
 
+  async findByProposalId(proposalId: string): Promise<PricingEstimateWithItems | null> {
+    const row = await prisma.pricingEstimate.findUnique({
+      where: { proposalId },
+      include: withCostItems,
+    });
+    return row ? toDomainEstimate(row) : null;
+  }
+
   async listProducts(organizationId: string): Promise<ProjectProduct[]> {
     const rows = await prisma.projectProduct.findMany({
       where: { isActive: true, OR: [{ organizationId: null }, { organizationId }] },

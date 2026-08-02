@@ -120,4 +120,49 @@ export class PrismaProposalRepository implements ProposalRepository {
     const { count } = await prisma.proposal.deleteMany({ where: { id, organizationId } });
     return count > 0;
   }
+
+  async findByPublicToken(token: string): Promise<Proposal | null> {
+    // DRAFT nunca tem publicToken gravado (só ensurePublicToken grava, e só
+    // na transição pra SENT), mas o filtro explícito documenta a garantia:
+    // token de proposta ainda não enviada nunca é um 200 aqui.
+    const row = await prisma.proposal.findFirst({
+      where: { publicToken: token, status: { not: "DRAFT" } },
+    });
+    return row ? toDomain(row) : null;
+  }
+
+  async markViewed(id: string, viewedAt: Date): Promise<boolean> {
+    const { count } = await prisma.proposal.updateMany({
+      where: { id, status: "SENT" },
+      data: { status: "VIEWED", viewedAt },
+    });
+    return count > 0;
+  }
+
+  async decide(
+    id: string,
+    decision: "ACCEPTED" | "REJECTED",
+    data: { decidedAt: Date; decisionIp: string | null; rejectReason?: string },
+  ): Promise<Proposal | null> {
+    const { count } = await prisma.proposal.updateMany({
+      where: { id, status: { in: ["SENT", "VIEWED"] } },
+      data: {
+        status: decision,
+        decidedAt: data.decidedAt,
+        decisionIp: data.decisionIp,
+        respondedAt: data.decidedAt,
+        ...(decision === "REJECTED" ? { rejectReason: data.rejectReason ?? null } : {}),
+      },
+    });
+    if (count === 0) return null;
+    const row = await prisma.proposal.findUniqueOrThrow({ where: { id } });
+    return toDomain(row);
+  }
+
+  async markExpired(id: string): Promise<void> {
+    await prisma.proposal.updateMany({
+      where: { id, status: { in: ["SENT", "VIEWED"] } },
+      data: { status: "EXPIRED" },
+    });
+  }
 }
