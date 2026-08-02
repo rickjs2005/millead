@@ -96,6 +96,26 @@ export class PrismaProposalRepository implements ProposalRepository {
     return toDomain(row);
   }
 
+  async ensurePublicToken(
+    id: string,
+    organizationId: string,
+    token: string,
+  ): Promise<string | null> {
+    // CAS: só grava se publicToken ainda for null -- em corrida entre duas
+    // transições SENT concorrentes, updateMany com esse where garante que
+    // só a primeira escreve; a segunda vira no-op e o findFirst abaixo lê
+    // o token do vencedor (que pode ser o desta própria chamada).
+    await prisma.proposal.updateMany({
+      where: { id, organizationId, publicToken: null },
+      data: { publicToken: token },
+    });
+    const row = await prisma.proposal.findFirst({
+      where: { id, organizationId },
+      select: { publicToken: true },
+    });
+    return row?.publicToken ?? null;
+  }
+
   async delete(id: string, organizationId: string): Promise<boolean> {
     const { count } = await prisma.proposal.deleteMany({ where: { id, organizationId } });
     return count > 0;

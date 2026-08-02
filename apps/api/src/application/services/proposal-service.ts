@@ -1,7 +1,6 @@
 import { Prisma } from "@millead/database";
 import { env } from "../../config/env.js";
 import { ConflictError, NotFoundError } from "../../domain/errors/app-error.js";
-import type { Proposal } from "../../domain/entities/proposal.js";
 import type { LeadRepository } from "../../domain/repositories/lead-repository.js";
 import type { OrganizationRepository } from "../../domain/repositories/organization-repository.js";
 import type {
@@ -53,45 +52,30 @@ export class ProposalService {
       resolvedPatch.respondedAt = new Date();
     }
 
-    // Precisa da proposta atual pra (a) saber se já tem publicToken (SENT
-    // não gera de novo, senão reenvio invalidaria um link já compartilhado)
-    // e (b) checar se uma decisão manual ia sobrescrever o aceite/rejeição
-    // que o cliente já deu pelo link público.
-    let current: Proposal | null = null;
-    if (patch.status === "SENT" || (patch.status && RESPONDED_STATUSES.has(patch.status))) {
-      current = await this.repository.findByIdForOrg(id, organizationId);
+    // Guarda: decisão manual (ACCEPTED/REJECTED) não pode sobrescrever uma
+    // decisão que o cliente já tomou pelo link público.
+    if (patch.status && RESPONDED_STATUSES.has(patch.status)) {
+      const current = await this.repository.findByIdForOrg(id, organizationId);
       if (!current) throw new NotFoundError("Proposta não encontrada.");
-    }
-
-    if (patch.status && RESPONDED_STATUSES.has(patch.status) && current?.decidedAt) {
-      throw new ConflictError(
-        "Esta proposta já foi decidida pelo cliente pelo link público.",
-      );
-    }
-
-    let generatedToken: string | null = null;
-    if (patch.status === "SENT" && !current?.publicToken) {
-      generatedToken = generatePublicToken();
-      resolvedPatch.publicToken = generatedToken;
-    }
-
-    let proposal: Proposal | null;
-    try {
-      proposal = await this.repository.update(id, organizationId, resolvedPatch);
-    } catch (err) {
-      // Colisão de unique no publicToken (~100 bits de entropia -- deveria
-      // nunca acontecer na prática): 1 retry com token novo já resolve.
-      if (
-        generatedToken &&
-        err instanceof Prisma.PrismaClientKnownRequestError &&
-        err.code === "P2002"
-      ) {
-        resolvedPatch.publicToken = generatePublicToken();
-        proposal = await this.repository.update(id, organizationId, resolvedPatch);
-      } else {
-        throw err;
+      if (current.decidedAt) {
+        throw new ConflictError(
+          "Esta proposta já foi decidida pelo cliente pelo link público.",
+        );
       }
     }
+
+    // Token do link público: CAS no repositório, ANTES do update de status.
+    // Duas transições SENT concorrentes chamam ensurePublicToken em
+    // paralelo; só a primeira grava, a segunda recebe de volta o mesmo
+    // token -- nenhuma das duas manda e-mail com um link que a outra
+    // invalidou. publicToken nunca entra no patch genérico (só esse
+    // caminho escreve nele).
+    let publicToken: string | null = null;
+    if (patch.status === "SENT") {
+      publicToken = await this.ensurePublicTokenWithRetry(id, organizationId);
+    }
+
+    const proposal = await this.repository.update(id, organizationId, resolvedPatch);
     if (!proposal) throw new NotFoundError("Proposta não encontrada.");
 
     if (patch.status === "SENT") {
@@ -118,10 +102,29 @@ export class ProposalService {
           emailCliente: contato.email,
           pdfUrl: proposal.pdfUrl ?? null,
           nomeOrganizacao: org?.name ?? "MilLead",
-          publicUrl: proposal.publicToken ? `${env.WEB_PUBLIC_URL}/p/${proposal.publicToken}` : null,
+          publicUrl: publicToken
+            ? `${env.WEB_PUBLIC_URL.replace(/\/+$/, "")}/p/${publicToken}`
+            : null,
         });
       }
     }
     return proposal;
+  }
+
+  /** CAS com 1 retry: colisão de unique entre propostas diferentes (~100 bits
+   * de entropia -- teoricamente possível, na prática nunca visto) resolve
+   * gerando outro token e tentando de novo. */
+  private async ensurePublicTokenWithRetry(
+    id: string,
+    organizationId: string,
+  ): Promise<string | null> {
+    try {
+      return await this.repository.ensurePublicToken(id, organizationId, generatePublicToken());
+    } catch (err) {
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+        return this.repository.ensurePublicToken(id, organizationId, generatePublicToken());
+      }
+      throw err;
+    }
   }
 }
