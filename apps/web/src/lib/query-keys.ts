@@ -67,4 +67,9 @@ export const queryKeys = {
     detail: (id: string) => ["estimates", "detail", id] as const,
     products: () => ["estimates", "products"] as const,
   },
+  milsocial: {
+    posts: () => ["milsocial", "posts"] as const,
+    comparison: () => ["milsocial", "comparison"] as const,
+    series: (postId: string) => ["milsocial", "series", postId] as const,
+  },
 };

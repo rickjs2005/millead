@@ -16,6 +16,7 @@ import { MeetingService } from "../application/services/meeting-service.js";
 import { PipelineService } from "../application/services/pipeline-service.js";
 import { ProposalService } from "../application/services/proposal-service.js";
 import { SettingsService } from "../application/services/settings-service.js";
+import { SocialService } from "../application/services/social-service.js";
 import { DefaultProposalNotifier } from "../infrastructure/proposals/proposal-notifier.js";
 import { SessionIssuer } from "../application/services/session-issuer.js";
 import { TagService } from "../application/services/tag-service.js";
@@ -31,6 +32,8 @@ import { BcryptPasswordHasher } from "../infrastructure/auth/bcrypt-password-has
 import { JwtAccessTokenService } from "../infrastructure/auth/jwt-access-token-service.js";
 import { ClaudeCreativeDirector } from "../infrastructure/ai/claude-creative-director.js";
 import { ClaudeLeadAi } from "../infrastructure/ai/claude-lead-ai.js";
+import { ClaudeSocialAnalyst } from "../infrastructure/ai/claude-social-analyst.js";
+import { GraphApiInstagramClient } from "../infrastructure/instagram/graph-api-client.js";
 import { WebPushSender } from "../infrastructure/push/web-push-sender.js";
 import { VercelBlobStorage } from "../infrastructure/blob/vercel-blob-storage.js";
 import { DefaultBriefingNotifier } from "../infrastructure/briefings/notifications/briefing-notifier.js";
@@ -61,10 +64,12 @@ import { PrismaPipelineRepository } from "../infrastructure/prisma/prisma-pipeli
 import { PrismaProposalRepository } from "../infrastructure/prisma/prisma-proposal-repository.js";
 import { PrismaRefreshTokenRepository } from "../infrastructure/prisma/prisma-refresh-token-repository.js";
 import { PrismaRoleRepository } from "../infrastructure/prisma/prisma-role-repository.js";
+import { PrismaSocialRepository } from "../infrastructure/prisma/prisma-social-repository.js";
 import { PrismaTagRepository } from "../infrastructure/prisma/prisma-tag-repository.js";
 import { PrismaTaskRepository } from "../infrastructure/prisma/prisma-task-repository.js";
 import { PrismaUserRepository } from "../infrastructure/prisma/prisma-user-repository.js";
 import { createAuthenticateMiddleware } from "../interfaces/http/middlewares/authenticate.js";
+import { createRequireOwner } from "../interfaces/http/middlewares/require-owner.js";
 import { AiController } from "../interfaces/http/controllers/ai-controller.js";
 import { AuditController } from "../interfaces/http/controllers/audit-controller.js";
 import { AuthController } from "../interfaces/http/controllers/auth-controller.js";
@@ -79,6 +84,7 @@ import { MeetingController } from "../interfaces/http/controllers/meeting-contro
 import { PipelineController } from "../interfaces/http/controllers/pipeline-controller.js";
 import { ProposalController } from "../interfaces/http/controllers/proposal-controller.js";
 import { SettingsController } from "../interfaces/http/controllers/settings-controller.js";
+import { SocialController } from "../interfaces/http/controllers/social-controller.js";
 import { TagController } from "../interfaces/http/controllers/tag-controller.js";
 import { TaskController } from "../interfaces/http/controllers/task-controller.js";
 import type { MembershipRepository } from "../domain/repositories/membership-repository.js";
@@ -99,9 +105,11 @@ export interface Container {
   pipelineController: PipelineController;
   proposalController: ProposalController;
   settingsController: SettingsController;
+  socialController: SocialController;
   tagController: TagController;
   taskController: TaskController;
   authenticate: RequestHandler;
+  requireOwner: RequestHandler;
   membershipRepository: MembershipRepository;
   auditLogger: AuditLogger;
 }
@@ -145,6 +153,7 @@ export function buildContainer(): Container {
   const briefingRepository = new PrismaBriefingRepository(briefingTemplateRepository);
   const briefingAnswerRepository = new PrismaBriefingAnswerRepository();
   const briefingFileRepository = new PrismaBriefingFileRepository();
+  const socialRepository = new PrismaSocialRepository();
 
   // ---- Serviços ----
   const passwordHasher = new BcryptPasswordHasher();
@@ -235,6 +244,15 @@ export function buildContainer(): Container {
     activityLogger,
     creativeDirector,
   );
+  const socialAnalyst = env.ANTHROPIC_API_KEY
+    ? new ClaudeSocialAnalyst(env.ANTHROPIC_API_KEY, env.AI_MODEL)
+    : null;
+  const socialService = new SocialService(
+    socialRepository,
+    new GraphApiInstagramClient(),
+    socialAnalyst,
+    env.INSTAGRAM_ACCESS_TOKEN,
+  );
 
   // ---- Use-cases ----
   const registerUseCase = new RegisterUseCase(
@@ -298,7 +316,9 @@ export function buildContainer(): Container {
     briefingCompletionService,
     briefingFileService,
   );
+  const socialController = new SocialController(socialService);
   const authenticate = createAuthenticateMiddleware(accessTokenService, membershipRepository);
+  const requireOwner = createRequireOwner(userRepository, env.OWNER_EMAIL);
 
   return {
     aiController,
@@ -315,9 +335,11 @@ export function buildContainer(): Container {
     pipelineController,
     proposalController,
     settingsController,
+    socialController,
     tagController,
     taskController,
     authenticate,
+    requireOwner,
     membershipRepository,
     auditLogger,
   };

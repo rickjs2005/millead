@@ -924,3 +924,61 @@ export interface ApiErrorBody {
     issues?: unknown;
   };
 }
+
+// ===== MilSocial (ferramenta interna do dono) =====
+
+export type SocialPostFormat =
+  | "UNCLASSIFIED" | "REDESIGN" | "BEFORE_AFTER" | "TIMELAPSE"
+  | "REVIEW" | "ANIMATION" | "CODE_SETUP" | "OTHER";
+
+export interface SocialMetricSnapshot {
+  id: string;
+  postId: string;
+  collectedAt: string;
+  reach: number | null;
+  views: number | null;
+  avgWatchTimeMs: number | null;
+  totalWatchTimeMs: number | null;
+  likes: number | null;
+  comments: number | null;
+  saved: number | null;
+  shares: number | null;
+  profileVisits: number | null;
+  profileActivity: number | null;
+}
+
+export interface SocialPostWithMetrics {
+  id: string;
+  igMediaId: string;
+  igPermalink: string;
+  mediaType: string;
+  caption: string | null;
+  thumbnailUrl: string | null;
+  publishedAt: string;
+  format: SocialPostFormat;
+  formatSource: "NONE" | "AI" | "MANUAL";
+  latest: SocialMetricSnapshot | null;
+}
+
+export interface FormatComparisonRow {
+  format: SocialPostFormat;
+  postCount: number;
+  avgReach: number | null;
+  avgViews: number | null;
+  avgWatchTimeMs: number | null;
+  avgInteractions: number | null;
+  avgProfileVisits: number | null;
+}
+
+export interface SocialSyncResult {
+  postsCreated: number;
+  postsUpdated: number;
+  snapshotsSaved: number;
+  classified: number;
+  tokenRefreshed: boolean;
+}
+
+export interface SocialAnalysis {
+  report: string;
+  suggestions: string[];
+}
