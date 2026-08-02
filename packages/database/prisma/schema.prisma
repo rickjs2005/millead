@@ -1511,3 +1511,71 @@ model CostUsageEntry {
   @@index([organizationId, subscriptionId])
   @@map("cost_usage_entries")
 }
+
+// ============================================================
+// MilSocial (ferramenta interna do dono -- NAO multi-tenant).
+// Sem organizationId de proposito: segue o precedente de
+// Permission/RolePermission como tabelas globais. NAO adicionar
+// relations destes modelos em `model Organization`.
+// ============================================================
+
+enum SocialPostFormat {
+  UNCLASSIFIED
+  REDESIGN
+  BEFORE_AFTER
+  TIMELAPSE
+  REVIEW
+  ANIMATION
+  CODE_SETUP
+  OTHER
+}
+
+enum SocialFormatSource {
+  NONE
+  AI
+  MANUAL
+}
+
+model SocialPost {
+  id           String             @id @default(cuid())
+  igMediaId    String             @unique
+  igPermalink  String
+  mediaType    String
+  caption      String?            @db.Text
+  thumbnailUrl String?
+  publishedAt  DateTime
+  format       SocialPostFormat   @default(UNCLASSIFIED)
+  formatSource SocialFormatSource @default(NONE)
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+  snapshots    SocialMetricSnapshot[]
+
+  @@index([publishedAt])
+}
+
+model SocialMetricSnapshot {
+  id               String     @id @default(cuid())
+  postId           String
+  post             SocialPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  collectedAt      DateTime   @default(now())
+  reach            Int?
+  views            Int?
+  avgWatchTimeMs   Int?
+  totalWatchTimeMs BigInt?
+  likes            Int?
+  comments         Int?
+  saved            Int?
+  shares           Int?
+  profileVisits    Int?
+  profileActivity  Int?
+
+  @@unique([postId, collectedAt])
+  @@index([collectedAt])
+}
+
+model SocialConfig {
+  id             String   @id @default("singleton")
+  accessToken    String
+  tokenExpiresAt DateTime
+  updatedAt      DateTime @updatedAt
+}
