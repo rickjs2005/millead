@@ -2,6 +2,7 @@ import { env } from "../../config/env.js";
 import { logger } from "../../config/logger.js";
 import type { ProposalNotifier } from "../../domain/services/proposal-notifier.js";
 import { sendEmail } from "../contracts/notifications/mailer.js";
+import { escapeHtml } from "./html-escape.js";
 
 function formatValor(valor: string, currency: string): string {
   const n = Number(valor);
@@ -69,12 +70,19 @@ export class DefaultProposalNotifier implements ProposalNotifier {
     }
     try {
       const aceite = input.decision === "ACCEPTED";
-      const motivo = input.rejectReason ? `<p>Motivo informado: ${input.rejectReason}</p>` : "";
+      // rejectReason e titulo vêm do formulário público (input livre,
+      // anônimo, sem autenticação) -- escapados ANTES de entrar no HTML do
+      // e-mail do dono, pra um "motivo" tipo `<a href=...>` não virar link
+      // clicável/markup de verdade na caixa de entrada dele.
+      const tituloSeguro = escapeHtml(input.titulo);
+      const motivo = input.rejectReason
+        ? `<p>Motivo informado: ${escapeHtml(input.rejectReason)}</p>`
+        : "";
       const contratoInfo = aceite
         ? input.contractCreated
           ? "<p>Um contrato rascunho já foi criado automaticamente a partir da proposta.</p>"
           : `<p>⚠️ Não foi possível criar o contrato automaticamente${
-              input.contractFailReason ? `: ${input.contractFailReason}` : ""
+              input.contractFailReason ? `: ${escapeHtml(input.contractFailReason)}` : ""
             }. Verifique os dados do lead e crie manualmente.</p>`
         : "";
       await sendEmail({
@@ -83,7 +91,7 @@ export class DefaultProposalNotifier implements ProposalNotifier {
           ? `✅ Proposta aceita: ${input.titulo}`
           : `❌ Proposta recusada: ${input.titulo}`,
         html: `
-          <p>A proposta <strong>${input.titulo}</strong> (valor ${input.valor}) foi
+          <p>A proposta <strong>${tituloSeguro}</strong> (valor ${input.valor}) foi
           <strong>${aceite ? "aceita" : "recusada"}</strong> pelo cliente pelo link público.</p>
           ${motivo}
           ${contratoInfo}

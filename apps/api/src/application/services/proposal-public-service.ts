@@ -1,4 +1,4 @@
-import { ConflictError, GoneError, NotFoundError, ValidationError } from "../../domain/errors/app-error.js";
+import { ConflictError, GoneError, NotFoundError } from "../../domain/errors/app-error.js";
 import type { Proposal } from "../../domain/entities/proposal.js";
 import type { CompanyRepository } from "../../domain/repositories/company-repository.js";
 import type { EstimateRepository } from "../../domain/repositories/estimate-repository.js";
@@ -196,24 +196,29 @@ export class ProposalPublicService {
   }
 
   /**
-   * Best-effort: falha em criar o contrato rascunho (ex.: lead sem empresa
-   * ou empresa sem CPF/CNPJ) NUNCA desfaz o aceite já gravado -- só some no
-   * relatório de e-mail pro dono, que resolve manualmente.
+   * Best-effort de verdade: o aceite é o fato consumado (já persistido antes
+   * desta chamada) -- QUALQUER falha aqui (ValidationError de dado faltando,
+   * NotFoundError de organização, erro de banco, timeout, o que for) NUNCA
+   * derruba o accept() nem desfaz a decisão já gravada. Ela só vira
+   * `contractCreated: false` + motivo, que a notificação do dono carrega pra
+   * ele resolver manualmente. Ver `application/services` -- esta camada não
+   * importa `config/logger` (precisa de env que os testes de lógica pura não
+   * configuram), daí `console.error` com contexto explícito, mesmo padrão do
+   * cleanup best-effort em `estimate-service.ts`.
    */
   private async createDraftBestEffort(
     proposal: Proposal,
   ): Promise<{ contractCreated: boolean; contractFailReason: string | null }> {
-    const [lead, estimate] = await Promise.all([
-      this.leads.findByIdForOrg(proposal.leadId, proposal.organizationId),
-      this.estimates.findByProposalId(proposal.id),
-    ]);
-    const company = lead?.companyId
-      ? await this.companies.findByIdForOrg(lead.companyId, proposal.organizationId)
-      : null;
-    const contact =
-      lead?.contacts.find((c) => c.isPrimary) ?? lead?.contacts[0] ?? null;
-
     try {
+      const [lead, estimate] = await Promise.all([
+        this.leads.findByIdForOrg(proposal.leadId, proposal.organizationId),
+        this.estimates.findByProposalId(proposal.id),
+      ]);
+      const company = lead?.companyId
+        ? await this.companies.findByIdForOrg(lead.companyId, proposal.organizationId)
+        : null;
+      const contact = lead?.contacts.find((c) => c.isPrimary) ?? lead?.contacts[0] ?? null;
+
       await this.contracts.createDraftFromProposal({
         proposal,
         estimate: estimate
@@ -232,10 +237,12 @@ export class ProposalPublicService {
       });
       return { contractCreated: true, contractFailReason: null };
     } catch (err) {
-      if (err instanceof ValidationError) {
-        return { contractCreated: false, contractFailReason: err.message };
-      }
-      throw err;
+      const message = err instanceof Error ? err.message : "Erro desconhecido ao criar contrato.";
+      console.error(
+        "accept: falha ao criar contrato rascunho a partir da proposta aceita (best-effort, aceite mantido)",
+        { proposalId: proposal.id, organizationId: proposal.organizationId, err },
+      );
+      return { contractCreated: false, contractFailReason: message };
     }
   }
 }

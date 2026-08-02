@@ -471,15 +471,30 @@ describe("ProposalPublicService.accept", () => {
     });
   });
 
-  it("erro inesperado (não ValidationError) do createDraftFromProposal propaga", async () => {
-    const { service } = makeService({
+  it("erro genérico (não ValidationError) do createDraftFromProposal também é best-effort: aceite fica, atividade/push/e-mail rodam com contractCreated false", async () => {
+    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const { service, proposals, push, notifier, activityRepository } = makeService({
       proposals: { findByPublicToken: vi.fn().mockResolvedValue(fakeProposal({ status: "SENT" })) },
       contracts: {
         createDraftFromProposal: vi.fn().mockRejectedValue(new Error("boom")),
       },
     });
 
-    await expect(service.accept(TOKEN, null)).rejects.toThrow("boom");
+    const result = await service.accept(TOKEN, null);
+
+    expect(result).toEqual({ status: "ACCEPTED" });
+    expect(proposals.decide).toHaveBeenCalledTimes(1);
+    expect(activityRepository.record).toHaveBeenCalledTimes(1);
+    expect((activityRepository.record as ReturnType<typeof vi.fn>).mock.calls[0]![0]).toMatchObject({
+      payload: { kind: "proposal_accepted_public", proposalId: PROPOSAL_ID, contractCreated: false },
+    });
+    expect(push.sendToOrg).toHaveBeenCalledTimes(1);
+    expect((notifier.propostaDecidida as ReturnType<typeof vi.fn>).mock.calls[0]![0]).toMatchObject({
+      decision: "ACCEPTED",
+      contractCreated: false,
+      contractFailReason: "boom",
+    });
+    consoleErrorSpy.mockRestore();
   });
 
   it("corrida: decide perde o CAS e a releitura mostra que outra requisição já aceitou -- responde idempotente", async () => {
