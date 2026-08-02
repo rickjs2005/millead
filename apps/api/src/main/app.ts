@@ -30,6 +30,7 @@ import { createMeetingRoutes } from "../interfaces/http/routes/meeting-routes.js
 import { createPipelineRoutes } from "../interfaces/http/routes/pipeline-routes.js";
 import { createProposalRoutes } from "../interfaces/http/routes/proposal-routes.js";
 import { createSettingsRoutes } from "../interfaces/http/routes/settings-routes.js";
+import { createSocialRoutes } from "../interfaces/http/routes/social-routes.js";
 import { publicRateLimit } from "../interfaces/http/middlewares/rate-limit.js";
 import { createTagRoutes } from "../interfaces/http/routes/tag-routes.js";
 import { createTaskRoutes } from "../interfaces/http/routes/task-routes.js";
@@ -132,6 +133,10 @@ export function createApp(container: Container): Express {
   );
   app.use("/api/v1/tags", createTagRoutes(container.tagController, container.authenticate));
   app.use("/api/v1/tasks", createTaskRoutes(container.taskController, container.authenticate));
+  app.use(
+    "/api/v1/admin/social",
+    createSocialRoutes(container.socialController, container.authenticate, container.requireOwner, env.MILSOCIAL_SYNC_KEY),
+  );
 
   app.use((req, res) => {
     res
