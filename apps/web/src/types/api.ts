@@ -320,6 +320,21 @@ export interface Proposal {
   updatedAt: string;
 }
 
+/** Resposta pública da proposta (`/p/[token]`). Projeção enxuta de Proposal:
+ * nome da organização em vez de IDs internos, sem leadId/createdById. */
+export type PublicProposalStatus = Exclude<ProposalStatus, "DRAFT">;
+
+export interface PublicProposal {
+  title: string;
+  value: string;
+  currency: string;
+  validUntil: string | null;
+  organizationName: string;
+  pdfUrl: string | null;
+  scopeItems: string[];
+  status: PublicProposalStatus;
+}
+
 // ---------- Audits (auditoria de SITE, Fase 6) ----------
 
 export type AuditStatus = "QUEUED" | "RUNNING" | "COMPLETED" | "FAILED";
