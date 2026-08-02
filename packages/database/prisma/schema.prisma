@@ -645,6 +645,12 @@ model Proposal {
   pdfUrl         String?        @map("pdf_url")
   sentAt         DateTime?      @map("sent_at")
   respondedAt    DateTime?      @map("responded_at")
+  // ===== Aceite público (/p/:token) =====
+  publicToken    String?        @unique @map("public_token")
+  viewedAt       DateTime?      @map("viewed_at")
+  decidedAt      DateTime?      @map("decided_at")
+  decisionIp     String?        @map("decision_ip")
+  rejectReason   String?        @map("reject_reason") @db.Text
   createdAt      DateTime       @default(now()) @map("created_at")
   updatedAt      DateTime       @updatedAt @map("updated_at")
 
@@ -652,6 +658,7 @@ model Proposal {
   lead            Lead             @relation(fields: [leadId], references: [id], onDelete: Restrict)
   createdBy       User?            @relation("ProposalCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
   pricingEstimate PricingEstimate?
+  contract        Contract?
 
   @@index([organizationId, status])
   @@index([leadId])
@@ -902,6 +909,9 @@ model Contract {
   organizationId String         @map("organization_id")
   companyId      String         @map("company_id")
   leadId         String?        @map("lead_id")
+  /// Proposta aceita que originou este contrato (unique: 1 proposta -> no
+  /// maximo 1 contrato). Null em contratos criados direto/formulario publico.
+  proposalId     String?        @unique @map("proposal_id")
   createdById    String?        @map("created_by_id")
   numero         String
   tipo           ContractType   @default(SITE)
@@ -936,6 +946,7 @@ model Contract {
   organization Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   company      Company          @relation(fields: [companyId], references: [id], onDelete: Restrict)
   lead         Lead?            @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  proposal     Proposal?        @relation(fields: [proposalId], references: [id], onDelete: SetNull)
   createdBy    User?            @relation("ContractCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
   signers      ContractSigner[]
   events       ContractEvent[]
