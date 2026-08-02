@@ -27,6 +27,7 @@ const APP_PREFIXES = [
   "/audit",
   "/settings",
   "/videos",
+  "/admin",
 ];
 
 export function middleware(req: NextRequest): NextResponse {
