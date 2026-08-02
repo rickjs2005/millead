@@ -373,6 +373,38 @@ describe("ProposalPublicService.getByToken", () => {
     });
     expect(view.validUntil).toBe(new Date("2026-12-31").toISOString());
   });
+
+  it("proposta SENT com validUntil no passado: abre já como EXPIRED, sem marcar VIEWED nem logar visualização", async () => {
+    const { service, proposals, activityRepository } = makeService({
+      proposals: {
+        findByPublicToken: vi
+          .fn()
+          .mockResolvedValue(fakeProposal({ status: "SENT", validUntil: new Date("2020-01-01") })),
+      },
+    });
+
+    const view = await service.getByToken(TOKEN);
+
+    expect(view.status).toBe("EXPIRED");
+    expect(proposals.markExpired).toHaveBeenCalledWith(PROPOSAL_ID);
+    expect(proposals.markViewed).not.toHaveBeenCalled();
+    expect(activityRepository.record).not.toHaveBeenCalled();
+  });
+
+  it("proposta ACCEPTED com validUntil no passado: continua ACCEPTED, não vira EXPIRED", async () => {
+    const { service, proposals } = makeService({
+      proposals: {
+        findByPublicToken: vi
+          .fn()
+          .mockResolvedValue(fakeProposal({ status: "ACCEPTED", validUntil: new Date("2020-01-01") })),
+      },
+    });
+
+    const view = await service.getByToken(TOKEN);
+
+    expect(view.status).toBe("ACCEPTED");
+    expect(proposals.markExpired).not.toHaveBeenCalled();
+  });
 });
 
 describe("ProposalPublicService.accept", () => {

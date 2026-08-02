@@ -56,7 +56,12 @@ export class ProposalPublicService {
     if (!proposal) throw new NotFoundError("Proposta não encontrada.");
 
     let status = proposal.status;
-    if (status === "SENT") {
+    if ((status === "SENT" || status === "VIEWED") && this.isExpired(proposal)) {
+      // Proposta vencida: nem marca VIEWED nem loga visualização -- o link
+      // publico deve abrir direto no estado "expirada" (sem botões).
+      await this.proposals.markExpired(proposal.id);
+      status = "EXPIRED";
+    } else if (status === "SENT") {
       const marked = await this.proposals.markViewed(proposal.id, new Date());
       if (marked) {
         status = "VIEWED";
