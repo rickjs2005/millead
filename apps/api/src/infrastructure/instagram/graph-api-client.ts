@@ -6,10 +6,19 @@ const BASE = "https://graph.instagram.com/v23.0";
 
 /** Metricas pedidas por tipo de midia. Reels tem retencao; imagem/carrossel nao. */
 const REEL_METRICS =
-  "reach,views,likes,comments,saved,shares,ig_reels_avg_watch_time,ig_reels_video_view_total_time,profile_visits,profile_activity";
+  "reach,views,likes,comments,saved,shares,ig_reels_avg_watch_time,ig_reels_video_view_total_time";
 const STATIC_METRICS = "reach,views,likes,comments,saved,shares,profile_visits,profile_activity";
+const SAFE_METRICS = "reach,likes,comments,saved,shares";
 
 interface InsightValue { name: string; values?: Array<{ value: number }>; total_value?: { value: number } }
+
+/** Erro tipado da Graph API, com deteccao por codigo. */
+class GraphApiError extends Error {
+  constructor(message: string, public code: number | null) {
+    super(message);
+    this.name = "GraphApiError";
+  }
+}
 
 export class GraphApiInstagramClient implements InstagramClient {
   async fetchMediaPage(token: string, after?: string): Promise<InstagramMediaPage> {
@@ -31,7 +40,18 @@ export class GraphApiInstagramClient implements InstagramClient {
       thumbnailUrl: m.thumbnail_url ?? m.media_url ?? null,
       publishedAt: new Date(m.timestamp),
     }));
-    return { media, nextCursor: data.paging?.next ? (data.paging.cursors?.after ?? null) : null };
+    let nextCursor: string | null = null;
+    if (data.paging?.next) {
+      nextCursor = data.paging.cursors?.after ?? null;
+      if (!nextCursor) {
+        try {
+          nextCursor = new URL(data.paging.next).searchParams.get("after");
+        } catch {
+          // URL invalida, deixar null
+        }
+      }
+    }
+    return { media, nextCursor };
   }
 
   async fetchInsights(token: string, igMediaId: string, mediaType: string): Promise<InstagramInsights> {
@@ -41,15 +61,31 @@ export class GraphApiInstagramClient implements InstagramClient {
     try {
       rows = await this.fetchInsightRows(token, igMediaId, metrics);
     } catch (err) {
-      // Erro (#100) "metric X not supported": remove a metrica citada e tenta
-      // UMA vez de novo -- a disponibilidade varia por conta/midia.
-      const unsupported = /metric[s]? \(?([a-z_,\s]+)\)? (is|are) not (supported|available)/i.exec(
-        err instanceof Error ? err.message : "",
-      );
-      if (!unsupported) throw err;
-      const bad = unsupported[1]!.split(",").map((s) => s.trim());
-      metrics = metrics.split(",").filter((m) => !bad.includes(m)).join(",");
-      rows = metrics ? await this.fetchInsightRows(token, igMediaId, metrics) : [];
+      // Erro #100 (metrica nao suportada): tentar extrair as metricas citadas e remover;
+      // se nao conseguir identificar, retry uma unica vez com conjunto seguro.
+      if (err instanceof GraphApiError && err.code === 100) {
+        const errMsg = err.message;
+        const metricList = metrics.split(",");
+        let removedAny = false;
+        // Procurar cada metrica da lista atual dentro da mensagem de erro
+        const updatedMetrics = metricList.filter((m) => {
+          if (errMsg.includes(m)) {
+            removedAny = true;
+            return false;
+          }
+          return true;
+        }).join(",");
+
+        if (removedAny && updatedMetrics) {
+          // Retirou algo e ainda sobrou metrica -- retry com lista reduzida
+          rows = await this.fetchInsightRows(token, igMediaId, updatedMetrics);
+        } else {
+          // Nao conseguiu identificar nada na mensagem -- retry com conjunto seguro
+          rows = await this.fetchInsightRows(token, igMediaId, SAFE_METRICS);
+        }
+      } else {
+        throw err;
+      }
     }
     const get = (name: string): number | null => {
       const row = rows.find((r) => r.name === name);
@@ -98,10 +134,26 @@ export class GraphApiInstagramClient implements InstagramClient {
       await new Promise((r) => setTimeout(r, 2000 * 2 ** attempt));
       return this.request<T>(url, attempt + 1);
     }
-    const body = (await res.json()) as T & { error?: { message?: string; code?: number } };
+
+    // Parse seguro de JSON: ler como texto primeiro
+    const text = await res.text();
+    let body: T & { error?: { message?: string; code?: number } };
+    try {
+      body = JSON.parse(text) as T & { error?: { message?: string; code?: number } };
+    } catch {
+      // Resposta nao e JSON (ex: 502/503 HTML de proxy)
+      throw new GraphApiError(
+        `Instagram Graph API: HTTP ${res.status} (resposta não-JSON)`,
+        null,
+      );
+    }
+
     if (!res.ok || body.error) {
-      throw new Error(
-        `Instagram Graph API: ${body.error?.message ?? `HTTP ${res.status}`} (code ${body.error?.code ?? res.status})`,
+      const code = body.error?.code ?? res.status;
+      const message = body.error?.message ?? `HTTP ${res.status}`;
+      throw new GraphApiError(
+        `Instagram Graph API: ${message} (code ${code})`,
+        typeof code === "number" ? code : null,
       );
     }
     return body;
