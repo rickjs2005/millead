@@ -110,6 +110,20 @@ export class EstimateService {
   }
 
   /**
+   * Custo total projetado do orçamento vinculado à proposta (cadeia
+   * contrato.proposalId -> orçamento). Recalculado com o câmbio ATUAL --
+   * os itens do orçamento estão congelados, só o USD varia. Null se não há
+   * orçamento vinculado a essa proposta (ou se ela é de outra org).
+   */
+  async projectedCostByProposalId(organizationId: string, proposalId: string): Promise<number | null> {
+    const estimate = await this.repository.findByProposalId(proposalId);
+    if (!estimate || estimate.organizationId !== organizationId) return null;
+
+    const settings = await this.costs.getSettings(organizationId);
+    return this.toComputed(estimate, Number(settings.usdToBrlRate)).totalCost;
+  }
+
+  /**
    * Converte um orçamento em proposta: cria a Proposal (DRAFT), gera o PDF
    * comercial (Task 1) e sobe pro Blob, marca o orçamento como CONVERTED e
    * loga a atividade na timeline do lead.
