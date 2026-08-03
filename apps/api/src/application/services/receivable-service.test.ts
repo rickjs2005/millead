@@ -317,6 +317,35 @@ describe("ReceivableService.summary", () => {
     vi.useRealTimers();
   });
 
+  it("parcela vencida fora do mês consultado mas paga dentro dele cai em 'received' (não em toReceive/overdue)", async () => {
+    const now = new Date("2026-08-15T12:00:00Z");
+    vi.useFakeTimers();
+    vi.setSystemTime(now);
+
+    // Vencida em junho (fora do mês consultado), paga em agosto.
+    const paidLateOutsideMonth = fakeReceivable({
+      id: "rec-paid-late",
+      amount: "250.00",
+      dueDate: new Date("2026-06-10"),
+      paidAt: new Date("2026-08-12"),
+    });
+
+    const { service } = fakeRepos({
+      receivables: {
+        listForSummary: vi.fn().mockResolvedValue([paidLateOutsideMonth]),
+      },
+    });
+
+    const result = await service.summary(ORG, "2026-08");
+
+    expect(result.received).toBe("250.00");
+    expect(result.toReceive).toBe("0.00");
+    expect(result.overdue).toBe("0.00");
+    expect(result.overdueItems).toEqual([]);
+
+    vi.useRealTimers();
+  });
+
   it("sem month explícito usa o mês atual (America/Sao_Paulo)", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-08-15T12:00:00Z"));

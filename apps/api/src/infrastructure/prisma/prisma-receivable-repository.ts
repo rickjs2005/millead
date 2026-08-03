@@ -143,7 +143,15 @@ export class PrismaReceivableRepository implements ReceivableRepository {
     const rows = await prisma.receivable.findMany({
       where: {
         organizationId,
-        OR: [{ dueDate: { gte: from, lt: to } }, { paidAt: null, dueDate: { lt: from } }],
+        OR: [
+          { dueDate: { gte: from, lt: to } },
+          { paidAt: null, dueDate: { lt: from } },
+          // Paga fora do range de vencimento mas dentro do mes consultado
+          // (ex.: parcela vencida em junho, paga em agosto) -- sem este
+          // ramo o pagamento some do resumo: nao cai em "vencida" (paidAt
+          // != null) nem em "a receber" (dueDate fora do mes).
+          { paidAt: { gte: from, lt: to } },
+        ],
       },
       select: receivableSelect,
       orderBy: { dueDate: "asc" },

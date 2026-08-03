@@ -64,12 +64,14 @@ interface InstallmentPreview {
   dueDate: string;
 }
 
-/** Espelho de `buildPlan` em `apps/api/src/application/services/receivable-plan.ts`
- * -- divide (total - entrada) em N parcelas iguais em CENTAVOS INTEIROS, com o
+/** Espelho da regra de REFERÊNCIA em
+ * `apps/api/src/application/services/receivable-plan.ts` (buildPlan) --
+ * divide (total - entrada) em N parcelas iguais em CENTAVOS INTEIROS, com o
  * resto de arredondamento jogado na ÚLTIMA parcela (evita drift de ponto
- * flutuante). Este preview é só visual; a API roda a MESMA regra de novo e
- * valida a soma no servidor -- se um dia o algoritmo mudar lá, precisa mudar
- * aqui também. */
+ * flutuante). Este preview é só visual: o servidor NÃO roda buildPlan de
+ * novo, ele valida apenas a SOMA da composição recebida (tolerância de
+ * R$0,01), não a distribuição item a item -- manter os dois lados iguais é
+ * responsabilidade de quem alterar um deles. */
 function buildInstallmentsPreview(params: {
   total: number;
   entryAmount: number;

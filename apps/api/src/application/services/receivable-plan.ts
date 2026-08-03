@@ -1,5 +1,17 @@
 import type { ReceivableKind } from "../../domain/entities/receivable.js";
 
+/**
+ * REFERENCIA da regra de distribuicao de parcelas -- este e o contrato
+ * espelhado manualmente em `apps/web/.../plan-dialog.tsx`
+ * (buildInstallmentsPreview) pra gerar o preview visual do plano. O
+ * `ReceivableService.createPlan` NAO chama `buildPlan`: ele recebe a
+ * composicao (entrada + parcelas) ja montada pelo cliente e valida apenas
+ * que a SOMA bate com o total do contrato (tolerancia de R$0,01) -- nao
+ * valida a distribuicao item a item. Se este algoritmo mudar, o preview no
+ * front precisa mudar junto (isso e responsabilidade de quem alterar um
+ * dos dois lados).
+ */
+
 /** Entradas para o builder puro do plano de parcelas (sem I/O). */
 export interface PlanInput {
   total: number; // valor total do contrato (reais)

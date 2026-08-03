@@ -3,6 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Banknote, FileSignature, HandCoins, Receipt } from "lucide-react";
 import { StatCard } from "@/features/dashboard/components/stat-card";
+import { queryKeys } from "@/lib/query-keys";
 import { contractsService } from "@/services/contracts";
 import { leadsService } from "@/services/leads";
 import { receivablesService } from "@/services/receivables";
@@ -34,7 +35,11 @@ export function FinanceCards() {
     enabled: canLeads,
   });
   const receivables = useQuery({
-    queryKey: ["dashboard", "receivables", "summary"],
+    // Mesma key que useReceivablesSummary() usa pro mes atual (sem `month`)
+    // -- precisa estar sob o prefixo `receivables` pra ser invalidada pelas
+    // mutations de baixa/edicao/exclusao de parcela (ver invalidateAll em
+    // features/receivables/hooks.ts).
+    queryKey: queryKeys.receivables.summary(),
     queryFn: () => receivablesService.summary(),
     enabled: canReceivables,
   });
