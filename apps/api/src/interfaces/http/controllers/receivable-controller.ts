@@ -1,0 +1,69 @@
+import type { Request, Response } from "express";
+import type { ReceivableService } from "../../../application/services/receivable-service.js";
+import type { ReceivableQuery } from "../../../application/dto/receivable.dto.js";
+import { ValidationError } from "../../../domain/errors/app-error.js";
+import { requireAuth } from "../require-auth.js";
+
+export class ReceivableController {
+  constructor(private readonly receivables: ReceivableService) {}
+
+  createPlan = async (req: Request, res: Response): Promise<void> => {
+    const auth = requireAuth(req);
+    res.status(201).json(await this.receivables.createPlan(auth.organizationId, req.body));
+  };
+
+  list = async (req: Request, res: Response): Promise<void> => {
+    const auth = requireAuth(req);
+    const { contractId } = req.validatedQuery as ReceivableQuery;
+
+    if (contractId) {
+      // Com contractId: lista parcelas do contrato
+      res.status(200).json(await this.receivables.listByContract(auth.organizationId, contractId));
+    } else {
+      // Sem contractId: lista contratos com totais agregados
+      res.status(200).json(await this.receivables.listContracts(auth.organizationId));
+    }
+  };
+
+  summary = async (req: Request, res: Response): Promise<void> => {
+    const auth = requireAuth(req);
+    const { month } = req.validatedQuery as ReceivableQuery;
+    res.status(200).json(await this.receivables.summary(auth.organizationId, month));
+  };
+
+  margin = async (req: Request, res: Response): Promise<void> => {
+    const auth = requireAuth(req);
+    const { contractId } = req.validatedQuery as ReceivableQuery;
+
+    if (!contractId) {
+      throw new ValidationError("contractId é obrigatório para consulta de margem");
+    }
+
+    res.status(200).json(await this.receivables.margin(auth.organizationId, contractId));
+  };
+
+  pay = async (req: Request, res: Response): Promise<void> => {
+    const auth = requireAuth(req);
+    res
+      .status(200)
+      .json(await this.receivables.pay(auth.organizationId, req.params.id!, req.body));
+  };
+
+  unpay = async (req: Request, res: Response): Promise<void> => {
+    const auth = requireAuth(req);
+    res.status(200).json(await this.receivables.unpay(auth.organizationId, req.params.id!));
+  };
+
+  update = async (req: Request, res: Response): Promise<void> => {
+    const auth = requireAuth(req);
+    res
+      .status(200)
+      .json(await this.receivables.update(auth.organizationId, req.params.id!, req.body));
+  };
+
+  remove = async (req: Request, res: Response): Promise<void> => {
+    const auth = requireAuth(req);
+    await this.receivables.remove(auth.organizationId, req.params.id!);
+    res.status(204).end();
+  };
+}

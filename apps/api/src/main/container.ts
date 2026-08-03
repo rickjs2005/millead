@@ -10,6 +10,7 @@ import { ContractService } from "../application/services/contract-service.js";
 import { CostService } from "../application/services/cost-service.js";
 import { EstimateService } from "../application/services/estimate-service.js";
 import { MessageService } from "../application/services/message-service.js";
+import { ReceivableService } from "../application/services/receivable-service.js";
 import { CompanyService } from "../application/services/company-service.js";
 import { LeadService } from "../application/services/lead-service.js";
 import { MeetingService } from "../application/services/meeting-service.js";
@@ -56,6 +57,7 @@ import { PrismaLeadRepository } from "../infrastructure/prisma/prisma-lead-repos
 import { PrismaContractRepository } from "../infrastructure/prisma/prisma-contract-repository.js";
 import { PrismaCostRepository } from "../infrastructure/prisma/prisma-cost-repository.js";
 import { PrismaEstimateRepository } from "../infrastructure/prisma/prisma-estimate-repository.js";
+import { PrismaReceivableRepository } from "../infrastructure/prisma/prisma-receivable-repository.js";
 import { PrismaMeetingRepository } from "../infrastructure/prisma/prisma-meeting-repository.js";
 import { PrismaMessageRepository } from "../infrastructure/prisma/prisma-message-repository.js";
 import { PrismaMessageTemplateRepository } from "../infrastructure/prisma/prisma-message-template-repository.js";
@@ -79,6 +81,7 @@ import { ContractController } from "../interfaces/http/controllers/contract-cont
 import { CostController } from "../interfaces/http/controllers/cost-controller.js";
 import { EstimateController } from "../interfaces/http/controllers/estimate-controller.js";
 import { MessageController } from "../interfaces/http/controllers/message-controller.js";
+import { ReceivableController } from "../interfaces/http/controllers/receivable-controller.js";
 import { CompanyController } from "../interfaces/http/controllers/company-controller.js";
 import { LeadController } from "../interfaces/http/controllers/lead-controller.js";
 import { MeetingController } from "../interfaces/http/controllers/meeting-controller.js";
@@ -105,6 +108,7 @@ export interface Container {
   meetingController: MeetingController;
   pipelineController: PipelineController;
   proposalController: ProposalController;
+  receivableController: ReceivableController;
   settingsController: SettingsController;
   socialController: SocialController;
   tagController: TagController;
@@ -146,6 +150,7 @@ export function buildContainer(): Container {
   const contractRepository = new PrismaContractRepository();
   const costRepository = new PrismaCostRepository();
   const estimateRepository = new PrismaEstimateRepository();
+  const receivableRepository = new PrismaReceivableRepository();
   // Cacheado em memória (5min): estrutura de template (seções/campos) só
   // muda por seed manual, que reinicia o processo e já limpa o cache.
   const briefingTemplateRepository = new CachedBriefingTemplateRepository(
@@ -221,6 +226,11 @@ export function buildContainer(): Container {
     proposalRepository,
     blobStorage,
     activityLogger,
+  );
+  const receivableService = new ReceivableService(
+    receivableRepository,
+    contractRepository,
+    estimateService,
   );
   const briefingService = new BriefingService(
     briefingRepository,
@@ -324,6 +334,7 @@ export function buildContainer(): Container {
   const contractController = new ContractController(contractService);
   const costController = new CostController(costService);
   const estimateController = new EstimateController(estimateService);
+  const receivableController = new ReceivableController(receivableService);
   const briefingController = new BriefingController(
     briefingService,
     briefingAnswerService,
@@ -348,6 +359,7 @@ export function buildContainer(): Container {
     meetingController,
     pipelineController,
     proposalController,
+    receivableController,
     settingsController,
     socialController,
     tagController,

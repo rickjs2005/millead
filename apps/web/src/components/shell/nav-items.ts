@@ -6,6 +6,7 @@ import {
   Clapperboard,
   ClipboardList,
   FileSignature,
+  HandCoins,
   Instagram,
   LayoutDashboard,
   LayoutList,
@@ -82,6 +83,7 @@ export const NAV_SECTIONS: NavSection[] = [
     items: [
       { label: "Orçamentos", href: "/estimates", icon: Calculator, permission: "proposals:read" },
       { label: "Centro de Custos", href: "/costs", icon: Wallet, permission: "proposals:read" },
+      { label: "A Receber", href: "/receivables", icon: HandCoins, permission: "proposals:read" },
     ],
   },
   {

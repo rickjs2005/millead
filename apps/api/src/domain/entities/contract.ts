@@ -32,6 +32,7 @@ export interface Contract {
   companyId: string;
   leadId: string | null;
   createdById: string | null;
+  proposalId: string | null;
   numero: string;
   tipo: ContractType;
   status: ContractStatus;

@@ -72,4 +72,11 @@ export const queryKeys = {
     comparison: () => ["milsocial", "comparison"] as const,
     series: (postId: string) => ["milsocial", "series", postId] as const,
   },
+  receivables: {
+    all: () => ["receivables"] as const,
+    byContract: (contractId: string) => ["receivables", "byContract", contractId] as const,
+    contracts: () => ["receivables", "contracts"] as const,
+    summary: (month?: string) => ["receivables", "summary", month ?? "current"] as const,
+    margin: (contractId: string) => ["receivables", "margin", contractId] as const,
+  },
 };

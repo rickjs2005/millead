@@ -486,6 +486,10 @@ export interface Contract {
   limiteRevisoes: number;
   contractorSnapshot: ContractorSnapshot;
   contractedSnapshot: unknown;
+  /** Orçamento que originou o contrato (aceite -> contrato herdado); null
+   * quando o contrato foi criado direto, sem orçamento. Alimenta a margem
+   * realizada (contas a receber) -- só é possível projetar custo com isso. */
+  proposalId: string | null;
   provider: string;
   signatureDocId: string | null;
   signatureUrl: string | null;
@@ -1008,4 +1012,69 @@ export interface SocialSyncResult {
 export interface SocialAnalysis {
   report: string;
   suggestions: string[];
+}
+
+// ---------- Contas a receber (Fase 10) ----------
+
+export type ReceivableKind = "ENTRADA" | "PARCELA";
+
+export interface Receivable {
+  id: string;
+  organizationId: string;
+  contractId: string;
+  kind: ReceivableKind;
+  /** 0 = entrada, 1..N = parcelas. */
+  installmentIndex: number;
+  amount: string; // Decimal do Prisma serializa como string
+  dueDate: string; // date-only na prática -- exibir com timeZone UTC
+  paidAt: string | null; // instante -- exibir no fuso America/Sao_Paulo
+  paidNote: string | null;
+}
+
+/** Contrato + totais agregados de parcelas (`GET /receivables` sem contractId). */
+export interface ContractWithTotals {
+  contractId: string;
+  numero: string;
+  companyName: string;
+  total: string;
+  paid: string;
+  openOverdue: string;
+  nextDueDate: string | null;
+}
+
+/** Resumo do mês (`GET /receivables/summary`). */
+export interface ReceivableSummary {
+  month: string; // "2026-08"
+  toReceive: string; // em aberto com vencimento no mês
+  overdue: string; // em aberto vencidas (qualquer data passada)
+  overdueItems: Receivable[];
+  received: string; // pagas com paidAt no mês
+}
+
+/** Margem realizada de um contrato (`GET /receivables/margin`) -- `projectedCost`/
+ * `realizedMargin` só existem quando o contrato tem `proposalId` (orçamento). */
+export interface ContractMargin {
+  contractId: string;
+  soldValue: string;
+  received: string;
+  projectedCost: string | null;
+  realizedMargin: string | null;
+}
+
+export interface CreatePlanPayload {
+  contractId: string;
+  total: number;
+  entryAmount: number;
+  entryDueDate: string;
+  installments: { amount: number; dueDate: string }[];
+}
+
+export interface PayReceivablePayload {
+  paidAt?: string;
+  paidNote?: string;
+}
+
+export interface UpdateReceivablePayload {
+  amount?: number;
+  dueDate?: string;
 }

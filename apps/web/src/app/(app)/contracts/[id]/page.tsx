@@ -23,6 +23,7 @@ import {
   useReprocessContract,
   useUpdateContractStatus,
 } from "@/features/contracts/hooks";
+import { InstallmentsCard } from "@/features/receivables/components/installments-card";
 import { contractsService } from "@/services/contracts";
 import { formatCurrency, formatDateTime } from "@/utils/format";
 
@@ -237,6 +238,13 @@ export default function ContractDetailPage() {
               ))}
             </CardContent>
           </Card>
+
+          <InstallmentsCard
+            contractId={contract.id}
+            valorTotal={contract.valorTotal}
+            status={contract.status}
+            proposalId={contract.proposalId}
+          />
         </div>
       </div>
       {dialog}

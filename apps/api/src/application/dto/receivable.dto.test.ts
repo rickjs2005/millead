@@ -1,0 +1,114 @@
+import { describe, expect, it } from "vitest";
+import {
+  createPlanSchema,
+  paySchema,
+  receivableQuerySchema,
+  updateReceivableSchema,
+} from "./receivable.dto.js";
+
+describe("createPlanSchema", () => {
+  const BASE = {
+    contractId: "contract-1",
+    total: 1000,
+    entryAmount: 400,
+    entryDueDate: "2026-08-05",
+    installments: [
+      { amount: 200, dueDate: "2026-09-05" },
+      { amount: 200, dueDate: "2026-10-05" },
+      { amount: 200, dueDate: "2026-11-05" },
+    ],
+  };
+
+  it("aceita um plano com shape válido", () => {
+    const result = createPlanSchema.safeParse(BASE);
+    expect(result.success).toBe(true);
+  });
+
+  it("não valida a composição (soma != total) no zod -- isso é responsabilidade do service", () => {
+    const result = createPlanSchema.safeParse({ ...BASE, installments: [{ amount: 1, dueDate: "2026-09-05" }] });
+    expect(result.success).toBe(true);
+  });
+
+  it("aceita installments vazio (shape-only; composição é do service)", () => {
+    const result = createPlanSchema.safeParse({ ...BASE, entryAmount: 1000, installments: [] });
+    expect(result.success).toBe(true);
+  });
+
+  it("rejeita mais de 60 parcelas", () => {
+    const installments = Array.from({ length: 61 }, () => ({ amount: 10, dueDate: "2026-09-05" }));
+    const result = createPlanSchema.safeParse({ ...BASE, installments });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejeita amount de parcela <= 0", () => {
+    const result = createPlanSchema.safeParse({
+      ...BASE,
+      installments: [{ amount: 0, dueDate: "2026-09-05" }],
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejeita total <= 0", () => {
+    const result = createPlanSchema.safeParse({ ...BASE, total: 0 });
+    expect(result.success).toBe(false);
+  });
+
+  it("aceita entryAmount 0 (sem entrada)", () => {
+    const result = createPlanSchema.safeParse({ ...BASE, entryAmount: 0 });
+    expect(result.success).toBe(true);
+  });
+
+  it("rejeita contractId vazio", () => {
+    const result = createPlanSchema.safeParse({ ...BASE, contractId: "" });
+    expect(result.success).toBe(false);
+  });
+});
+
+describe("paySchema", () => {
+  it("aceita body vazio (paidAt/paidNote opcionais)", () => {
+    expect(paySchema.safeParse({}).success).toBe(true);
+  });
+
+  it("aceita paidAt e paidNote", () => {
+    const result = paySchema.safeParse({ paidAt: "2026-08-01", paidNote: "pago via pix" });
+    expect(result.success).toBe(true);
+  });
+
+  it("rejeita paidNote acima de 500 chars", () => {
+    const result = paySchema.safeParse({ paidNote: "a".repeat(501) });
+    expect(result.success).toBe(false);
+  });
+});
+
+describe("updateReceivableSchema", () => {
+  it("aceita patch vazio", () => {
+    expect(updateReceivableSchema.safeParse({}).success).toBe(true);
+  });
+
+  it("aceita patch só com amount", () => {
+    expect(updateReceivableSchema.safeParse({ amount: 500 }).success).toBe(true);
+  });
+
+  it("rejeita amount <= 0", () => {
+    expect(updateReceivableSchema.safeParse({ amount: 0 }).success).toBe(false);
+  });
+});
+
+describe("receivableQuerySchema", () => {
+  it("aceita query vazia", () => {
+    expect(receivableQuerySchema.safeParse({}).success).toBe(true);
+  });
+
+  it("aceita month no formato YYYY-MM", () => {
+    expect(receivableQuerySchema.safeParse({ month: "2026-08" }).success).toBe(true);
+  });
+
+  it("rejeita month fora do formato YYYY-MM", () => {
+    expect(receivableQuerySchema.safeParse({ month: "2026/08" }).success).toBe(false);
+    expect(receivableQuerySchema.safeParse({ month: "26-08" }).success).toBe(false);
+  });
+
+  it("aceita contractId opcional", () => {
+    expect(receivableQuerySchema.safeParse({ contractId: "contract-1" }).success).toBe(true);
+  });
+});

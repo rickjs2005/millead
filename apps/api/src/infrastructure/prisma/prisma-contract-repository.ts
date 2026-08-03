@@ -21,6 +21,7 @@ const baseSelect = {
   companyId: true,
   leadId: true,
   createdById: true,
+  proposalId: true,
   numero: true,
   tipo: true,
   status: true,
