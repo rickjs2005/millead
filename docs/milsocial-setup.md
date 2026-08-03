@@ -1,6 +1,6 @@
-# MilSocial: Setup de Token Instagram e Sincronização com n8n
+# MilSocial: Setup de Token Instagram e Sincronização Automática
 
-MilSocial é a ferramenta interna do dono para sincronizar métricas do Instagram (@milweb) e gerar análise por IA sobre o desempenho por formato de post. Este guia cobre a configuração completa: conversão de conta, criação do app Meta, configuração de variáveis de ambiente, primeiro sync manual e automação via n8n.
+MilSocial é a ferramenta interna do dono para sincronizar métricas do Instagram (@milweb) e gerar análise por IA sobre o desempenho por formato de post. Este guia cobre a configuração completa: conversão de conta, criação do app Meta, configuração de variáveis de ambiente, primeiro sync manual e automação via GitHub Actions (agendador diário, sem depender de n8n — o Rick não usa mais n8n).
 
 ## 1. Converter a Conta do Instagram para Profissional
 
@@ -108,44 +108,62 @@ Após configurar os envs em desenvolvimento e fazer deploy para Render/Vercel:
    - Um **gráfico temporal** de alcance/views ao longo do tempo
    - Uma **lista de posts**, cada um com um badge de formato que pode ser corrigido manualmente (útil quando a classificação por IA erra)
 
-Se tudo aparecer, o token foi renovado e armazenado no banco. A partir daqui, o n8n pode sincronizar automaticamente sem intervenção manual.
+Se tudo aparecer, o token foi renovado e armazenado no banco. A partir daqui, o workflow do GitHub Actions (seção 5) pode sincronizar automaticamente sem intervenção manual.
 
-**Atenção — primeira carga histórica:** a primeira sincronização pagina todos os posts existentes do Instagram e busca insights de cada um; para contas com muito conteúdo isso pode levar minutos (bem mais que os ~30s de uma sync incremental do dia a dia). Prefira disparar a primeira sync pelo workflow do n8n (que já usa timeout de 120s, seção 5.2) em vez do botão do painel — o proxy do painel pode dar timeout antes da API terminar em background. Se isso acontecer, não é um erro real: o sync continua rodando no servidor e é idempotente (upsert por `igMediaId` e snapshot por dia), então basta aguardar e clicar em **Sincronizar agora** de novo mais tarde para confirmar que os dados chegaram.
+**Atenção — primeira carga histórica:** a primeira sincronização pagina todos os posts existentes do Instagram e busca insights de cada um; para contas com muito conteúdo isso pode levar minutos (bem mais que os ~30s de uma sync incremental do dia a dia). Prefira disparar a primeira sync pelo workflow do GitHub Actions (seção 5.2, que já roda com timeout/retry) em vez do botão do painel — o proxy do painel pode dar timeout antes da API terminar em background. Se isso acontecer, não é um erro real: o sync continua rodando no servidor e é idempotente (upsert por `igMediaId` e snapshot por dia), então basta aguardar e clicar em **Sincronizar agora** de novo mais tarde para confirmar que os dados chegaram.
 
 **Aviso:** Se o painel avisa que o token expirou após alguns dias de inatividade, repita a seção 2 (gerar novo token) e atualize `INSTAGRAM_ACCESS_TOKEN` no Render. O ciclo de 60 dias reinicia.
 
-## 5. Automação com n8n
+## 5. Automação com GitHub Actions
 
-Acesse [rickj.app.n8n.cloud](https://rickj.app.n8n.cloud) e crie um novo workflow com os seguintes passos:
+Sem n8n, o jeito mais simples de disparar o sync diário sem pagar por nenhum serviço novo é um workflow agendado direto no repositório `millead` no GitHub — ele já existe, já tem CI, e o agendador roda de graça.
 
-### 5.1 Trigger: Scheduler
+### 5.1 Criar o secret com a chave de sincronização
 
-1. Adicione um **Schedule Trigger** (cron)
-2. Configure para rodar **diariamente às 05:00 America/Sao_Paulo** (madrugada do horário de Brasília)
-3. Deixe todas as outras opções em default
+1. No GitHub, abra o repositório `rickjs2005/millead`
+2. **Settings** → **Secrets and variables** → **Actions**
+3. **New repository secret**
+4. Nome: `MILSOCIAL_SYNC_KEY` — Valor: cole o mesmo valor exato configurado em `MILSOCIAL_SYNC_KEY` no Render (seção 3.2)
+5. **Add secret**
 
-### 5.2 Node HTTP Request
+### 5.2 Criar o workflow
 
-1. Adicione um nó **HTTP Request**
-2. Configure:
-   - **Method:** POST
-   - **URL:** `https://millead-api.onrender.com/api/v1/admin/social/sync`
-   - **Headers** (clique em "Add" para cada um):
-     - Header name: `X-Sync-Key`
-     - Header value: Cole o valor exato de `MILSOCIAL_SYNC_KEY` (ex.: `3a7f2b9c1e5d4a8f6c2b9e1d3a7f2b9c1e5d4a8f`)
-   - **Request Timeout:** 120 (segundos — covers cold start do Render)
-   - **Retry on Fail:** Ativar
-     - Retry times: `2`
-     - Retry interval: `60` (segundos — aguarda warm-up do Render)
+Crie o arquivo `.github/workflows/milsocial-sync.yml` no repositório com este conteúdo:
 
-### 5.3 Ativar e Nomear
+```yaml
+name: MilSocial daily sync
 
-1. Clique em **Save**
-2. Nomeie o workflow (ex.: "MilSocial Daily Sync")
-3. Clique no botão **Activate Workflow** (ícone de play) no canto superior esquerdo
-4. Teste clicando em **Execute Workflow** para confirmar que funciona
+on:
+  schedule:
+    # 05:00 America/Sao_Paulo (UTC-3) = 08:00 UTC
+    - cron: "0 8 * * *"
+  workflow_dispatch: {}
 
-A partir daí, o workflow dispara automaticamente todo dia às 05:00 e sincroniza os reels sem qualquer ação manual.
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Disparar sync do MilSocial
+        run: |
+          curl --fail --show-error \
+            --max-time 120 \
+            --retry 2 --retry-delay 60 \
+            -X POST "https://millead-api.onrender.com/api/v1/admin/social/sync" \
+            -H "X-Sync-Key: ${{ secrets.MILSOCIAL_SYNC_KEY }}"
+```
+
+Commit e push — não precisa de mais nada, o GitHub já agenda sozinho a partir do `cron`.
+
+### 5.3 Testar manualmente
+
+1. No GitHub, aba **Actions** do repositório
+2. Selecione o workflow **MilSocial daily sync** na lista à esquerda
+3. Botão **Run workflow** (usa o gatilho `workflow_dispatch`) → **Run workflow**
+4. Acompanhe o log da execução — sucesso é `HTTP 200` do curl; qualquer erro aparece no próprio log, incluindo o corpo da resposta da API
+
+A partir daí, o workflow dispara sozinho todo dia às 05:00 (horário de Brasília) e sincroniza os reels sem qualquer ação manual. Não exige conta em nenhum serviço externo — só o GitHub que o Rick já usa pra tudo.
+
+**Alternativa sem GitHub Actions:** se preferir não usar Actions, [cron-job.org](https://cron-job.org) é um serviço externo gratuito que faz o mesmo (agenda uma chamada HTTP diária com header customizado) sem precisar de repositório — cadastro simples, cria o job apontando pra mesma URL e header `X-Sync-Key`.
 
 ## 6. Solução de Problemas
 
@@ -154,10 +172,10 @@ A partir daí, o workflow dispara automaticamente todo dia às 05:00 e sincroniz
 **Causa:** Token não configurado ou chave `INSTAGRAM_ACCESS_TOKEN` vazia no Render.  
 **Solução:** Verifique `INSTAGRAM_ACCESS_TOKEN` no Render, confirme que não está vazia, redeploy manual (`git push` ou botão de deploy no dashboard Render).
 
-### Erro 401 no n8n (webhook rejeitado)
+### Erro 401 no workflow do GitHub Actions
 
-**Causa:** Header `X-Sync-Key` incorreto ou fora de sincronização com a chave no Render.  
-**Solução:** Copie o valor exato de `MILSOCIAL_SYNC_KEY` novamente do Render e cole no header do n8n. Teste o workflow manualmente clicando em "Execute Workflow".
+**Causa:** Secret `MILSOCIAL_SYNC_KEY` do GitHub incorreto, ausente, ou fora de sincronização com a chave no Render.  
+**Solução:** Confira o secret em Settings → Secrets and variables → Actions do repositório, cole novamente o valor exato de `MILSOCIAL_SYNC_KEY` do Render, e dispare de novo via **Run workflow** (seção 5.3).
 
 ### Sync completa mas a lista de posts está vazia
 
@@ -193,4 +211,4 @@ Este comando pode ser rodado várias vezes sem risco — Prisma mantém controle
 | Painel MilSocial | https://millead.milweb.com.br/admin/milsocial |
 | Render (API) | https://dashboard.render.com |
 | Vercel (Web) | https://vercel.com/dashboard |
-| n8n Workflow | https://rickj.app.n8n.cloud |
+| Workflow do sync (GitHub Actions) | https://github.com/rickjs2005/millead/actions |

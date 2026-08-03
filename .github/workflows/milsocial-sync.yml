@@ -1,0 +1,19 @@
+name: MilSocial daily sync
+
+on:
+  schedule:
+    # 05:00 America/Sao_Paulo (UTC-3) = 08:00 UTC
+    - cron: "0 8 * * *"
+  workflow_dispatch: {}
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Disparar sync do MilSocial
+        run: |
+          curl --fail --show-error \
+            --max-time 120 \
+            --retry 2 --retry-delay 60 \
+            -X POST "https://millead-api.onrender.com/api/v1/admin/social/sync" \
+            -H "X-Sync-Key: ${{ secrets.MILSOCIAL_SYNC_KEY }}"
