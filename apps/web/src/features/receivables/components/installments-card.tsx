@@ -215,7 +215,18 @@ function ReceivableRow({ receivable }: { receivable: Receivable }) {
               size="icon"
               aria-label={`Desfazer baixa de ${installmentLabel(receivable)}`}
               disabled={unpay.isPending}
-              onClick={() => unpay.mutate(receivable.id)}
+              onClick={() =>
+                confirm({
+                  title: "Desfazer baixa",
+                  description: `Desfazer a baixa desta parcela (${installmentLabel(receivable)})? Ela volta a ficar em aberto.`,
+                  confirmLabel: "Desfazer baixa",
+                  cancelLabel: "Voltar",
+                  variant: "default",
+                  onConfirm: async () => {
+                    await unpay.mutateAsync(receivable.id);
+                  },
+                })
+              }
             >
               <Undo2 className="h-4 w-4" />
             </Button>

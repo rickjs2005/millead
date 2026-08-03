@@ -77,6 +77,8 @@ function buildInstallmentsPreview(params: {
   firstDueDate: string;
 }): InstallmentPreview[] {
   const { total, entryAmount, installmentCount, firstDueDate } = params;
+  // installmentCount 0 é válido quando a entrada cobre o total (contrato
+  // 100% à vista) -- nesse caso não há parcela nenhuma, só a entrada.
   if (installmentCount < 1 || !firstDueDate || total <= 0) return [];
 
   const totalCents = Math.round(total * 100);
@@ -104,21 +106,42 @@ function formatDateOnly(value: string): string {
   );
 }
 
+// Mesma tolerância de arredondamento do `ReceivableService.createPlan`
+// (SUM_TOLERANCE) -- evita que centavos de ponto flutuante bloqueiem um
+// plano cuja entrada já cobre o total.
+const SUM_TOLERANCE = 0.01;
+
 const schema = z
   .object({
     total: z.coerce.number().positive("Informe um total válido."),
     entryAmount: z.coerce.number().min(0, "Informe um valor válido."),
     entryDueDate: z.string().min(1, "Informe o vencimento da entrada."),
+    // 0 é válido quando a entrada cobre o total (contrato 100% à vista) --
+    // o superRefine abaixo exige >= 1 só quando sobra valor pra parcelar.
     installmentCount: z.coerce
       .number()
       .int()
-      .min(1, "Informe ao menos 1 parcela.")
+      .min(0, "Informe um número de parcelas válido.")
       .max(60, "Máximo de 60 parcelas."),
     firstDueDate: z.string().min(1, "Informe o vencimento da 1ª parcela."),
   })
-  .refine((v) => v.entryAmount <= v.total, {
-    message: "A entrada não pode ser maior que o total.",
-    path: ["entryAmount"],
+  .superRefine((v, ctx) => {
+    if (v.entryAmount > v.total + SUM_TOLERANCE) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "A entrada não pode ser maior que o total.",
+        path: ["entryAmount"],
+      });
+      return;
+    }
+    const remaining = v.total - v.entryAmount;
+    if (remaining > SUM_TOLERANCE && v.installmentCount < 1) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `Restam ${formatCurrency(remaining)} — adicione parcelas ou aumente a entrada.`,
+        path: ["installmentCount"],
+      });
+    }
   });
 type FormValues = z.infer<typeof schema>;
 
@@ -232,7 +255,7 @@ export function PlanDialog({
                   id="plan-installment-count"
                   type="number"
                   inputMode="numeric"
-                  min={1}
+                  min={0}
                   max={60}
                   {...register("installmentCount")}
                 />
@@ -249,7 +272,7 @@ export function PlanDialog({
               </div>
             </div>
 
-            {preview.length > 0 && (
+            {(preview.length > 0 || Number(entryAmount || 0) > 0) && (
               <div className="flex flex-col gap-1.5">
                 <Label>Prévia da distribuição</Label>
                 <Table>
