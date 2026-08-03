@@ -24,6 +24,7 @@ export interface CostRepository {
     data: UpdateCostSubscriptionInput,
   ): Promise<CostSubscription | null>;
   deleteSubscription(organizationId: string, id: string): Promise<boolean>;
+  hasUsageForSubscription(organizationId: string, subscriptionId: string): Promise<boolean>;
   listCatalog(organizationId: string): Promise<CostServiceCatalog[]>;
   getSettings(organizationId: string): Promise<FinanceSettings>;
   updateSettings(
@@ -32,6 +33,9 @@ export interface CostRepository {
   ): Promise<FinanceSettings>;
   countWonLeads(organizationId: string): Promise<number>;
   listUsage(organizationId: string, range: { from: Date; to: Date }): Promise<CostUsageEntry[]>;
-  createUsage(organizationId: string, data: CreateUsageEntryInput): Promise<CostUsageEntry>;
+  createUsage(
+    organizationId: string,
+    data: CreateUsageEntryInput & { unitPriceBrl: number | null },
+  ): Promise<CostUsageEntry>;
   deleteUsage(organizationId: string, id: string): Promise<boolean>;
 }

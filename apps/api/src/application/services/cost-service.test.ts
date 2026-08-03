@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { CompanyRepository } from "../../domain/repositories/company-repository.js";
 import type { CostRepository } from "../../domain/repositories/cost-repository.js";
 import type { CostSubscription, CostUsageEntry, FinanceSettings } from "../../domain/entities/cost.js";
-import { NotFoundError } from "../../domain/errors/app-error.js";
+import { ConflictError, NotFoundError, ValidationError } from "../../domain/errors/app-error.js";
 import {
   CostService,
   monthlyAmountBrl,
@@ -210,6 +210,7 @@ function fakeUsageEntry(overrides: Partial<CostUsageEntry> = {}): CostUsageEntry
     usedAt: new Date("2026-07-15"),
     note: null,
     createdAt: new Date("2026-07-15"),
+    unitPriceBrl: null,
     ...overrides,
   };
 }
@@ -236,6 +237,7 @@ function fakeRepos(costOverrides: Partial<CostRepository> = {}) {
     createSubscription: vi.fn().mockResolvedValue(fakeSubscription()),
     updateSubscription: vi.fn().mockResolvedValue(null),
     deleteSubscription: vi.fn().mockResolvedValue(false),
+    hasUsageForSubscription: vi.fn().mockResolvedValue(false),
     listCatalog: vi.fn().mockResolvedValue([]),
     getSettings: vi.fn().mockResolvedValue(fakeSettings()),
     updateSettings: vi.fn().mockResolvedValue(fakeSettings()),
@@ -280,7 +282,7 @@ describe("computeUsageSummary", () => {
 
   it("unitário derivado = monthlyAmountBrl(sub) / creditsIncluded", () => {
     const s = computeUsageSummary(
-      [{ subscriptionId: "sub-hf", companyId: null, companyName: null, credits: 400 }],
+      [{ subscriptionId: "sub-hf", companyId: null, companyName: null, credits: 400, unitPriceBrl: null }],
       [higgsfield],
       5,
     );
@@ -301,9 +303,9 @@ describe("computeUsageSummary", () => {
   it("agrega por cliente -- companyId null vira 'Sem cliente'", () => {
     const s = computeUsageSummary(
       [
-        { subscriptionId: "sub-hf", companyId: "company-1", companyName: "Cliente A", credits: 300 },
-        { subscriptionId: "sub-hf", companyId: "company-1", companyName: "Cliente A", credits: 100 },
-        { subscriptionId: "sub-hf", companyId: null, companyName: null, credits: 50 },
+        { subscriptionId: "sub-hf", companyId: "company-1", companyName: "Cliente A", credits: 300, unitPriceBrl: null },
+        { subscriptionId: "sub-hf", companyId: "company-1", companyName: "Cliente A", credits: 100, unitPriceBrl: null },
+        { subscriptionId: "sub-hf", companyId: null, companyName: null, credits: 50, unitPriceBrl: null },
       ],
       [higgsfield],
       5,
@@ -317,7 +319,7 @@ describe("computeUsageSummary", () => {
 
   it("assinatura sem creditsIncluded -> unitPrice null e costBrl 0", () => {
     const s = computeUsageSummary(
-      [{ subscriptionId: "sub-nc", companyId: null, companyName: null, credits: 20 }],
+      [{ subscriptionId: "sub-nc", companyId: null, companyName: null, credits: 20, unitPriceBrl: null }],
       [semCreditos],
       5,
     );
@@ -343,14 +345,29 @@ describe("computeUsageSummary", () => {
   it("mais de uma assinatura com creditsIncluded no período -> unitPriceBrl de topo fica null (ambíguo)", () => {
     const s = computeUsageSummary(
       [
-        { subscriptionId: "sub-hf", companyId: null, companyName: null, credits: 100 },
-        { subscriptionId: "sub-2", companyId: null, companyName: null, credits: 50 },
+        { subscriptionId: "sub-hf", companyId: null, companyName: null, credits: 100, unitPriceBrl: null },
+        { subscriptionId: "sub-2", companyId: null, companyName: null, credits: 50, unitPriceBrl: null },
       ],
       [higgsfield, { ...higgsfield, id: "sub-2", name: "Higgsfield 2", amount: 478, creditsIncluded: 2000 }],
       5,
     );
     expect(s.unitPriceBrl).toBeNull();
     expect(s.bySubscription).toHaveLength(2);
+  });
+
+  it("lançamento com unitPriceBrl gravado usa o preço da HORA, não o preço atual da assinatura", () => {
+    // Assinatura hoje custa o dobro (478) do que custava quando o
+    // lançamento foi gravado (239 -> unitPriceBrl 0.239 no snapshot).
+    const higgsfieldMaisCaro = { ...higgsfield, amount: 478 };
+    const s = computeUsageSummary(
+      [{ subscriptionId: "sub-hf", companyId: null, companyName: null, credits: 400, unitPriceBrl: 0.239 }],
+      [higgsfieldMaisCaro],
+      5,
+    );
+    // costBrl usa o snapshot (0.239), não o preço atual derivado (0.478).
+    expect(s.bySubscription[0]!.costBrl).toBeCloseTo(400 * 0.239, 6);
+    // unitPriceBrl no resumo por assinatura é só informativo/atual.
+    expect(s.bySubscription[0]!.unitPriceBrl).toBeCloseTo(0.478, 3);
   });
 });
 
@@ -365,6 +382,14 @@ describe("CostService", () => {
   it("deleteSubscription lança NotFoundError quando o repo não encontra", async () => {
     const { service } = fakeRepos({ deleteSubscription: vi.fn().mockResolvedValue(false) });
     await expect(service.deleteSubscription(ORG, "sub-x")).rejects.toThrow(NotFoundError);
+  });
+
+  it("deleteSubscription lança ConflictError e não apaga quando há uso registrado", async () => {
+    const { service, costs } = fakeRepos({
+      hasUsageForSubscription: vi.fn().mockResolvedValue(true),
+    });
+    await expect(service.deleteSubscription(ORG, "sub-x")).rejects.toThrow(ConflictError);
+    expect(costs.deleteSubscription).not.toHaveBeenCalled();
   });
 
   it("createSubscription rejeita companyId de outra org sem gravar nada", async () => {
@@ -470,7 +495,7 @@ describe("CostService", () => {
 
     it("createUsage rejeita companyId de outra org sem gravar", async () => {
       const { service, costs, companies } = fakeRepos({
-        findSubscriptionById: vi.fn().mockResolvedValue(fakeSubscription()),
+        findSubscriptionById: vi.fn().mockResolvedValue(fakeSubscription({ creditsIncluded: 1000 })),
       });
       await expect(
         service.createUsage(ORG, {
@@ -486,7 +511,7 @@ describe("CostService", () => {
 
     it("createUsage sem companyId não consulta companies e grava", async () => {
       const { service, costs, companies } = fakeRepos({
-        findSubscriptionById: vi.fn().mockResolvedValue(fakeSubscription()),
+        findSubscriptionById: vi.fn().mockResolvedValue(fakeSubscription({ creditsIncluded: 1000 })),
       });
       await service.createUsage(ORG, {
         subscriptionId: "sub-1",
@@ -497,6 +522,38 @@ describe("CostService", () => {
       expect(costs.createUsage).toHaveBeenCalledWith(
         ORG,
         expect.objectContaining({ subscriptionId: "sub-1", credits: 10 }),
+      );
+    });
+
+    it("createUsage rejeita lançamento contra assinatura sem creditsIncluded, sem gravar", async () => {
+      const { service, costs } = fakeRepos({
+        findSubscriptionById: vi.fn().mockResolvedValue(fakeSubscription({ creditsIncluded: null })),
+      });
+      await expect(
+        service.createUsage(ORG, {
+          subscriptionId: "sub-1",
+          credits: 10,
+          usedAt: new Date("2026-07-15"),
+        }),
+      ).rejects.toThrow(ValidationError);
+      expect(costs.createUsage).not.toHaveBeenCalled();
+    });
+
+    it("createUsage grava o unitPriceBrl calculado NA HORA (snapshot), não confia em recálculo futuro", async () => {
+      const { service, costs } = fakeRepos({
+        findSubscriptionById: vi.fn().mockResolvedValue(
+          fakeSubscription({ amount: "239", currency: "BRL", billingCycle: "MONTHLY", creditsIncluded: 1000 }),
+        ),
+        getSettings: vi.fn().mockResolvedValue(fakeSettings({ usdToBrlRate: "5.00" })),
+      });
+      await service.createUsage(ORG, {
+        subscriptionId: "sub-1",
+        credits: 10,
+        usedAt: new Date("2026-07-15"),
+      });
+      expect(costs.createUsage).toHaveBeenCalledWith(
+        ORG,
+        expect.objectContaining({ subscriptionId: "sub-1", credits: 10, unitPriceBrl: 0.239 }),
       );
     });
 

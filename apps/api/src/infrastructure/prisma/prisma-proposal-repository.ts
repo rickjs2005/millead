@@ -86,11 +86,17 @@ export class PrismaProposalRepository implements ProposalRepository {
     id: string,
     organizationId: string,
     patch: UpdateProposalInput,
+    opts?: { requireNotDecided?: boolean },
   ): Promise<Proposal | null> {
-    const { count } = await prisma.proposal.updateMany({
-      where: { id, organizationId },
-      data: patch,
-    });
+    // requireNotDecided: mesmo CAS que `decide()` já usa pro caminho público
+    // -- garante que uma decisão manual (ACCEPTED/REJECTED) não sobrescreva
+    // silenciosamente uma decisão que o cliente já tomou pelo link público
+    // entre a checagem em ProposalService.update() e esta escrita.
+    const where: Prisma.ProposalWhereInput = { id, organizationId };
+    if (opts?.requireNotDecided) {
+      where.decidedAt = null;
+    }
+    const { count } = await prisma.proposal.updateMany({ where, data: patch });
     if (count === 0) return null;
     const row = await prisma.proposal.findUniqueOrThrow({ where: { id } });
     return toDomain(row);

@@ -44,7 +44,12 @@ export interface ProposalRepository {
     filters: ProposalFilters,
     pagination: PaginationParams,
   ): Promise<PaginatedResult<Proposal>>;
-  update(id: string, organizationId: string, patch: UpdateProposalInput): Promise<Proposal | null>;
+  update(
+    id: string,
+    organizationId: string,
+    patch: UpdateProposalInput,
+    opts?: { requireNotDecided?: boolean },
+  ): Promise<Proposal | null>;
   /**
    * Compare-and-set: grava `token` só se `publicToken` ainda for null.
    * Devolve o token efetivamente persistido -- o desta chamada, ou o de

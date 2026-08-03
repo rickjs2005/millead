@@ -329,6 +329,44 @@ describe("ProposalService.update", () => {
 
     expect(result.status).toBe("ACCEPTED");
     expect(proposals.update).toHaveBeenCalledTimes(1);
+    // CAS real: o update tem que pedir requireNotDecided quando é uma
+    // decisão manual, senão a guarda acima é só leitura-depois-escrita e
+    // uma decisão pública concorrente pode ser sobrescrita silenciosamente.
+    expect(proposals.update).toHaveBeenCalledWith(
+      PROPOSAL_ID,
+      ORG,
+      expect.objectContaining({ status: "ACCEPTED" }),
+      { requireNotDecided: true },
+    );
+  });
+
+  it("corrida real: decidedAt ainda null na leitura, mas o cliente decide pelo link público antes da escrita -> CAS falha e vira ConflictError (não sobrescreve, não vira 404)", async () => {
+    const { service, proposals } = makeService({
+      proposals: {
+        // Passou na checagem de guarda (decidedAt: null aqui)...
+        findByIdForOrg: vi.fn().mockResolvedValue(fakeProposal({ decidedAt: null })),
+        // ...mas o CAS no repositório falha (0 linhas afetadas) porque o
+        // decide() público setou decidedAt entre a leitura e esta escrita.
+        update: vi.fn().mockResolvedValue(null),
+      },
+    });
+
+    await expect(service.update(ORG, USER, PROPOSAL_ID, { status: "ACCEPTED" })).rejects.toThrow(
+      ConflictError,
+    );
+  });
+
+  it("update sem mudar status (ex.: só título) não usa CAS -- requireNotDecided false/omitido", async () => {
+    const { service, proposals } = makeService();
+
+    await service.update(ORG, USER, PROPOSAL_ID, { title: "Novo título" });
+
+    expect(proposals.update).toHaveBeenCalledWith(
+      PROPOSAL_ID,
+      ORG,
+      expect.objectContaining({ title: "Novo título" }),
+      { requireNotDecided: false },
+    );
   });
 
   it("propaga NotFoundError se a proposta não existir na checagem de guarda", async () => {

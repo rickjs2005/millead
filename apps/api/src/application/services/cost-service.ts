@@ -7,7 +7,7 @@ import type {
 import type { CostRepository } from "../../domain/repositories/cost-repository.js";
 import type { CompanyRepository } from "../../domain/repositories/company-repository.js";
 import type { CapacityEntry, CostSummary, CostUsageEntry, UsageSummary } from "../../domain/entities/cost.js";
-import { NotFoundError } from "../../domain/errors/app-error.js";
+import { ConflictError, NotFoundError, ValidationError } from "../../domain/errors/app-error.js";
 
 type Currency = "BRL" | "USD";
 type Cycle = "MONTHLY" | "YEARLY";
@@ -103,6 +103,9 @@ interface UsageEntryForSummary {
   companyId: string | null;
   companyName: string | null;
   credits: number;
+  /** Snapshot gravado no lançamento; null = lançamento antigo, cai no
+   * fallback derivado ao vivo (ver `unitPriceBrlFor`). */
+  unitPriceBrl: number | null;
 }
 
 interface UsageSubscription {
@@ -131,35 +134,47 @@ export function computeUsageSummary(
 ): Omit<UsageSummary, "month"> {
   const subsById = new Map(subscriptions.map((s) => [s.id, s]));
 
-  const bySubMap = new Map<string, number>();
+  // Custo de cada lançamento usa o preço GRAVADO no momento (snapshot);
+  // só cai pro preço ao vivo da assinatura em lançamentos antigos que não
+  // tinham snapshot. Isso evita que trocar o preço da assinatura ou o
+  // câmbio da org reescreva retroativamente o custo de um mês já fechado.
+  const costOf = (entry: UsageEntryForSummary): number => {
+    const unitPrice = entry.unitPriceBrl ?? unitPriceBrlFor(subsById.get(entry.subscriptionId), usdRate);
+    return unitPrice != null ? entry.credits * unitPrice : 0;
+  };
+
+  const bySubMap = new Map<string, { credits: number; costBrl: number }>();
   for (const entry of entries) {
-    bySubMap.set(entry.subscriptionId, (bySubMap.get(entry.subscriptionId) ?? 0) + entry.credits);
+    const acc = bySubMap.get(entry.subscriptionId) ?? { credits: 0, costBrl: 0 };
+    acc.credits += entry.credits;
+    acc.costBrl += costOf(entry);
+    bySubMap.set(entry.subscriptionId, acc);
   }
 
-  const bySubscription = Array.from(bySubMap.entries()).map(([subscriptionId, credits]) => {
+  const bySubscription = Array.from(bySubMap.entries()).map(([subscriptionId, agg]) => {
     const sub = subsById.get(subscriptionId);
-    const unitPriceBrl = unitPriceBrlFor(sub, usdRate);
     return {
       subscriptionId,
       name: sub?.name ?? "Assinatura removida",
-      credits,
+      credits: agg.credits,
       creditsIncluded: sub?.creditsIncluded ?? null,
-      unitPriceBrl,
-      costBrl: unitPriceBrl != null ? credits * unitPriceBrl : 0,
+      // Preço ATUAL da assinatura, só informativo -- o custo somado acima
+      // (`costBrl`) já reflete o preço de cada lançamento na hora dele.
+      unitPriceBrl: unitPriceBrlFor(sub, usdRate),
+      costBrl: agg.costBrl,
     };
   });
 
   const byClientMap = new Map<string, { companyName: string; credits: number; costBrl: number }>();
   for (const entry of entries) {
     const key = entry.companyId ?? "";
-    const unitPriceBrl = unitPriceBrlFor(subsById.get(entry.subscriptionId), usdRate) ?? 0;
     const acc = byClientMap.get(key) ?? {
       companyName: entry.companyId ? (entry.companyName ?? "") : "Sem cliente",
       credits: 0,
       costBrl: 0,
     };
     acc.credits += entry.credits;
-    acc.costBrl += entry.credits * unitPriceBrl;
+    acc.costBrl += costOf(entry);
     byClientMap.set(key, acc);
   }
 
@@ -228,6 +243,16 @@ export class CostService {
   }
 
   async deleteSubscription(organizationId: string, id: string) {
+    // Apagar de verdade cascateia e destrói o histórico de CostUsageEntry
+    // (créditos consumidos por cliente, possivelmente já cobrado) -- se
+    // houver uso registrado, o caminho é desativar (isActive: false), não
+    // apagar.
+    const hasUsage = await this.repository.hasUsageForSubscription(organizationId, id);
+    if (hasUsage) {
+      throw new ConflictError(
+        "Esta assinatura tem lançamentos de uso/crédito registrados -- desative em vez de excluir, pra não perder o histórico.",
+      );
+    }
     const ok = await this.repository.deleteSubscription(organizationId, id);
     if (!ok) throw new NotFoundError("Assinatura não encontrada");
   }
@@ -275,11 +300,24 @@ export class CostService {
   async createUsage(organizationId: string, input: CreateUsageEntryInput): Promise<CostUsageEntry> {
     const subscription = await this.repository.findSubscriptionById(organizationId, input.subscriptionId);
     if (!subscription) throw new NotFoundError("Assinatura não encontrada.");
+    if (!subscription.creditsIncluded) {
+      // Sem creditsIncluded não dá pra derivar preço/crédito -- aceitar
+      // mesmo assim faria o lançamento custar R$0 silenciosamente em todo
+      // resumo (a UI já filtra isso no seletor, mas a API não travava).
+      throw new ValidationError(
+        "Esta assinatura não tem 'créditos incluídos' configurado -- defina antes de lançar consumo.",
+      );
+    }
     if (input.companyId) {
       const company = await this.companies.findByIdForOrg(input.companyId, organizationId);
       if (!company) throw new NotFoundError("Empresa não encontrada.");
     }
-    return this.repository.createUsage(organizationId, input);
+    // Preço gravado NA HORA -- ver o comentário em `unitPriceBrl` na
+    // migration/entidade: garante que o custo deste lançamento não mude
+    // retroativamente se a assinatura ou o câmbio mudarem depois.
+    const settings = await this.repository.getSettings(organizationId);
+    const unitPriceBrl = unitPriceBrlFor(subscription, Number(settings.usdToBrlRate));
+    return this.repository.createUsage(organizationId, { ...input, unitPriceBrl });
   }
 
   async deleteUsage(organizationId: string, id: string): Promise<void> {

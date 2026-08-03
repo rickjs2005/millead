@@ -161,6 +161,39 @@ describe("ReceivableService.createPlan", () => {
     }
   });
 
+  it("total do plano diferente do valor do contrato -> ValidationError, mesmo com soma interna consistente", async () => {
+    const { service, receivables } = fakeRepos();
+    await expect(
+      service.createPlan(ORG, {
+        ...VALID_INPUT,
+        total: 500,
+        entryAmount: 200,
+        installments: [
+          { amount: 100, dueDate: new Date("2026-09-05") },
+          { amount: 100, dueDate: new Date("2026-10-05") },
+          { amount: 100, dueDate: new Date("2026-11-05") },
+        ],
+      }),
+    ).rejects.toThrow(ValidationError);
+    expect(receivables.createPlan).not.toHaveBeenCalled();
+
+    try {
+      await service.createPlan(ORG, {
+        ...VALID_INPUT,
+        total: 500,
+        entryAmount: 200,
+        installments: [
+          { amount: 100, dueDate: new Date("2026-09-05") },
+          { amount: 100, dueDate: new Date("2026-10-05") },
+          { amount: 100, dueDate: new Date("2026-11-05") },
+        ],
+      });
+      expect.unreachable();
+    } catch (error) {
+      expect((error as Error).message).toContain("1000.00");
+    }
+  });
+
   it("tolera diferença de até 0.01 (arredondamento)", async () => {
     const { service, receivables } = fakeRepos();
     await service.createPlan(ORG, {

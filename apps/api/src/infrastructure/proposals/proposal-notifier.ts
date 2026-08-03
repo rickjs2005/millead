@@ -24,6 +24,13 @@ export class DefaultProposalNotifier implements ProposalNotifier {
     publicUrl: string | null;
   }): Promise<void> {
     try {
+      // titulo/nomeCliente vêm de dados cadastrados no CRM (staff autenticado
+      // hoje, mas podem se originar de um briefing público no futuro) --
+      // escapados igual `propostaDecidida` já faz com titulo/rejectReason,
+      // pra um nome/título tipo `<a href=...>` não virar markup de verdade
+      // na caixa de entrada do cliente.
+      const nomeClienteSeguro = escapeHtml(input.nomeCliente);
+      const tituloSeguro = escapeHtml(input.titulo);
       const validade = input.validUntil
         ? `<p>Validade da proposta: <strong>${input.validUntil.toLocaleDateString("pt-BR")}</strong></p>`
         : "";
@@ -37,8 +44,8 @@ export class DefaultProposalNotifier implements ProposalNotifier {
         to: input.emailCliente,
         subject: `Proposta: ${input.titulo} — ${input.nomeOrganizacao}`,
         html: `
-          <p>Olá, ${input.nomeCliente}!</p>
-          <p>Segue a proposta <strong>${input.titulo}</strong> no valor de
+          <p>Olá, ${nomeClienteSeguro}!</p>
+          <p>Segue a proposta <strong>${tituloSeguro}</strong> no valor de
           <strong>${formatValor(input.valor, input.currency)}</strong>.</p>
           ${validade}
           ${aceite}

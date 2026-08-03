@@ -1545,6 +1545,13 @@ model CostUsageEntry {
   usedAt         DateTime @map("used_at")
   note           String?
   createdAt      DateTime @default(now()) @map("created_at")
+  // Snapshot do preço/crédito em BRL no momento do lançamento (mensal BRL da
+  // assinatura ÷ creditsIncluded, na taxa de câmbio de então). Null nos
+  // lançamentos antigos (pré-migration) e quando a assinatura não tinha
+  // creditsIncluded no momento -- nesses casos o resumo cai no fallback
+  // derivado ao vivo. Sem isso, mudar o preço da assinatura ou o câmbio
+  // reescreve retroativamente o custo de meses já fechados.
+  unitPriceBrl   Decimal? @map("unit_price_brl") @db.Decimal(14, 6)
 
   organization Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   subscription CostSubscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)

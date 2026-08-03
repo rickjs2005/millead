@@ -79,6 +79,7 @@ interface CostUsageEntryRow {
   usedAt: Date;
   note: string | null;
   createdAt: Date;
+  unitPriceBrl: Prisma.Decimal | null;
   company: { name: string } | null;
 }
 
@@ -93,6 +94,7 @@ function toDomainUsage(row: CostUsageEntryRow): CostUsageEntry {
     usedAt: row.usedAt,
     note: row.note,
     createdAt: row.createdAt,
+    unitPriceBrl: row.unitPriceBrl != null ? Number(row.unitPriceBrl) : null,
   };
 }
 
@@ -152,6 +154,14 @@ export class PrismaCostRepository implements CostRepository {
     return true;
   }
 
+  async hasUsageForSubscription(organizationId: string, subscriptionId: string): Promise<boolean> {
+    const entry = await prisma.costUsageEntry.findFirst({
+      where: { organizationId, subscriptionId },
+      select: { id: true },
+    });
+    return entry !== null;
+  }
+
   async listCatalog(organizationId: string): Promise<CostServiceCatalog[]> {
     // Globais (organizationId NULL) + customs da própria org (padrão Briefings).
     const rows = await prisma.costServiceCatalog.findMany({
@@ -200,7 +210,7 @@ export class PrismaCostRepository implements CostRepository {
 
   async createUsage(
     organizationId: string,
-    data: CreateUsageEntryInput,
+    data: CreateUsageEntryInput & { unitPriceBrl: number | null },
   ): Promise<CostUsageEntry> {
     const row = await prisma.costUsageEntry.create({
       data: {
@@ -210,6 +220,7 @@ export class PrismaCostRepository implements CostRepository {
         credits: data.credits,
         usedAt: data.usedAt,
         note: data.note ?? null,
+        unitPriceBrl: data.unitPriceBrl,
       },
       include: { company: { select: { name: true } } },
     });

@@ -78,6 +78,18 @@ export class ReceivableService {
       );
     }
 
+    // O total do plano precisa bater com o valor assinado do contrato -- sem
+    // essa checagem dava pra criar um plano com soma internamente consistente
+    // mas totalmente divergente do que foi fechado (ex.: contrato de 50k,
+    // plano de 5k, tudo "válido" porque só a soma interna era conferida).
+    const contractTotal = Number(contract.valorTotal);
+    const contractDiff = Math.round((input.total - contractTotal) * 100) / 100;
+    if (Math.abs(contractDiff) > SUM_TOLERANCE) {
+      throw new ValidationError(
+        `O total do plano (${input.total.toFixed(2)}) difere do valor do contrato (${contractTotal.toFixed(2)}) em ${Math.abs(contractDiff).toFixed(2)}.`,
+      );
+    }
+
     const hasPaid = await this.receivables.hasPaid(organizationId, input.contractId);
     if (hasPaid) {
       throw new ConflictError("Este contrato já possui parcela paga; não é possível recriar o plano.");

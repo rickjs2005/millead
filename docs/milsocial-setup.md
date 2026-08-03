@@ -25,19 +25,19 @@ A conta agora aparecerá como profissional e todos os reels terão métricas dis
 5. Selecione o tipo **Business** (não Consumer)
 6. Preencha os dados do app (nome: "MilSocial", descrição: "Ferramenta de análise de reels")
 7. Após criação, acesse o dashboard do app
-8. Clique em **+ Adicionar Produto**
-9. Procure por **Instagram** e clique em **Adicionar**
-10. Na seção **Instagram Graph API**, vá para **Configuração de API com Login do Instagram**
-11. Em **Instagram Tester**, clique em **Adicionar pessoas**
-12. Digite o username da conta @milweb e confirme
-13. Abra o app do Instagram na conta @milweb, vá em Configurações > Apps e Sites > Aplicativos e sites, e aceite o convite de tester
-14. Volte ao dashboard do Meta e aguarde a aceitação ser refletida (refresh a página)
-15. Na seção **Usuários de Teste**, clique em **Gerar Token**
-16. Selecione as permissões (fluxo "Instagram API with Instagram Login"):
+8. No menu lateral, clique em **Casos de uso** (o console da Meta não usa mais "Adicionar Produto" pra isso)
+9. No card **"Gerenciar mensagens e conteúdo no Instagram"**, clique em **Personalizar**
+10. Siga o fluxo pra adicionar a conta @milweb como tester: em **Instagram Tester** (ou equivalente dentro do caso de uso), clique em **Adicionar pessoas**
+11. Digite o username da conta @milweb e confirme
+12. Abra o app do Instagram na conta @milweb, vá em Configurações > Apps e Sites > Aplicativos e sites, e aceite o convite de tester
+13. Volte ao dashboard do Meta e aguarde a aceitação ser refletida (refresh a página)
+14. Ainda dentro do caso de uso (não na ferramenta genérica "Explorador da Graph API" — ver aviso abaixo), gere o token com as permissões do fluxo "Instagram API with Instagram Login":
     - `instagram_business_basic`
     - `instagram_business_manage_insights`
-17. Clique em **Gerar Token de Acesso** — este é o token long-lived (60 dias de validade)
-18. Copie o token inteiro (será uma string longa começando com `IGQVJheW...`)
+15. Clique em **Gerar Token de Acesso** — este é o token long-lived (60 dias de validade)
+16. Copie o token inteiro (string longa começando com `IGAA...` — versões mais antigas do fluxo geravam tokens `IGQVJheW...`, ambos os formatos são válidos)
+
+**⚠️ Não use o "Explorador da Graph API"** (Ferramentas > Explorador da Graph API): essa ferramenta gera token pra `graph.facebook.com` (fluxo de Login do Facebook / Páginas), incompatível com o MilSocial, que chama `graph.instagram.com` direto. Um token gerado ali causa o erro `code 190` na hora de sincronizar (seção 6). O token certo só sai de dentro do caso de uso do Instagram (passo 9-15 acima).
 
 **Nota:** Tokens long-lived do Instagram expiram a cada 60 dias se não forem usados. O MilSocial renova automaticamente este token na primeira sincronização e persiste o novo token no banco de dados (tabela `SocialConfig`), então não é necessário atualizar manualmente.
 
@@ -94,6 +94,8 @@ Copie a saída (será algo como `3a7f2b9c1e5d4a8f6c2b9e1d3a7f2b9c1e5d4a8f`) e co
 6. Faça um novo deploy ou aguarde que o CI/CD capture a mudança
 
 **Atenção:** Variáveis que começam com `NEXT_PUBLIC_` são expostas no bundle do cliente — use apenas para dados não-sensíveis (e-mail do owner, URLs públicas, IDs).
+
+**Atenção — deploy pode não "pegar" sozinho:** depois de salvar a env e rodar um novo deploy, confirme com `vercel inspect millead.milweb.com.br` (CLI) que o domínio custom realmente aponta pro deployment novo — não confie só no "Success" do `vercel --prod`. Se o projeto já teve algum rollback manual no passado, o domínio pode ficar preso num deployment antigo mesmo com deploys novos passando (eles ficam com `target: production` mas não assumem o alias sozinhos). Nesse caso, promova explicitamente: `vercel promote <url-do-deployment-novo>`.
 
 ## 4. Primeiro Sync Manual e Teste
 
@@ -171,6 +173,16 @@ A partir daí, o workflow dispara sozinho todo dia às 05:00 (horário de Brasí
 
 **Causa:** Token não configurado ou chave `INSTAGRAM_ACCESS_TOKEN` vazia no Render.  
 **Solução:** Verifique `INSTAGRAM_ACCESS_TOKEN` no Render, confirme que não está vazia, redeploy manual (`git push` ou botão de deploy no dashboard Render).
+
+### Erro "Instagram Graph API: Invalid OAuth access token — Cannot parse access token (code 190)"
+
+**Causa:** O valor salvo em `INSTAGRAM_ACCESS_TOKEN` não é um token de verdade do fluxo certo — geralmente é (a) um valor curto tipo chave hexadecimal colado por engano no lugar do token (parece com o formato do `MILSOCIAL_SYNC_KEY`), ou (b) um token gerado no **Explorador da Graph API** genérico da Meta, que serve pra `graph.facebook.com` e não pra `graph.instagram.com` (ver aviso na seção 2).  
+**Solução:** Gere o token pelo caminho certo (seção 2, dentro do caso de uso "Gerenciar mensagens e conteúdo no Instagram" → Personalizar) — o valor deve ser uma string longa começando com `IGAA` ou `IGQVJheW`, não uma chave hex curta. Cole no Render, salve, e aguarde o redeploy automático.
+
+### Item "MilSocial" não aparece no menu mesmo com tudo configurado
+
+**Causa:** O item só aparece pro dono (comparação de `NEXT_PUBLIC_OWNER_EMAIL` com o e-mail logado — ver seção 3.3), e o e-mail configurado precisa ser EXATAMENTE o e-mail que você usa pra logar no MilLead (não necessariamente `rick@milweb.com.br`, ajuste pro seu caso real).  
+**Solução:** Confirme o e-mail exato de login em Configurações → Perfil dentro do MilLead, compare com o valor salvo em `NEXT_PUBLIC_OWNER_EMAIL` na Vercel, corrija se divergir, e confirme com `vercel inspect millead.milweb.com.br` que o domínio está mesmo servindo o deployment mais recente (ver aviso na seção 3.3 sobre deploy não "pegar" sozinho).
 
 ### Erro 401 no workflow do GitHub Actions
 

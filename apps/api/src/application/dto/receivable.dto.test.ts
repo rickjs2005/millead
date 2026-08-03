@@ -62,6 +62,19 @@ describe("createPlanSchema", () => {
     const result = createPlanSchema.safeParse({ ...BASE, contractId: "" });
     expect(result.success).toBe(false);
   });
+
+  it("rejeita entryDueDate implausível (antes de 2020)", () => {
+    const result = createPlanSchema.safeParse({ ...BASE, entryDueDate: "2010-01-01" });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejeita dueDate de parcela implausível (mais de 15 anos no futuro)", () => {
+    const result = createPlanSchema.safeParse({
+      ...BASE,
+      installments: [{ amount: 200, dueDate: "2100-01-01" }],
+    });
+    expect(result.success).toBe(false);
+  });
 });
 
 describe("paySchema", () => {
@@ -78,6 +91,17 @@ describe("paySchema", () => {
     const result = paySchema.safeParse({ paidNote: "a".repeat(501) });
     expect(result.success).toBe(false);
   });
+
+  it("rejeita paidAt no futuro -- pagamento já aconteceu, não pode ter data futura", () => {
+    const umAnoNoFuturo = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString();
+    const result = paySchema.safeParse({ paidAt: umAnoNoFuturo });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejeita paidAt implausível (antes de 2020)", () => {
+    const result = paySchema.safeParse({ paidAt: "2010-01-01" });
+    expect(result.success).toBe(false);
+  });
 });
 
 describe("updateReceivableSchema", () => {
@@ -91,6 +115,10 @@ describe("updateReceivableSchema", () => {
 
   it("rejeita amount <= 0", () => {
     expect(updateReceivableSchema.safeParse({ amount: 0 }).success).toBe(false);
+  });
+
+  it("rejeita dueDate implausível (antes de 2020)", () => {
+    expect(updateReceivableSchema.safeParse({ dueDate: "2010-01-01" }).success).toBe(false);
   });
 });
 

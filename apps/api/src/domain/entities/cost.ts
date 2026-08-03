@@ -87,6 +87,10 @@ export interface CostUsageEntry {
   usedAt: Date;
   note: string | null;
   createdAt: Date;
+  /** Snapshot do preço/crédito em BRL no momento do lançamento; null em
+   * lançamentos antigos ou quando a assinatura não tinha creditsIncluded
+   * na hora -- nesses casos o resumo cai no fallback derivado ao vivo. */
+  unitPriceBrl: number | null;
 }
 
 /** Resumo de consumo de créditos de um mês (`GET /costs/usage/summary`). */

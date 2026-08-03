@@ -73,8 +73,15 @@ export class ProposalService {
     }
 
     // Guarda: decisão manual (ACCEPTED/REJECTED) não pode sobrescrever uma
-    // decisão que o cliente já tomou pelo link público.
-    if (patch.status && RESPONDED_STATUSES.has(patch.status)) {
+    // decisão que o cliente já tomou pelo link público. A checagem aqui é
+    // só pra dar um erro rápido/claro no caso comum (sequencial); a garantia
+    // de verdade é o CAS abaixo (`requireNotDecided`) -- sem ele, um aceite
+    // público entre esta leitura e o update() ficaria com decidedAt setado
+    // mas status sobrescrito pra REJECTED (ou vice-versa), com um contrato
+    // rascunho já criado por baixo. Ver receiving-code-review: achado real
+    // de auditoria, não hipotético.
+    const decidingManually = !!(patch.status && RESPONDED_STATUSES.has(patch.status));
+    if (decidingManually) {
       const current = await this.repository.findByIdForOrg(id, organizationId);
       if (!current) throw new NotFoundError("Proposta não encontrada.");
       if (current.decidedAt) {
@@ -95,8 +102,17 @@ export class ProposalService {
       publicToken = await this.ensurePublicTokenWithRetry(id, organizationId);
     }
 
-    const proposal = await this.repository.update(id, organizationId, resolvedPatch);
-    if (!proposal) throw new NotFoundError("Proposta não encontrada.");
+    const proposal = await this.repository.update(id, organizationId, resolvedPatch, {
+      requireNotDecided: decidingManually,
+    });
+    if (!proposal) {
+      if (decidingManually) {
+        // Existia na checagem acima, mas o CAS falhou -- o cliente decidiu
+        // pelo link público entre a leitura e esta escrita.
+        throw new ConflictError("Esta proposta já foi decidida pelo cliente pelo link público.");
+      }
+      throw new NotFoundError("Proposta não encontrada.");
+    }
 
     if (patch.status === "SENT") {
       await this.activityLogger.log(organizationId, proposal.leadId, userId, "PROPOSAL_SENT", {

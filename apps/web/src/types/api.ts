@@ -785,6 +785,7 @@ export interface CostUsageEntry {
   usedAt: string;
   note: string | null;
   createdAt: string;
+  unitPriceBrl: number | null;
 }
 
 /** Resumo de consumo de créditos de um mês (`GET /costs/usage/summary`). */
