@@ -25,6 +25,7 @@ const APP_PREFIXES = [
   "/landing-pages",
   "/briefings",
   "/audit",
+  "/receivables",
   "/settings",
   "/videos",
   "/admin",
