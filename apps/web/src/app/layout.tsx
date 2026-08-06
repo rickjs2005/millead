@@ -11,11 +11,28 @@ import "./globals.css";
 const DESCRIPTION =
   "CRM da MilWeb: pipeline de leads, propostas, contratos e briefings num lugar só.";
 
+/**
+ * `new URL()` lança em string malformada, e aqui isso rodaria no módulo do root
+ * layout -- ou seja, uma env mal digitada (domínio sem `https://`) derrubaria o
+ * BUILD INTEIRO, não só o og:image. Por isso nunca lança: completa o esquema
+ * quando falta e, em último caso, cai em localhost avisando no log do build.
+ */
+function resolveMetadataBase(): URL {
+  const raw = publicAppUrl();
+  const candidate = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
+  try {
+    return new URL(candidate);
+  } catch {
+    console.warn(`[metadata] NEXT_PUBLIC_APP_URL inválida (${raw}); usando localhost.`);
+    return new URL("http://localhost:3000");
+  }
+}
+
 export const metadata: Metadata = {
   // Base pra transformar as URLs relativas abaixo (ícones, og:image) em
   // absolutas -- exigido pelo og:image, que crawlers/WhatsApp não resolvem
   // relativo. Sem isso o Next avisa no build e cai em localhost.
-  metadataBase: new URL(publicAppUrl()),
+  metadataBase: resolveMetadataBase(),
   title: "MilLead",
   description: DESCRIPTION,
   applicationName: "MilLead",
