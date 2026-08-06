@@ -64,8 +64,10 @@ export default function AuthLayout({ children }: { children: ReactNode }) {
         </p>
       </aside>
 
-      {/* Lado do formulário. */}
-      <div className="relative flex items-center justify-center overflow-hidden bg-background px-4 py-12">
+      {/* Lado do formulário. É o <main> da página: o painel de marca ao lado
+          é <aside> e o resto eram divs, então login/registro saíam sem
+          landmark principal (leitor de tela sem "pular pro conteúdo"). */}
+      <main className="relative flex items-center justify-center overflow-hidden bg-background px-4 py-12">
         <div
           aria-hidden
           className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_60%_50%_at_50%_0%,hsl(var(--primary)/0.10),transparent)]"
@@ -76,7 +78,7 @@ export default function AuthLayout({ children }: { children: ReactNode }) {
           </div>
           {children}
         </div>
-      </div>
+      </main>
     </div>
   );
 }

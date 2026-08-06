@@ -102,7 +102,19 @@ const nextConfig: NextConfig = {
     resolveAlias: contractsResolveAlias,
   },
   async headers() {
-    return [{ source: "/:path*", headers: securityHeaders }];
+    return [
+      { source: "/:path*", headers: securityHeaders },
+      // Ícones de public/ não têm hash no nome (ao contrário de /_next/static),
+      // então saem com `max-age=0, must-revalidate` e são revalidados a cada
+      // carregamento. Um dia de cache + uma semana de stale-while-revalidate dá
+      // o ganho sem prender uma versão antiga por um ano se o ícone mudar.
+      {
+        source: "/:icon(icon-192.png|icon-512.png|apple-icon.png)",
+        headers: [
+          { key: "Cache-Control", value: "public, max-age=86400, stale-while-revalidate=604800" },
+        ],
+      },
+    ];
   },
 };
 
