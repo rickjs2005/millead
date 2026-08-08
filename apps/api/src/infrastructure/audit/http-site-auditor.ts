@@ -1,3 +1,4 @@
+import { gzipSync } from "node:zlib";
 import * as cheerio from "cheerio";
 import type {
   AuditCategoryResult,
@@ -10,6 +11,34 @@ import { safeFetch } from "./safe-fetch.js";
 const FETCH_TIMEOUT_MS = 20_000;
 const AUX_FETCH_TIMEOUT_MS = 6_000;
 const MAX_HTML_BYTES = 2 * 1024 * 1024; // 2MB -- suficiente pra qualquer homepage razoável
+
+/**
+ * Limite do HTML que realmente TRAFEGA, já comprimido. 100KB comprimido é
+ * muito HTML: uma home bem servida fica na casa das dezenas de KB.
+ *
+ * O check media `response.text()`, que já vem descomprimido, contra 200KB —
+ * e reprovava página que entrega 37KB na rede porque o fonte descomprimido
+ * dava 322KB. Pior: reprovava logo abaixo de um check que confirmava
+ * `content-encoding: br`. Os dois olhavam o mesmo site e discordavam.
+ */
+const MAX_TRANSFER_BYTES = 100 * 1024;
+
+/**
+ * Quanto o HTML pesa na rede.
+ *
+ * `content-length` seria a resposta exata, mas servidor que comprime
+ * costuma responder com `transfer-encoding: chunked` e sem ele (é o caso do
+ * Vercel). Sem esse header, recomprimimos o corpo com gzip para estimar.
+ * A estimativa é conservadora de propósito: quem serve brotli entrega ainda
+ * menos que isso, então o check nunca reprova por otimismo da conta.
+ */
+export function transferredBytes(html: string, rawBytes: number, headers: Headers): number {
+  const compressed = /gzip|br|deflate|zstd/.test(headers.get("content-encoding") ?? "");
+  if (!compressed) return rawBytes;
+  const declared = Number(headers.get("content-length"));
+  if (Number.isFinite(declared) && declared > 0) return declared;
+  return gzipSync(Buffer.from(html, "utf8")).length;
+}
 const USER_AGENT = "MilLeadAuditBot/1.0 (auditoria de site; contato: milweb)";
 
 /** Categoria em construção: acumula checks e fecha com o score ponderado. */
@@ -113,6 +142,7 @@ export class HttpSiteAuditor implements SiteAuditor {
     const ogImage = $('meta[property="og:image"]').attr("content");
     const canonical = $('link[rel="canonical"]').attr("href");
     const htmlBytes = Buffer.byteLength(html, "utf8");
+    const networkBytes = transferredBytes(html, htmlBytes, headers);
     const deprecatedTags = $("font, marquee, center, blink").length;
     const mixedContent = isHttps ? $('[src^="http://"], link[href^="http://"]').length : 0;
 
@@ -125,12 +155,18 @@ export class HttpSiteAuditor implements SiteAuditor {
       3,
       `${responseTimeMs}ms (bom: < 1500ms)`,
     );
+    const kb = (bytes: number) => `${Math.round(bytes / 1024)}KB`;
     performance.add(
       "html-size",
-      "Tamanho do HTML",
-      htmlBytes < 200 * 1024,
+      "Peso do HTML na rede",
+      networkBytes < MAX_TRANSFER_BYTES,
       2,
-      `${Math.round(htmlBytes / 1024)}KB (bom: < 200KB)`,
+      networkBytes === htmlBytes
+        ? `${kb(htmlBytes)} sem compressão (bom: < ${kb(MAX_TRANSFER_BYTES)})`
+        : // Os dois números respondem perguntas diferentes: o primeiro é o que
+          // o visitante baixa, o segundo é o que o navegador ainda tem de
+          // interpretar. Mostrar só um deles já custou um diagnóstico errado.
+          `${kb(networkBytes)} na rede · ${kb(htmlBytes)} pra processar (bom: < ${kb(MAX_TRANSFER_BYTES)} na rede)`,
     );
     performance.add(
       "compression",
@@ -320,6 +356,7 @@ export class HttpSiteAuditor implements SiteAuditor {
         httpStatus: response.status,
         responseTimeMs,
         htmlBytes,
+        networkBytes,
         overallScore: overall,
         hasRobots,
         hasSitemap,
