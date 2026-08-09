@@ -13,9 +13,11 @@ import type { BlobStorage } from "../../domain/services/blob-storage.js";
 import type { EstimateRepository } from "../../domain/repositories/estimate-repository.js";
 import type { PricingEstimateWithItems, ProjectProduct } from "../../domain/entities/estimate.js";
 import type { ActivityRepository } from "../../domain/repositories/activity-repository.js";
+import type { ListEstimatesQuery } from "../dto/estimate.dto.js";
 import { ActivityLogger } from "./activity-logger.js";
 import { ConflictError, NotFoundError, ValidationError } from "../../domain/errors/app-error.js";
 import { EstimateService } from "./estimate-service.js";
+import { CostService, type UsdRateFetcher } from "./cost-service.js";
 import { computeEstimate } from "./estimate-calc.js";
 
 const ORG = "org-1";
@@ -220,7 +222,13 @@ function fakeProposal(overrides: Partial<Proposal> = {}): Proposal {
 
 function fakeRepos(overrides: {
   estimates?: Partial<EstimateRepository>;
-  costs?: Partial<CostRepository>;
+  // Partial<CostService> -- EstimateService depende do SERVICE (não do
+  // repositório cru), pra passar pelo refresh lazy de cotação (ver
+  // EstimateService.costService). O fake abaixo só faz duck-typing das
+  // chamadas que o EstimateService realmente faz (getSettings/listSubscriptions);
+  // testes de integração com o CostService REAL (que exercitam o refresh de
+  // verdade) ficam no describe "cotação USD-BRL" no fim do arquivo.
+  costs?: Partial<CostService>;
   leads?: Partial<LeadRepository>;
   companies?: Partial<CompanyRepository>;
   organizations?: Partial<OrganizationRepository>;
@@ -241,16 +249,9 @@ function fakeRepos(overrides: {
 
   const costs = {
     listSubscriptions: vi.fn().mockResolvedValue([fakeSubscription()]),
-    findSubscriptionById: vi.fn().mockResolvedValue(null),
-    createSubscription: vi.fn(),
-    updateSubscription: vi.fn(),
-    deleteSubscription: vi.fn(),
-    listCatalog: vi.fn().mockResolvedValue([]),
     getSettings: vi.fn().mockResolvedValue(fakeSettings()),
-    updateSettings: vi.fn(),
-    countWonLeads: vi.fn().mockResolvedValue(4),
     ...overrides.costs,
-  } as unknown as CostRepository;
+  } as unknown as CostService;
 
   const leads = {
     findByIdForOrg: vi.fn().mockResolvedValue(fakeLead()),
@@ -385,8 +386,14 @@ describe("EstimateService", () => {
       USER,
       expect.objectContaining({ agencyShareMonthly: 0 }),
     );
-    // Nenhuma consulta ao resumo de custos -- o rateio não é mais derivado no CREATE.
-    expect(costs.countWonLeads).not.toHaveBeenCalled();
+    // Só UMA leitura de settings (a do withComputed final, pro totalCost da
+    // resposta) -- nenhum resumo de custos extra é consultado pra derivar o
+    // rateio no CREATE (removido na Fase 5). `countWonLeads` não é mais
+    // alcançável daqui (nem sequer é método público do CostService) desde
+    // que EstimateService passou a depender do service, não do repositório
+    // cru -- essa mesma blindagem de tipo já garante estruturalmente o que
+    // esta asserção verificava na prática.
+    expect(costs.getSettings).toHaveBeenCalledTimes(1);
   });
 
   it("create com agencyShareMonthly explícito (mesmo 0) respeita o valor informado", async () => {
@@ -712,5 +719,126 @@ describe("EstimateService", () => {
       expect(estimates.markConverted).not.toHaveBeenCalled();
       expect(proposals.update).not.toHaveBeenCalled();
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// EstimateService precisa passar pelo PONTO ÚNICO de leitura de settings do
+// CostService (CostService.readSettings) -- não pelo CostRepository cru --
+// senão uma org que só usa Orçamentos/Propostas nunca dispara o refresh lazy
+// da cotação USD-BRL (fica congelada no valor seedado pra sempre, em
+// silêncio). Os testes acima usam um `costs` de duck-typing simples (só
+// getSettings/listSubscriptions mockados); os testes abaixo usam um
+// `CostService` DE VERDADE (só o `CostRepository`/`rateFetcher` por baixo
+// dele são fakes) pra provar que o fio está ligado ponta a ponta.
+// ---------------------------------------------------------------------------
+describe("EstimateService -- cotação USD-BRL passa pelo CostService real (refresh lazy)", () => {
+  function fakeCostRepository(overrides: Partial<CostRepository> = {}): CostRepository {
+    return {
+      listSubscriptions: vi.fn().mockResolvedValue([]),
+      findSubscriptionById: vi.fn().mockResolvedValue(null),
+      createSubscription: vi.fn(),
+      updateSubscription: vi.fn(),
+      deleteSubscription: vi.fn(),
+      hasUsageForSubscription: vi.fn(),
+      listCatalog: vi.fn().mockResolvedValue([]),
+      getSettings: vi.fn().mockResolvedValue(fakeSettings()),
+      updateSettings: vi.fn().mockResolvedValue(fakeSettings()),
+      countWonLeads: vi.fn().mockResolvedValue(0),
+      listUsage: vi.fn().mockResolvedValue([]),
+      createUsage: vi.fn(),
+      deleteUsage: vi.fn(),
+      ...overrides,
+    } as unknown as CostRepository;
+  }
+
+  /** Monta um EstimateService "de verdade" (só EstimateRepository e
+   * CostService são relevantes pro que os testes abaixo exercitam --
+   * list()/get() só tocam esses dois). */
+  function estimateServiceWithRealCostService(costService: CostService) {
+    const estimates = {
+      list: vi.fn().mockResolvedValue({ items: [fakeEstimate()], total: 1 }),
+      findById: vi.fn().mockResolvedValue(fakeEstimate()),
+      listProducts: vi.fn().mockResolvedValue([]),
+    } as unknown as EstimateRepository;
+    const leads = { findByIdForOrg: vi.fn() } as unknown as LeadRepository;
+    const companies = { findByIdForOrg: vi.fn() } as unknown as CompanyRepository;
+    const organizations = { findById: vi.fn() } as unknown as OrganizationRepository;
+    const proposals = {} as unknown as ProposalRepository;
+    const blobStorage = {} as unknown as BlobStorage;
+    const activityRepository = {
+      record: vi.fn(),
+      listForLead: vi.fn(),
+      listRecentForOrg: vi.fn(),
+    } as unknown as ActivityRepository;
+    const activityLogger = new ActivityLogger(activityRepository);
+
+    return new EstimateService(
+      estimates,
+      costService,
+      leads,
+      companies,
+      organizations,
+      proposals,
+      blobStorage,
+      activityLogger,
+    );
+  }
+
+  const LIST_QUERY: ListEstimatesQuery = { page: 1, pageSize: 20 };
+
+  it("list() com usdRateAuto=true e cotação vencida (updatedAt null) dispara o rateFetcher do CostService real", async () => {
+    const rateFetcher: UsdRateFetcher = vi.fn().mockResolvedValue(5.75);
+    const costRepository = fakeCostRepository({
+      getSettings: vi.fn().mockResolvedValue(fakeSettings({ usdRateAuto: true, usdRateUpdatedAt: null })),
+      updateSettings: vi
+        .fn()
+        .mockResolvedValue(
+          fakeSettings({ usdToBrlRate: "5.75", usdRateAuto: true, usdRateUpdatedAt: new Date() }),
+        ),
+    });
+    const companies = { findByIdForOrg: vi.fn() } as unknown as CompanyRepository;
+    const costService = new CostService(costRepository, companies, rateFetcher);
+    const service = estimateServiceWithRealCostService(costService);
+
+    await service.list(ORG, LIST_QUERY);
+
+    expect(rateFetcher).toHaveBeenCalledTimes(1);
+    expect(costRepository.updateSettings).toHaveBeenCalledWith(
+      ORG,
+      expect.objectContaining({ usdToBrlRate: 5.75 }),
+    );
+  });
+
+  it("list() com cotação fresca (<24h) NÃO dispara o rateFetcher -- fio ligado, mas cache respeitado", async () => {
+    const rateFetcher: UsdRateFetcher = vi.fn();
+    const costRepository = fakeCostRepository({
+      getSettings: vi
+        .fn()
+        .mockResolvedValue(fakeSettings({ usdRateAuto: true, usdRateUpdatedAt: new Date() })),
+    });
+    const companies = { findByIdForOrg: vi.fn() } as unknown as CompanyRepository;
+    const costService = new CostService(costRepository, companies, rateFetcher);
+    const service = estimateServiceWithRealCostService(costService);
+
+    await service.list(ORG, LIST_QUERY);
+
+    expect(rateFetcher).not.toHaveBeenCalled();
+    expect(costRepository.updateSettings).not.toHaveBeenCalled();
+  });
+
+  it("get() (withComputed) também dispara o refresh -- não é só o list()", async () => {
+    const rateFetcher: UsdRateFetcher = vi.fn().mockResolvedValue(5.5);
+    const costRepository = fakeCostRepository({
+      getSettings: vi.fn().mockResolvedValue(fakeSettings({ usdRateAuto: true, usdRateUpdatedAt: null })),
+      updateSettings: vi.fn().mockResolvedValue(fakeSettings({ usdToBrlRate: "5.5" })),
+    });
+    const companies = { findByIdForOrg: vi.fn() } as unknown as CompanyRepository;
+    const costService = new CostService(costRepository, companies, rateFetcher);
+    const service = estimateServiceWithRealCostService(costService);
+
+    await service.get(ORG, "est-1");
+
+    expect(rateFetcher).toHaveBeenCalledTimes(1);
   });
 });

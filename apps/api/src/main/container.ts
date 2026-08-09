@@ -219,7 +219,7 @@ export function buildContainer(): Container {
   const blobStorage = new VercelBlobStorage();
   const estimateService = new EstimateService(
     estimateRepository,
-    costRepository,
+    costService,
     leadRepository,
     companyRepository,
     organizationRepository,
