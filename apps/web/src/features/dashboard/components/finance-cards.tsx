@@ -25,9 +25,14 @@ import { formatCurrency } from "@/utils/format";
 
 /**
  * Duas linhas: "Este mês" (granularidade do mês corrente) e "Ano" (totais do
- * ano civil corrente). Todo dado das duas linhas vive atrás da mesma
- * permissão (`proposals:read` -- contratos, recebíveis e custos são a mesma
- * área financeira), então essa parte do componente some ou aparece junto.
+ * ano civil corrente). Esses dois blocos de card vivem atrás de
+ * `proposals:read` (`canView` -- contratos, recebíveis e custos são a mesma
+ * área financeira). O alerta de "ganhos sem contrato" logo abaixo é
+ * independente: só precisa de `leads:read` (`canLeads`) -- um SDR sem
+ * `proposals:read` não vê os cards financeiros, mas continua vendo o alerta.
+ * Por isso o componente só retorna `null` quando NENHUMA das duas permissões
+ * existe (gate OR, igual o código pré-Task 7) -- gate AND aqui esconderia o
+ * alerta de quem só tem `leads:read`.
  *
  * Cada valor exibido só é calculado se a query que o alimenta NÃO estiver em
  * erro -- se `summary` falhar mas `usageSeries` carregar, por exemplo, os
@@ -77,7 +82,7 @@ export function FinanceCards() {
     enabled: canLeads,
   });
 
-  if (!canView) return null;
+  if (!canView && !canLeads) return null;
 
   // ---- Este mês ----
   const toReceive = Number(summary.data?.toReceive ?? 0);
@@ -109,110 +114,114 @@ export function FinanceCards() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-          Este mês
-        </h2>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <StatCard
-            label={`A receber${overdueCount > 0 ? ` (${overdueCount} vencidas)` : ""}`}
-            value={formatCurrency(toReceiveValue)}
-            icon={Receipt}
-            loading={summary.isLoading}
-            accent={!summary.isError && overdue > 0 ? "warning" : "default"}
-          />
-          <StatCard
-            label="Recebido"
-            value={formatCurrency(receivedMonthValue)}
-            icon={HandCoins}
-            loading={summary.isLoading}
-            accent="success"
-          />
-          <StatCard
-            label={`Fechado em contratos${kpis.data ? ` (${kpis.data.assinados})` : ""}`}
-            value={formatCurrency(fechadoMesValue)}
-            icon={FileSignature}
-            loading={kpis.isLoading}
-          />
-          <StatCard
-            label="Custo mensal atual"
-            value={formatCurrency(custoMensalValue)}
-            icon={Wallet}
-            loading={costSummary.isLoading}
-          />
-        </div>
-      </div>
+      {canView && (
+        <>
+          <div>
+            <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+              Este mês
+            </h2>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <StatCard
+                label={`A receber${overdueCount > 0 ? ` (${overdueCount} vencidas)` : ""}`}
+                value={formatCurrency(toReceiveValue)}
+                icon={Receipt}
+                loading={summary.isLoading}
+                accent={!summary.isError && overdue > 0 ? "warning" : "default"}
+              />
+              <StatCard
+                label="Recebido"
+                value={formatCurrency(receivedMonthValue)}
+                icon={HandCoins}
+                loading={summary.isLoading}
+                accent="success"
+              />
+              <StatCard
+                label={`Fechado em contratos${kpis.data ? ` (${kpis.data.assinados})` : ""}`}
+                value={formatCurrency(fechadoMesValue)}
+                icon={FileSignature}
+                loading={kpis.isLoading}
+              />
+              <StatCard
+                label="Custo mensal atual"
+                value={formatCurrency(custoMensalValue)}
+                icon={Wallet}
+                loading={costSummary.isLoading}
+              />
+            </div>
+          </div>
 
-      <div>
-        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-          Ano
-        </h2>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <StatCard
-            label="Recebido no ano"
-            value={formatCurrency(recebidoAnoValue)}
-            icon={Banknote}
-            loading={series.isLoading}
-          />
-          <StatCard
-            label="Fechado no ano"
-            value={formatCurrency(fechadoAnoValue)}
-            icon={FileSignature}
-            loading={kpis.isLoading}
-          />
-          <StatCard
-            label="Consumo no ano"
-            value={formatCurrency(consumoAnoValue)}
-            icon={Wallet}
-            loading={usageSeries.isLoading}
-          />
-          <Card>
-            <CardContent className="flex items-start justify-between p-5">
-              <div className="flex flex-col gap-1.5">
-                <p className="text-sm text-muted-foreground">Resultado do ano</p>
-                {loadingResultado ? (
-                  <Skeleton className="h-8 w-24" />
-                ) : resultadoError ? (
-                  <>
-                    <p className="text-2xl font-semibold tracking-tight text-muted-foreground">
-                      —
-                    </p>
-                    <p className="text-[11px] text-muted-foreground/70">
-                      não foi possível calcular
-                    </p>
-                  </>
-                ) : (
-                  <>
-                    <p
-                      className={cn(
-                        "text-2xl font-semibold tracking-tight",
-                        resultadoAno < 0 && "text-destructive",
-                      )}
-                    >
-                      {formatCurrency(resultadoAno)}
-                    </p>
-                    <p className="text-[11px] text-muted-foreground/70">
-                      estimativa (custo fixo = valor atual)
-                    </p>
-                  </>
-                )}
-              </div>
-              <div
-                className={cn(
-                  "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg",
-                  resultadoError
-                    ? "bg-muted text-muted-foreground"
-                    : resultadoAno < 0
-                      ? "bg-destructive/10 text-destructive"
-                      : "bg-success/10 text-success",
-                )}
-              >
-                <Scale className="h-4 w-4" />
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
+          <div>
+            <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+              Ano
+            </h2>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <StatCard
+                label="Recebido no ano"
+                value={formatCurrency(recebidoAnoValue)}
+                icon={Banknote}
+                loading={series.isLoading}
+              />
+              <StatCard
+                label="Fechado no ano"
+                value={formatCurrency(fechadoAnoValue)}
+                icon={FileSignature}
+                loading={kpis.isLoading}
+              />
+              <StatCard
+                label="Consumo no ano"
+                value={formatCurrency(consumoAnoValue)}
+                icon={Wallet}
+                loading={usageSeries.isLoading}
+              />
+              <Card>
+                <CardContent className="flex items-start justify-between p-5">
+                  <div className="flex flex-col gap-1.5">
+                    <p className="text-sm text-muted-foreground">Resultado do ano</p>
+                    {loadingResultado ? (
+                      <Skeleton className="h-8 w-24" />
+                    ) : resultadoError ? (
+                      <>
+                        <p className="text-2xl font-semibold tracking-tight text-muted-foreground">
+                          —
+                        </p>
+                        <p className="text-[11px] text-muted-foreground/70">
+                          não foi possível calcular
+                        </p>
+                      </>
+                    ) : (
+                      <>
+                        <p
+                          className={cn(
+                            "text-2xl font-semibold tracking-tight",
+                            resultadoAno < 0 && "text-destructive",
+                          )}
+                        >
+                          {formatCurrency(resultadoAno)}
+                        </p>
+                        <p className="text-[11px] text-muted-foreground/70">
+                          estimativa (custo fixo = valor atual)
+                        </p>
+                      </>
+                    )}
+                  </div>
+                  <div
+                    className={cn(
+                      "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg",
+                      resultadoError
+                        ? "bg-muted text-muted-foreground"
+                        : resultadoAno < 0
+                          ? "bg-destructive/10 text-destructive"
+                          : "bg-success/10 text-success",
+                    )}
+                  >
+                    <Scale className="h-4 w-4" />
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+        </>
+      )}
 
       {showWonWithoutContractAlert && (
         <Link
