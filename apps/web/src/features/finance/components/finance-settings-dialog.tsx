@@ -15,7 +15,18 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { useCostSummary, useFinanceSettings, useUpdateFinanceSettings } from "@/features/finance/hooks";
+
+/** `usdRateUpdatedAt` é um INSTANTE -- exibir no fuso do escritório
+ * (America/Sao_Paulo), mesmo critério de `paidAt` em installments-card.tsx. */
+function formatUpdatedAt(value: string): string {
+  return new Intl.DateTimeFormat("pt-BR", {
+    dateStyle: "short",
+    timeStyle: "short",
+    timeZone: "America/Sao_Paulo",
+  }).format(new Date(value));
+}
 
 const schema = z.object({
   usdToBrlRate: z.coerce
@@ -69,7 +80,18 @@ export function FinanceSettingsDialog({ trigger }: { trigger: ReactNode }) {
   });
 
   async function onSubmit(values: FormValues) {
-    await updateFinanceSettings.mutateAsync(values);
+    // `usdToBrlRate` é campo obrigatório do form, então SEMPRE vai no payload
+    // -- mesmo quando o usuário só mexeu em outro campo. O backend desliga
+    // `usdRateAuto` sozinho sempre que `usdToBrlRate` vier no PATCH (regra:
+    // "editar na mão = quer manual"). Se o valor não mudou e o auto estava
+    // ligado, reforça `usdRateAuto: true` explícito pra não desligar sem o
+    // usuário ter pedido -- só o toggle abaixo (ou editar o câmbio de fato)
+    // deve mudar esse modo.
+    const unchangedRate = settings && values.usdToBrlRate === Number(settings.usdToBrlRate);
+    await updateFinanceSettings.mutateAsync({
+      ...values,
+      ...(unchangedRate && settings.usdRateAuto ? { usdRateAuto: true } : {}),
+    });
     setOpen(false);
   }
 
@@ -91,6 +113,41 @@ export function FinanceSettingsDialog({ trigger }: { trigger: ReactNode }) {
               {errors.usdToBrlRate && (
                 <p className="text-xs text-destructive">{errors.usdToBrlRate.message}</p>
               )}
+            </div>
+
+            <div className="flex items-center justify-between gap-3 rounded-lg border border-border px-3 py-2.5">
+              <div className="flex flex-col gap-0.5">
+                <p className="text-sm">
+                  {settings ? (
+                    <>
+                      Cotação USD:{" "}
+                      <span className="font-medium tabular-nums">
+                        R$ {Number(settings.usdToBrlRate).toFixed(2).replace(".", ",")}
+                      </span>
+                    </>
+                  ) : (
+                    "Cotação USD"
+                  )}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {settings?.usdRateAuto
+                    ? settings.usdRateUpdatedAt
+                      ? `atualizada automaticamente em ${formatUpdatedAt(settings.usdRateUpdatedAt)}`
+                      : "atualização automática ligada -- ainda sem atualização"
+                    : "atualização automática desligada -- usando valor manual"}
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <Label htmlFor="settings-usd-rate-auto" className="text-xs text-muted-foreground">
+                  Auto
+                </Label>
+                <Switch
+                  id="settings-usd-rate-auto"
+                  checked={settings?.usdRateAuto ?? false}
+                  disabled={!settings || updateFinanceSettings.isPending}
+                  onCheckedChange={(checked) => updateFinanceSettings.mutate({ usdRateAuto: checked })}
+                />
+              </div>
             </div>
 
             <div className="grid grid-cols-2 gap-4">

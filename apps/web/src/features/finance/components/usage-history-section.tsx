@@ -5,6 +5,7 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
+  Legend,
   ReferenceLine,
   ResponsiveContainer,
   Tooltip,
@@ -35,36 +36,86 @@ function toChartData(months: CostUsageSeriesPoint[]) {
   return months.map((m) => ({
     label: monthLabel(m.month),
     usageCostBrl: m.usageCostBrl,
+    recurringCostBrl: m.recurringCostBrl,
+    totalCostBrl: m.totalCostBrl,
   }));
 }
 
-/** Histórico mensal de consumo (créditos convertidos em BRL) acima da seção
- * de consumo do mês corrente. A `ReferenceLine` mostra o custo fixo ATUAL
- * (`recurringMonthlyBrl`) como referência visual -- não é uma série
- * histórica de assinaturas, é o mesmo valor de hoje projetado pra trás,
- * por isso o sublabel deixa a limitação explícita. */
+interface ChartTooltipPoint {
+  label: string;
+  usageCostBrl: number;
+  recurringCostBrl: number;
+  totalCostBrl: number;
+}
+
+/** Tooltip custom -- as barras empilhadas mostram só 2 séries visualmente,
+ * mas o hover precisa abrir as 3 grandezas (consumo, recorrente, total). */
+function ChartTooltip({
+  active,
+  payload,
+}: {
+  active?: boolean;
+  payload?: Array<{ payload: ChartTooltipPoint }>;
+}) {
+  if (!active || !payload?.length) return null;
+  const point = payload[0]?.payload;
+  if (!point) return null;
+
+  return (
+    <div className="rounded-lg border border-border bg-popover px-3 py-2 text-xs shadow-md">
+      <p className="mb-1.5 font-medium">{point.label}</p>
+      <p className="flex items-center justify-between gap-4 text-muted-foreground">
+        <span>Consumo</span>
+        <span className="font-medium text-foreground">{formatCurrency(point.usageCostBrl)}</span>
+      </p>
+      <p className="flex items-center justify-between gap-4 text-muted-foreground">
+        <span>Recorrente (assinaturas)</span>
+        <span className="font-medium text-foreground">
+          {formatCurrency(point.recurringCostBrl)}
+        </span>
+      </p>
+      <p className="flex items-center justify-between gap-4 text-muted-foreground">
+        <span>Total</span>
+        <span className="font-medium text-foreground">{formatCurrency(point.totalCostBrl)}</span>
+      </p>
+    </div>
+  );
+}
+
+/** Histórico mensal de custos (consumo + recorrente) acima da seção de
+ * consumo do mês corrente. Barras empilhadas: consumo de créditos embaixo,
+ * custo recorrente (assinaturas) em cima. A `ReferenceLine` mostra o custo
+ * fixo ATUAL (`recurringMonthlyBrl`) como referência visual do valor de
+ * hoje -- diferente da barra recorrente por mês (que é uma aproximação
+ * histórica: assinatura ativa conta a partir da própria data de cadastro,
+ * inativa não conta em mês nenhum por falta de data de cancelamento). */
 export function UsageHistorySection() {
   const { data, isLoading } = useUsageSeries(12);
   const chartData = toChartData(data?.months ?? []);
-  const hasUsage = chartData.some((m) => m.usageCostBrl > 0);
+  const hasUsage = chartData.some((m) => m.usageCostBrl > 0 || m.recurringCostBrl > 0);
   const recurringMonthlyBrl = data?.recurringMonthlyBrl ?? 0;
 
   return (
     <Card>
       <CardHeader className="flex-row items-start justify-between space-y-0">
         <div>
-          <CardTitle>Histórico de consumo</CardTitle>
+          <CardTitle>Histórico de custos</CardTitle>
           <p className="text-sm text-muted-foreground">
-            Custo fixo exibido é o valor atual das assinaturas -- sem histórico de quanto ele era em
-            cada mês.
+            Recorrente estimado pela data de cadastro de cada assinatura -- sem histórico de
+            cancelamento, assinatura ativa conta desde que foi cadastrada, inativa não conta.
           </p>
         </div>
         {isLoading ? (
           <Skeleton className="h-10 w-32" />
         ) : (
           <div className="text-right">
-            <p className="text-xs text-muted-foreground">Consumo no ano</p>
-            <p className="text-lg font-semibold tabular-nums">{formatCurrency(data?.yearTotal ?? 0)}</p>
+            <p className="text-xs text-muted-foreground">Custo no ano</p>
+            <p className="text-lg font-semibold tabular-nums">
+              {formatCurrency(data?.yearGrandTotal ?? 0)}
+            </p>
+            <p className="text-[11px] text-muted-foreground/70">
+              consumo {formatCurrency(data?.yearTotal ?? 0)}
+            </p>
           </div>
         )}
       </CardHeader>
@@ -74,7 +125,7 @@ export function UsageHistorySection() {
         ) : !hasUsage ? (
           <EmptyState
             icon={Wallet2}
-            title="Sem consumo lançado nos últimos 12 meses"
+            title="Sem custo lançado nos últimos 12 meses"
             className="border-none py-10"
           />
         ) : (
@@ -88,19 +139,22 @@ export function UsageHistorySection() {
                 tickFormatter={(v: number) => formatCurrency(v)}
                 width={90}
               />
-              <Tooltip
-                formatter={(value: number) => formatCurrency(value)}
-                contentStyle={{
-                  backgroundColor: "hsl(var(--popover))",
-                  border: "1px solid hsl(var(--border))",
-                  borderRadius: 8,
-                  fontSize: 12,
-                }}
+              <Tooltip content={<ChartTooltip />} cursor={{ fill: "hsl(var(--muted) / 0.4)" }} />
+              <Legend
+                formatter={(value) => <span className="text-xs text-muted-foreground">{value}</span>}
               />
               <Bar
                 dataKey="usageCostBrl"
                 name="Consumo"
+                stackId="cost"
                 fill="hsl(var(--chart-1))"
+                radius={[0, 0, 0, 0]}
+              />
+              <Bar
+                dataKey="recurringCostBrl"
+                name="Recorrente (assinaturas)"
+                stackId="cost"
+                fill="hsl(var(--chart-2))"
                 radius={[4, 4, 0, 0]}
               />
               {recurringMonthlyBrl > 0 ? (
