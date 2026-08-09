@@ -456,7 +456,7 @@ describe("CostService", () => {
   });
 
   describe("usage", () => {
-    it("listUsage com mês explícito filtra by from/to em UTC", async () => {
+    it("listUsage com mês explícito filtra by from/to em UTC (usedAt é date-only)", async () => {
       const { service, costs } = fakeRepos();
       await service.listUsage(ORG, "2026-07");
       expect(costs.listUsage).toHaveBeenCalledWith(ORG, {
@@ -608,6 +608,9 @@ describe("CostService.getUsageSeries", () => {
     const { service } = fakeRepos({
       listUsage: vi.fn().mockResolvedValue([
         fakeUsageEntry({ subscriptionId: "sub-hf", credits: 100, usedAt: new Date("2026-05-10"), unitPriceBrl: null }),
+        // Dia 1 à meia-noite UTC -- valor REAL que o front manda pra um
+        // lançamento do dia 1/07 (usedAt é date-only, sempre T00:00:00Z);
+        // precisa continuar caindo em julho (corte UTC, não SP).
         fakeUsageEntry({ subscriptionId: "sub-hf", credits: 10, usedAt: new Date("2026-07-01"), unitPriceBrl: null }),
       ]),
       listSubscriptions: vi.fn().mockResolvedValue([higgsfield]),
@@ -716,6 +719,29 @@ describe("CostService.getUsageSeries", () => {
       from: new Date(Date.UTC(2026, 0, 1)),
       to: new Date(Date.UTC(2027, 0, 1)),
     });
+
+    vi.useRealTimers();
+  });
+
+  it("usedAt é date-only (sempre T00:00:00Z) -- lançamento do dia 1 cai no bucket do mês do dia 1, não do mês anterior (corte fica em UTC puro, não em Brasília)", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-09-15T12:00:00Z")); // America/Sao_Paulo: 2026-09
+
+    const { service } = fakeRepos({
+      listUsage: vi.fn().mockResolvedValue([
+        // Valor REAL que o front manda pra um lançamento do dia 1/09.
+        fakeUsageEntry({ subscriptionId: "sub-hf", credits: 10, usedAt: new Date("2026-09-01"), unitPriceBrl: null }),
+      ]),
+      listSubscriptions: vi.fn().mockResolvedValue([higgsfield]),
+      getSettings: vi.fn().mockResolvedValue(fakeSettings({ usdToBrlRate: "5.00" })),
+    });
+
+    const result = await service.getUsageSeries(ORG, 2);
+
+    const august = result.months.find((m) => m.month === "2026-08")!;
+    const september = result.months.find((m) => m.month === "2026-09")!;
+    expect(august.usageCostBrl).toBe(0);
+    expect(september.usageCostBrl).toBeCloseTo(10 * 0.239, 6);
 
     vi.useRealTimers();
   });

@@ -211,7 +211,17 @@ export function currentMonthInTimeZone(now: Date = new Date(), timeZone = "Ameri
   return `${year}-${month}`;
 }
 
-/** Intervalo [from, to) em UTC pra filtrar `usedAt` de um mês "YYYY-MM". */
+/**
+ * `usedAt` é DATE-ONLY: vem de `<input type="date">` no front
+ * (credit-usage-section.tsx) e é coagido por `z.coerce.date()` (ver
+ * cost.dto.ts) pra SEMPRE `YYYY-MM-DDT00:00:00Z` -- não existe "hora de
+ * Brasília" pra essa data, é só um dia do calendário. Por isso o corte de
+ * mês aqui fica em meia-noite UTC pura, de propósito -- NÃO é um lugar
+ * esquecido do fix de fuso (esse fix mexeu em `receivable-service.ts`
+ * `paidAt`/`contract-kpis-range.ts` `assinadoEm`, que são timestamps reais).
+ * Aplicar corte de Brasília aqui empurraria todo lançamento do dia 1
+ * (`usedAt` = meia-noite UTC do dia 1) pro mês anterior.
+ */
 function monthRangeUtc(month: string): { from: Date; to: Date } {
   const [yearStr, monthStr] = month.split("-");
   const year = Number(yearStr);
@@ -241,8 +251,8 @@ function monthKeysAsc(endMonth: string, count: number): string[] {
   return keys.reverse();
 }
 
-/** Chave "YYYY-MM" de uma data em UTC -- mesmo critério de `monthRangeUtc`
- * (bucketização por UTC, não pelo fuso local do servidor). */
+/** Chave "YYYY-MM" de `usedAt` em UTC puro -- mesmo critério de
+ *  `monthRangeUtc` (date-only, sem fuso -- ver comentário acima). */
 function monthKeyUtc(date: Date): string {
   return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`;
 }
