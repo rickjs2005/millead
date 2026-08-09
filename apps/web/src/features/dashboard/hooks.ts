@@ -135,3 +135,24 @@ export function useUpcomingMeetings() {
       meetingsService.list({ status: "SCHEDULED", pageSize: 5, from: new Date().toISOString() }),
   });
 }
+
+/** Mesma contagem que `useDashboardCounts().overdueTasks` já busca, mas com
+ * a LISTA (pageSize 5) pro card de "Tarefas atrasadas" do dashboard --
+ * chave própria pra não colidir com a query de contagem (`pageSize: 1`). */
+export function useOverdueTasksList() {
+  return useQuery({
+    queryKey: ["dashboard", "tasks", "overdueList"],
+    queryFn: () => tasksService.list({ overdue: true, pageSize: 5 }),
+  });
+}
+
+/** Mesma queryKey do sino de notificações (components/shell/notifications-bell.tsx)
+ * -- os dois consomem `GET /leads/activities/recent`, então compartilham cache
+ * (React Query dedupa por key) em vez de duplicar a chamada quando ambos estão
+ * montados ao mesmo tempo (sino no topbar + card no dashboard). */
+export function useRecentActivities() {
+  return useQuery({
+    queryKey: ["notifications", "recent"],
+    queryFn: leadsService.recentActivities,
+  });
+}

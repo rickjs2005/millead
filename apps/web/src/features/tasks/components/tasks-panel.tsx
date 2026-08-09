@@ -1,5 +1,6 @@
 "use client";
 
+import { useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { ErrorState } from "@/components/error-state";
 import { Card } from "@/components/ui/card";
@@ -21,9 +22,13 @@ import type { TaskStatus } from "@/types/api";
  * sem o cabeçalho de página -- vive como tab da Agenda (auditoria de UX
  * 07/2026), mas continua utilizável standalone. */
 export function TasksPanel() {
+  const searchParams = useSearchParams();
   const [page, setPage] = useState(1);
   const [status, setStatus] = useState<TaskStatus | "ALL">("ALL");
-  const [overdueOnly, setOverdueOnly] = useState(false);
+  // Estado inicial só: lido uma vez da URL (ex.: dashboard linka
+  // /tasks?overdue=true) -- depois disso o toggle manda, sem reagir a
+  // mudanças posteriores no searchParams.
+  const [overdueOnly, setOverdueOnly] = useState(() => searchParams.get("overdue") === "true");
 
   const { data, isLoading, isError, refetch } = useTasks({
     page,

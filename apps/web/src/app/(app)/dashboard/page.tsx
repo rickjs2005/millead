@@ -13,7 +13,11 @@ import { CostSummaryTiles } from "@/features/dashboard/components/cost-summary-t
 import { FinanceCards } from "@/features/dashboard/components/finance-cards";
 import { LeadStatusChart } from "@/features/dashboard/components/lead-status-chart";
 import { OnboardingChecklist } from "@/features/dashboard/components/onboarding-checklist";
+import { OverdueTasksCard } from "@/features/dashboard/components/overdue-tasks-card";
 import { PipelineFunnelChart } from "@/features/dashboard/components/pipeline-funnel-chart";
+import { QuickActions } from "@/features/dashboard/components/quick-actions";
+import { RecentActivitiesCard } from "@/features/dashboard/components/recent-activities-card";
+import { RevenueCostChart } from "@/features/dashboard/components/revenue-cost-chart";
 import { StatCard } from "@/features/dashboard/components/stat-card";
 import { UpcomingMeetingsCard } from "@/features/dashboard/components/upcoming-meetings-card";
 import { UpcomingTasksCard } from "@/features/dashboard/components/upcoming-tasks-card";
@@ -34,9 +38,14 @@ export default function DashboardPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Olá, {firstName} 👋</h1>
-        <p className="text-sm text-muted-foreground">Aqui está o panorama da sua operação hoje.</p>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Olá, {firstName} 👋</h1>
+          <p className="text-sm text-muted-foreground">
+            Aqui está o panorama da sua operação hoje.
+          </p>
+        </div>
+        <QuickActions />
       </div>
 
       {showOnboarding && (
@@ -63,6 +72,8 @@ export default function DashboardPage() {
           ]}
         />
       )}
+
+      <RevenueCostChart />
 
       <FinanceCards />
 
@@ -133,10 +144,13 @@ export default function DashboardPage() {
         <LeadStatusChart />
       </div>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <UpcomingTasksCard />
+        <OverdueTasksCard />
         <UpcomingMeetingsCard />
       </div>
+
+      <RecentActivitiesCard />
     </div>
   );
 }
