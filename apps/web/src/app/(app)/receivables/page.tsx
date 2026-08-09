@@ -29,6 +29,8 @@ import {
 } from "@/components/ui/table";
 import { StatCard } from "@/features/dashboard/components/stat-card";
 import { MonthlyChart } from "@/features/receivables/components/monthly-chart";
+import { StandaloneDialog } from "@/features/receivables/components/standalone-dialog";
+import { StandaloneTable } from "@/features/receivables/components/standalone-table";
 import {
   usePayReceivable,
   useReceivableContracts,
@@ -54,6 +56,7 @@ function formatDueDate(value: string): string {
 }
 
 function installmentLabel(r: Receivable): string {
+  if (r.kind === "AVULSA") return r.description ?? "Receita avulsa";
   return r.kind === "ENTRADA" ? "Entrada" : `Parcela ${r.installmentIndex}`;
 }
 
@@ -70,9 +73,13 @@ function OverdueRow({
   return (
     <TableRow>
       <TableCell>
-        <Link href={`/contracts/${receivable.contractId}`} className="hover:underline">
-          {contract ? `${contract.numero} · ${contract.companyName}` : receivable.contractId}
-        </Link>
+        {receivable.contractId ? (
+          <Link href={`/contracts/${receivable.contractId}`} className="hover:underline">
+            {contract ? `${contract.numero} · ${contract.companyName}` : receivable.contractId}
+          </Link>
+        ) : (
+          <span className="text-muted-foreground">Receita avulsa</span>
+        )}
       </TableCell>
       <TableCell className="text-muted-foreground">{installmentLabel(receivable)}</TableCell>
       <TableCell className="text-muted-foreground">{formatDueDate(receivable.dueDate)}</TableCell>
@@ -177,17 +184,20 @@ export default function ReceivablesPage() {
             Parcelas e entradas dos contratos, vencidas e por vencer.
           </p>
         </div>
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor="receivables-month" className="text-xs text-muted-foreground">
-            Mês de referência
-          </Label>
-          <Input
-            id="receivables-month"
-            type="month"
-            className="w-40"
-            value={month}
-            onChange={(e) => setMonth(e.target.value)}
-          />
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:gap-3">
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="receivables-month" className="text-xs text-muted-foreground">
+              Mês de referência
+            </Label>
+            <Input
+              id="receivables-month"
+              type="month"
+              className="w-40"
+              value={month}
+              onChange={(e) => setMonth(e.target.value)}
+            />
+          </div>
+          <StandaloneDialog trigger={<Button>+ Receita</Button>} />
         </div>
       </div>
 
@@ -233,6 +243,8 @@ export default function ReceivablesPage() {
 
       <MonthlyChart />
 
+      <StandaloneTable />
+
       {isError ? (
         <ErrorState
           onRetry={() => {
@@ -273,7 +285,11 @@ export default function ReceivablesPage() {
                   </TableHeader>
                   <TableBody>
                     {(summary.data?.overdueItems ?? []).map((r) => (
-                      <OverdueRow key={r.id} receivable={r} contract={contractById.get(r.contractId)} />
+                      <OverdueRow
+                        key={r.id}
+                        receivable={r}
+                        contract={r.contractId ? contractById.get(r.contractId) : undefined}
+                      />
                     ))}
                   </TableBody>
                 </Table>

@@ -43,14 +43,31 @@ export const createPlanSchema = z.object({
 });
 export type CreatePlanInput = z.infer<typeof createPlanSchema>;
 
+// Receita avulsa (sem contrato) -- `alreadyPaid` é só um atalho de UI ("já
+// recebi"); o service resolve pra `paidAt = new Date()` (timestamp real,
+// regime de caixa -- mesmo padrão de `pay()`), nunca aceita a data do
+// cliente aqui (evitaria backdating arbitrário na criação).
+export const createStandaloneSchema = z.object({
+  amount: money.positive(),
+  description: z.string().min(1).max(200),
+  dueDate,
+  alreadyPaid: z.boolean().optional(),
+});
+export type CreateStandaloneInput = z.infer<typeof createStandaloneSchema>;
+
 export const paySchema = z.object({
   paidAt: paidAtDate.optional(),
   paidNote: z.string().max(500).optional(),
 });
 export type PayInput = z.infer<typeof paySchema>;
 
+// `description` existe pras DUAS origens (avulsa e parcela de contrato) --
+// parcela de contrato não usa o campo pra nada hoje (fica null), mas nada
+// aqui restringe por `kind`, então editar description numa parcela é
+// aceito e simplesmente persiste um valor que os fluxos atuais ignoram.
 export const updateReceivableSchema = z.object({
   amount: money.positive().optional(),
+  description: z.string().min(1).max(200).optional(),
   dueDate: dueDate.optional(),
 });
 export type UpdateReceivableInput = z.infer<typeof updateReceivableSchema>;

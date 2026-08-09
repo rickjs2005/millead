@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   createPlanSchema,
+  createStandaloneSchema,
   paySchema,
   receivableQuerySchema,
   receivableSeriesQuerySchema,
@@ -78,6 +79,48 @@ describe("createPlanSchema", () => {
   });
 });
 
+describe("createStandaloneSchema", () => {
+  const BASE = {
+    amount: 1500,
+    description: "Consultoria avulsa pro Rick",
+    dueDate: "2026-09-05",
+  };
+
+  it("aceita shape válido sem alreadyPaid (padrão: não recebido)", () => {
+    expect(createStandaloneSchema.safeParse(BASE).success).toBe(true);
+  });
+
+  it("aceita alreadyPaid true/false", () => {
+    expect(createStandaloneSchema.safeParse({ ...BASE, alreadyPaid: true }).success).toBe(true);
+    expect(createStandaloneSchema.safeParse({ ...BASE, alreadyPaid: false }).success).toBe(true);
+  });
+
+  it("rejeita amount <= 0", () => {
+    expect(createStandaloneSchema.safeParse({ ...BASE, amount: 0 }).success).toBe(false);
+  });
+
+  it("rejeita description vazia", () => {
+    expect(createStandaloneSchema.safeParse({ ...BASE, description: "" }).success).toBe(false);
+  });
+
+  it("rejeita description acima de 200 chars", () => {
+    expect(createStandaloneSchema.safeParse({ ...BASE, description: "a".repeat(201) }).success).toBe(false);
+  });
+
+  it("aceita description no limite de 200 chars", () => {
+    expect(createStandaloneSchema.safeParse({ ...BASE, description: "a".repeat(200) }).success).toBe(true);
+  });
+
+  it("rejeita dueDate implausível (antes de 2020)", () => {
+    expect(createStandaloneSchema.safeParse({ ...BASE, dueDate: "2010-01-01" }).success).toBe(false);
+  });
+
+  it("rejeita amount ausente", () => {
+    const { amount: _amount, ...rest } = BASE;
+    expect(createStandaloneSchema.safeParse(rest).success).toBe(false);
+  });
+});
+
 describe("paySchema", () => {
   it("aceita body vazio (paidAt/paidNote opcionais)", () => {
     expect(paySchema.safeParse({}).success).toBe(true);
@@ -112,6 +155,18 @@ describe("updateReceivableSchema", () => {
 
   it("aceita patch só com amount", () => {
     expect(updateReceivableSchema.safeParse({ amount: 500 }).success).toBe(true);
+  });
+
+  it("aceita patch só com description (existe pra qualquer kind, não só avulsa)", () => {
+    expect(updateReceivableSchema.safeParse({ description: "Descrição corrigida" }).success).toBe(true);
+  });
+
+  it("rejeita description vazia", () => {
+    expect(updateReceivableSchema.safeParse({ description: "" }).success).toBe(false);
+  });
+
+  it("rejeita description acima de 200 chars", () => {
+    expect(updateReceivableSchema.safeParse({ description: "a".repeat(201) }).success).toBe(false);
   });
 
   it("rejeita amount <= 0", () => {

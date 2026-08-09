@@ -29,7 +29,9 @@ export interface CostRepository {
   getSettings(organizationId: string): Promise<FinanceSettings>;
   updateSettings(
     organizationId: string,
-    data: UpdateFinanceSettingsInput,
+    // `usdRateUpdatedAt` não vem do DTO/usuário -- é setado internamente pelo
+    // CostService tanto no PATCH manual quanto no refresh lazy automático.
+    data: UpdateFinanceSettingsInput & { usdRateUpdatedAt?: Date },
   ): Promise<FinanceSettings>;
   countWonLeads(organizationId: string): Promise<number>;
   listUsage(organizationId: string, range: { from: Date; to: Date }): Promise<CostUsageEntry[]>;

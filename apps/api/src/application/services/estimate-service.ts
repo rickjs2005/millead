@@ -1,5 +1,5 @@
 import { ConflictError, NotFoundError, ValidationError } from "../../domain/errors/app-error.js";
-import type { CostRepository } from "../../domain/repositories/cost-repository.js";
+import type { CostService } from "./cost-service.js";
 import type { EstimateRepository } from "../../domain/repositories/estimate-repository.js";
 import type { LeadRepository } from "../../domain/repositories/lead-repository.js";
 import type { CompanyRepository } from "../../domain/repositories/company-repository.js";
@@ -28,7 +28,12 @@ const MS_PER_DAY = 86_400_000;
 export class EstimateService {
   constructor(
     private readonly repository: EstimateRepository,
-    private readonly costs: CostRepository,
+    // CostService, NÃO CostRepository -- getSettings precisa passar pelo
+    // ponto único de refresh lazy da cotação USD-BRL (CostService.readSettings,
+    // ver cost-service.ts). Ler o repositório cru aqui faria qualquer org que
+    // só usa Orçamentos/Propostas nunca disparar o refresh (cotação
+    // congelaria no valor seedado pra sempre, silenciosamente).
+    private readonly costService: CostService,
     private readonly leads: LeadRepository,
     private readonly companies: CompanyRepository,
     private readonly organizations: OrganizationRepository,
@@ -44,7 +49,7 @@ export class EstimateService {
   ): Promise<{ items: EstimateWithComputed[]; total: number }> {
     const [result, settings] = await Promise.all([
       this.repository.list(organizationId, query),
-      this.costs.getSettings(organizationId),
+      this.costService.getSettings(organizationId),
     ]);
     const usdToBrlRate = Number(settings.usdToBrlRate);
     return {
@@ -119,7 +124,7 @@ export class EstimateService {
     const estimate = await this.repository.findByProposalId(proposalId);
     if (!estimate || estimate.organizationId !== organizationId) return null;
 
-    const settings = await this.costs.getSettings(organizationId);
+    const settings = await this.costService.getSettings(organizationId);
     return this.toComputed(estimate, Number(settings.usdToBrlRate)).totalCost;
   }
 
@@ -154,7 +159,7 @@ export class EstimateService {
       lead.companyId ? this.companies.findByIdForOrg(lead.companyId, organizationId) : null,
       this.organizations.findById(organizationId),
       this.repository.listProducts(organizationId),
-      this.costs.getSettings(organizationId),
+      this.costService.getSettings(organizationId),
     ]);
 
     const clientName = company?.name ?? lead.title;
@@ -269,7 +274,7 @@ export class EstimateService {
         .map((item: CostItemInput) => item.subscriptionId)
         .filter((id): id is string => Boolean(id));
       if (subscriptionIds.length > 0) {
-        const subscriptions = await this.costs.listSubscriptions(organizationId);
+        const subscriptions = await this.costService.listSubscriptions(organizationId);
         const validIds = new Set(subscriptions.map((s) => s.id));
         for (const subscriptionId of subscriptionIds) {
           if (!validIds.has(subscriptionId)) {
@@ -281,7 +286,7 @@ export class EstimateService {
   }
 
   private async withComputed(estimate: PricingEstimateWithItems): Promise<EstimateWithComputed> {
-    const settings = await this.costs.getSettings(estimate.organizationId);
+    const settings = await this.costService.getSettings(estimate.organizationId);
     return { ...estimate, computed: this.toComputed(estimate, Number(settings.usdToBrlRate)) };
   }
 

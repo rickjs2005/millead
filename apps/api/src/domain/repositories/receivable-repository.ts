@@ -7,17 +7,36 @@ export interface CreatePlanItem {
   dueDate: Date;
 }
 
+export interface CreateStandaloneItem {
+  description: string;
+  amount: string;
+  dueDate: Date;
+  /** Já resolvido pelo service (`new Date()` se `alreadyPaid`, senão null) --
+   *  o repositório só persiste. */
+  paidAt: Date | null;
+}
+
 export interface ReceivableRepository {
   /** Cria o plano numa transacao. Retorna null se o contrato ja tem QUALQUER parcela (plano existente). */
   createPlan(organizationId: string, contractId: string, items: CreatePlanItem[]): Promise<Receivable[] | null>;
+  /** Receita avulsa: kind AVULSA, contractId null, installmentIndex sempre 0. */
+  createStandalone(organizationId: string, item: CreateStandaloneItem): Promise<Receivable>;
+  /** Avulsas da org (kind AVULSA), dueDate desc. */
+  listStandalone(organizationId: string): Promise<Receivable[]>;
   listByContract(organizationId: string, contractId: string): Promise<Receivable[]>;
   findById(organizationId: string, id: string): Promise<Receivable | null>;
   /** CAS: marca paga so se paidAt null. Retorna null se ja paga/inexistente. */
   markPaid(organizationId: string, id: string, paidAt: Date, paidNote: string | null): Promise<Receivable | null>;
   /** CAS inverso: desfaz baixa so se paidAt nao-null. */
   markUnpaid(organizationId: string, id: string): Promise<Receivable | null>;
-  /** So parcela em aberto. Retorna null se paga/inexistente. */
-  update(organizationId: string, id: string, patch: { amount?: string; dueDate?: Date }): Promise<Receivable | null>;
+  /** So parcela em aberto. Retorna null se paga/inexistente. `description`
+   *  vale pra qualquer kind (avulsa usa pra corrigir o texto; parcela de
+   *  contrato aceita mas não é lida por nenhum fluxo hoje). */
+  update(
+    organizationId: string,
+    id: string,
+    patch: { amount?: string; description?: string; dueDate?: Date },
+  ): Promise<Receivable | null>;
   /** So parcela em aberto. False se paga/inexistente. */
   delete(organizationId: string, id: string): Promise<boolean>;
   hasPaid(organizationId: string, contractId: string): Promise<boolean>;

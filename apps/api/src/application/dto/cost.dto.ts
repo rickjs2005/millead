@@ -52,6 +52,10 @@ export type UsageSeriesQuery = z.infer<typeof usageSeriesQuerySchema>;
 
 export const updateFinanceSettingsSchema = z.object({
   usdToBrlRate: z.number().min(0.01).max(1000).optional(),
+  // Setar explicitamente liga/desliga a cotação automática (ver
+  // CostService.updateSettings -- editar usdToBrlRate na mão desliga sozinho
+  // quando este campo não vem junto no mesmo PATCH).
+  usdRateAuto: z.boolean().optional(),
   defaultHourlyRate: money.optional(),
   supportReservePct: z.number().min(0).max(100).optional(),
   defaultMarginPct: z.number().min(0).max(500).optional(),

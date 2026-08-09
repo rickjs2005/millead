@@ -3,6 +3,7 @@ import type {
   ContractMargin,
   ContractWithTotals,
   CreatePlanPayload,
+  CreateStandaloneReceivablePayload,
   PayReceivablePayload,
   Receivable,
   ReceivableSeries,
@@ -18,6 +19,12 @@ export const receivablesService = {
     api.get<Receivable[]>("/api/v1/receivables", { contractId }),
 
   listContracts: () => api.get<ContractWithTotals[]>("/api/v1/receivables"),
+
+  createStandalone: (payload: CreateStandaloneReceivablePayload) =>
+    api.post<Receivable>("/api/v1/receivables/standalone", payload),
+
+  /** Receitas avulsas (sem contrato) da org, `dueDate` desc. */
+  listStandalone: () => api.get<Receivable[]>("/api/v1/receivables/standalone"),
 
   summary: (month?: string) =>
     api.get<ReceivableSummary>("/api/v1/receivables/summary", month ? { month } : undefined),

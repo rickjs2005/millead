@@ -6,7 +6,14 @@ import type {
 } from "../dto/cost.dto.js";
 import type { CostRepository } from "../../domain/repositories/cost-repository.js";
 import type { CompanyRepository } from "../../domain/repositories/company-repository.js";
-import type { CapacityEntry, CostSummary, CostUsageEntry, UsageSummary } from "../../domain/entities/cost.js";
+import type {
+  CapacityEntry,
+  CostSubscription,
+  CostSummary,
+  CostUsageEntry,
+  FinanceSettings,
+  UsageSummary,
+} from "../../domain/entities/cost.js";
 import { ConflictError, NotFoundError, ValidationError } from "../../domain/errors/app-error.js";
 
 type Currency = "BRL" | "USD";
@@ -96,6 +103,33 @@ export function computeSummary(
     capacity,
     maxCapacityPct,
   };
+}
+
+/** Ponte entre as entidades do repositório (Decimal-as-string) e
+ * `computeSummary` -- extraída pra ser reusada por `getSummary` e
+ * `getUsageSeries` (que precisa do mesmo resumo mas já buscou `subscriptions`
+ * e `settings` sozinho, então NÃO chama `getSummary` de novo -- isso evitaria
+ * um segundo `listSubscriptions`/refresh de cotação redundante por request). */
+function buildSummary(
+  subscriptions: readonly CostSubscription[],
+  settings: Pick<FinanceSettings, "usdToBrlRate" | "activeClientsCount">,
+  wonLeadsCount: number,
+): CostSummary {
+  return computeSummary(
+    subscriptions.map((s) => ({
+      id: s.id,
+      name: s.name,
+      scope: s.scope,
+      amount: Number(s.amount),
+      currency: s.currency,
+      billingCycle: s.billingCycle,
+      isActive: s.isActive,
+      capacityUsed: s.capacityUsed,
+      capacityLimit: s.capacityLimit,
+    })),
+    { usdToBrlRate: Number(settings.usdToBrlRate), activeClientsCount: settings.activeClientsCount },
+    wonLeadsCount,
+  );
 }
 
 interface UsageEntryForSummary {
@@ -257,24 +291,170 @@ function monthKeyUtc(date: Date): string {
   return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`;
 }
 
-/** Ponto da série mensal de consumo -- custo em BRL já resolvido (snapshot
- * ou derivado, ver `entryCostBrl`). */
+interface RecurringSubscription {
+  amount: number | { toString(): string };
+  currency: Currency;
+  billingCycle: Cycle;
+  isActive: boolean;
+  createdAt: Date;
+}
+
+/**
+ * Custo recorrente estimado (BRL) no mês `month` -- soma das assinaturas
+ * ATIVAS cuja `createdAt` é anterior ao FIM do mês (aproximação: usamos o
+ * mesmo corte de `monthRangeUtc(month).to`, que é a meia-noite UTC do
+ * primeiro dia do mês SEGUINTE -- "fim do mês m" na prática).
+ *
+ * Duas aproximações conscientes, documentadas (ver spec seção C):
+ *  - `createdAt` é timestamp real (não date-only como `usedAt`), mas o corte
+ *    em UTC puro dispensa precisão de fuso -- uma assinatura criada nas
+ *    últimas horas do último dia do mês em horário de Brasília (já virado
+ *    pro dia seguinte em UTC) pode ficar um mês adiantada na contagem.
+ *    Aceitável: é uma ESTIMATIVA "pela data de cadastro", não um fechamento
+ *    contábil.
+ *  - Assinatura INATIVA não conta em NENHUM mês, nem nos que ela esteve ativa
+ *    de fato. Não há histórico de cancelamento no schema (`isActive` é um
+ *    flag sem data de desativação) -- contá-la até `updatedAt` seria chutar
+ *    que a última edição foi a desativação, o que nem sempre é verdade.
+ *    Decisão: simplicidade > precisão retroativa nesse caso.
+ *
+ * YEARLY÷12, USD pela taxa ATUAL (mesma regra de `monthlyAmountBrl` usada em
+ * todo o resto do serviço -- não existe snapshot de câmbio por assinatura
+ * recorrente, diferente do `unitPriceBrl` de consumo).
+ */
+export function recurringCostBrlForMonth(
+  subscriptions: readonly RecurringSubscription[],
+  monthEndExclusive: Date,
+  usdRate: number,
+): number {
+  return subscriptions
+    .filter((s) => s.isActive && s.createdAt < monthEndExclusive)
+    .reduce((acc, s) => acc + monthlyAmountBrl(Number(s.amount), s.currency, s.billingCycle, usdRate), 0);
+}
+
+/** Ponto da série mensal -- custo de consumo em BRL já resolvido (snapshot
+ * ou derivado, ver `entryCostBrl`) SOMADO ao custo recorrente estimado do mês
+ * (ver `recurringCostBrlForMonth`). */
 export interface CostUsageSeriesPoint {
   month: string;
   usageCostBrl: number;
+  /** Estimativa do custo recorrente ATIVO no mês -- ver `recurringCostBrlForMonth`
+   * pras aproximações assumidas (corte UTC, inativa não conta em mês nenhum). */
+  recurringCostBrl: number;
+  /** usageCostBrl + recurringCostBrl -- conveniência pro consumidor (gráfico
+   * empilhado, "resultado do ano") não recalcular a soma. */
+  totalCostBrl: number;
 }
 
 export interface CostUsageSeries {
   months: CostUsageSeriesPoint[]; // exatamente N entradas, ordem cronológica asc, zero-fill
   yearTotal: number; // consumo do ano corrente
-  recurringMonthlyBrl: number; // totalMonthlyBrl atual (mesma conta do getSummary)
+  recurringMonthlyBrl: number; // totalMonthlyBrl atual (mesma conta do getSummary) -- mantido por compat
+  /** Soma de `recurringCostBrl` dos meses do ano corrente até o mês atual
+   * (year-to-date), independente da janela `months` pedida -- ver
+   * `getUsageSeries`. */
+  yearRecurringTotal: number;
+  /** yearTotal (consumo) + yearRecurringTotal -- "resultado do ano" honesto,
+   * sem assumir que o recorrente foi constante o ano inteiro. */
+  yearGrandTotal: number;
+}
+
+// ---------------------------------------------------------------------------
+// Cotação USD-BRL automática (refresh lazy no read)
+// ---------------------------------------------------------------------------
+
+/** Decide se a cotação persistida está velha o bastante pra buscar de novo.
+ * Pura pra ser testável sem repo/rede. Regra: só entra em jogo com
+ * `usdRateAuto` ligado; sem timestamp (nunca buscou) ou com mais de 24h. */
+export function needsUsdRateRefresh(
+  settings: Pick<FinanceSettings, "usdRateAuto" | "usdRateUpdatedAt">,
+  now: Date = new Date(),
+): boolean {
+  if (!settings.usdRateAuto) return false;
+  if (!settings.usdRateUpdatedAt) return true;
+  const ageMs = now.getTime() - new Date(settings.usdRateUpdatedAt).getTime();
+  return ageMs > 24 * 60 * 60 * 1000;
+}
+
+/** Valida o `USDBRL.bid` da AwesomeAPI: precisa ser numérico e cair num
+ * intervalo plausível (1..20) -- sanidade contra API fora do ar devolvendo
+ * lixo/HTML ou um valor absurdo que estragaria todo o financeiro. Pura pra
+ * ser testável sem rede. */
+export function parseUsdRateBid(raw: unknown): number | null {
+  if (raw == null || raw === "") return null;
+  const bid = Number(raw);
+  if (!Number.isFinite(bid)) return null;
+  if (bid < 1 || bid > 20) return null;
+  return bid;
+}
+
+/** Contrato do fetcher de cotação: nunca lança -- resolve o bid válido ou
+ * `null` (falha de rede, timeout, resposta inválida, bid fora de sanidade).
+ * Injetável no construtor do `CostService` pra testar sem rede. */
+export type UsdRateFetcher = () => Promise<number | null>;
+
+/** Implementação padrão: AwesomeAPI, timeout de 3s via AbortController.
+ * Nunca lança -- qualquer falha vira `null` (o service decide o log e o
+ * fallback pro valor persistido). */
+export async function defaultUsdRateFetcher(): Promise<number | null> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 3000);
+  try {
+    const res = await fetch("https://economia.awesomeapi.com.br/json/last/USD-BRL", {
+      signal: controller.signal,
+    });
+    if (!res.ok) return null;
+    const data = (await res.json()) as { USDBRL?: { bid?: unknown } };
+    return parseUsdRateBid(data.USDBRL?.bid);
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 export class CostService {
   constructor(
     private readonly repository: CostRepository,
     private readonly companies: CompanyRepository,
+    private readonly rateFetcher: UsdRateFetcher = defaultUsdRateFetcher,
   ) {}
+
+  /** Ponto ÚNICO de leitura de `FinanceSettings` -- TODO fluxo que precisa de
+   * settings (getSettings, getSummary, getUsageSummary, getUsageSeries,
+   * createUsage) passa por aqui, garantindo que o refresh lazy da cotação
+   * (`needsUsdRateRefresh`) cubra a aplicação inteira a partir de um único
+   * lugar. Falha do fetcher NUNCA propaga -- loga e devolve o valor
+   * persistido (fallback), como exige a regra de negócio.
+   *
+   * Concorrência: duas leituras simultâneas com cotação velha podem disparar
+   * 2 fetches em paralelo (sem lock) -- aceitável (RENDER free/lazy, custo
+   * baixo, pior caso é uma chamada HTTP a mais). O segundo `updateSettings`
+   * é um upsert por `organizationId` único: não conflita, só sobrescreve —
+   * nunca lança por causa da corrida. */
+  private async readSettings(organizationId: string): Promise<FinanceSettings> {
+    const settings = await this.repository.getSettings(organizationId);
+    if (!needsUsdRateRefresh(settings)) return settings;
+
+    let rate: number | null;
+    try {
+      rate = await this.rateFetcher();
+    } catch (err) {
+      console.warn(`[cost-service] falha ao buscar cotação USD-BRL (org ${organizationId}):`, err);
+      return settings;
+    }
+    if (rate == null) {
+      console.warn(
+        `[cost-service] cotação USD-BRL indisponível/inválida (org ${organizationId}) -- mantendo valor persistido.`,
+      );
+      return settings;
+    }
+
+    return this.repository.updateSettings(organizationId, {
+      usdToBrlRate: rate,
+      usdRateUpdatedAt: new Date(),
+    });
+  }
 
   listSubscriptions(organizationId: string) {
     return this.repository.listSubscriptions(organizationId);
@@ -318,34 +498,32 @@ export class CostService {
   }
 
   getSettings(organizationId: string) {
-    return this.repository.getSettings(organizationId);
+    return this.readSettings(organizationId);
   }
 
+  /** PATCH de settings. Regra de negócio: setar `usdToBrlRate` na mão é um
+   * pedido implícito de "quero controlar isso" -- desliga `usdRateAuto`
+   * sozinho, A NÃO SER que o mesmo PATCH já traga `usdRateAuto` explícito
+   * (nesse caso o explícito vence, ex.: religar auto e mandar um valor
+   * inicial no mesmo request). Também grava `usdRateUpdatedAt` = agora nesse
+   * caso, pra edição manual contar como "atualização" e não ser
+   * imediatamente sobrescrita por um refresh automático faminho por 24h. */
   updateSettings(organizationId: string, input: UpdateFinanceSettingsInput) {
-    return this.repository.updateSettings(organizationId, input);
+    const data: UpdateFinanceSettingsInput & { usdRateUpdatedAt?: Date } = { ...input };
+    if (data.usdToBrlRate !== undefined) {
+      if (data.usdRateAuto === undefined) data.usdRateAuto = false;
+      data.usdRateUpdatedAt = new Date();
+    }
+    return this.repository.updateSettings(organizationId, data);
   }
 
   async getSummary(organizationId: string): Promise<CostSummary> {
     const [subscriptions, settings, wonLeads] = await Promise.all([
       this.repository.listSubscriptions(organizationId),
-      this.repository.getSettings(organizationId),
+      this.readSettings(organizationId),
       this.repository.countWonLeads(organizationId),
     ]);
-    return computeSummary(
-      subscriptions.map((s) => ({
-        id: s.id,
-        name: s.name,
-        scope: s.scope,
-        amount: Number(s.amount),
-        currency: s.currency,
-        billingCycle: s.billingCycle,
-        isActive: s.isActive,
-        capacityUsed: s.capacityUsed,
-        capacityLimit: s.capacityLimit,
-      })),
-      { usdToBrlRate: Number(settings.usdToBrlRate), activeClientsCount: settings.activeClientsCount },
-      wonLeads,
-    );
+    return buildSummary(subscriptions, settings, wonLeads);
   }
 
   async listUsage(organizationId: string, month?: string): Promise<CostUsageEntry[]> {
@@ -371,7 +549,7 @@ export class CostService {
     // Preço gravado NA HORA -- ver o comentário em `unitPriceBrl` na
     // migration/entidade: garante que o custo deste lançamento não mude
     // retroativamente se a assinatura ou o câmbio mudarem depois.
-    const settings = await this.repository.getSettings(organizationId);
+    const settings = await this.readSettings(organizationId);
     const unitPriceBrl = unitPriceBrlFor(subscription, Number(settings.usdToBrlRate));
     return this.repository.createUsage(organizationId, { ...input, unitPriceBrl });
   }
@@ -387,7 +565,7 @@ export class CostService {
     const [entries, subscriptions, settings] = await Promise.all([
       this.repository.listUsage(organizationId, { from, to }),
       this.repository.listSubscriptions(organizationId),
-      this.repository.getSettings(organizationId),
+      this.readSettings(organizationId),
     ]);
     return {
       month: resolvedMonth,
@@ -415,12 +593,17 @@ export class CostService {
     const queryTo = to > yearTo ? to : yearTo;
 
     // UMA chamada cobrindo a janela inteira -- listUsage já aceita range.
-    const [entries, subscriptions, settings, summary] = await Promise.all([
+    // `wonLeads` só entra pro resumo recorrente (`buildSummary` abaixo) --
+    // reusar `subscriptions`/`settings` já buscados aqui em vez de chamar
+    // `this.getSummary` de novo evita um segundo `listSubscriptions` E um
+    // segundo refresh lazy de cotação por request (ver `readSettings`).
+    const [entries, subscriptions, settings, wonLeads] = await Promise.all([
       this.repository.listUsage(organizationId, { from: queryFrom, to: queryTo }),
       this.repository.listSubscriptions(organizationId),
-      this.repository.getSettings(organizationId),
-      this.getSummary(organizationId),
+      this.readSettings(organizationId),
+      this.repository.countWonLeads(organizationId),
     ]);
+    const summary = buildSummary(subscriptions, settings, wonLeads);
 
     const usdRate = Number(settings.usdToBrlRate);
     const subsById = new Map(subscriptions.map((s) => [s.id, s]));
@@ -440,10 +623,32 @@ export class CostService {
       if (entry.usedAt >= yearFrom && entry.usedAt < yearTo) yearTotal += cost;
     }
 
+    // Meses do ano corrente até o mês atual (year-to-date) -- INDEPENDENTE
+    // da janela `months` pedida: yearRecurringTotal precisa cobrir o ano
+    // inteiro decorrido mesmo quando `months` é menor (ex.: months=1 em
+    // março ainda soma jan+fev+mar). `currentMonth` é sempre "YYYY-MM", então
+    // o número do mês (1-based) é exatamente a contagem de meses de jan até
+    // ele, inclusive.
+    const currentMonthNum = Number(currentMonth.split("-")[1]);
+    const yearToDateKeys = monthKeysAsc(currentMonth, currentMonthNum);
+
+    let yearRecurringTotal = 0;
+    for (const key of yearToDateKeys) {
+      const { to: monthEndExclusive } = monthRangeUtc(key);
+      yearRecurringTotal += recurringCostBrlForMonth(subscriptions, monthEndExclusive, usdRate);
+    }
+
     return {
-      months: keys.map((key) => ({ month: key, usageCostBrl: buckets.get(key)! })),
+      months: keys.map((key) => {
+        const usageCostBrl = buckets.get(key)!;
+        const { to: monthEndExclusive } = monthRangeUtc(key);
+        const recurringCostBrl = recurringCostBrlForMonth(subscriptions, monthEndExclusive, usdRate);
+        return { month: key, usageCostBrl, recurringCostBrl, totalCostBrl: usageCostBrl + recurringCostBrl };
+      }),
       yearTotal,
       recurringMonthlyBrl: summary.totalMonthlyBrl,
+      yearRecurringTotal,
+      yearGrandTotal: yearTotal + yearRecurringTotal,
     };
   }
 }

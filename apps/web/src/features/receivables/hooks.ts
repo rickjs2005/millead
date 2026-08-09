@@ -5,6 +5,7 @@ import { ApiError } from "@/services/api-client";
 import { receivablesService } from "@/services/receivables";
 import type {
   CreatePlanPayload,
+  CreateStandaloneReceivablePayload,
   PayReceivablePayload,
   UpdateReceivablePayload,
 } from "@/types/api";
@@ -38,6 +39,15 @@ export function useReceivablesSeries(months?: number) {
   });
 }
 
+/** Receitas avulsas (sem contrato) -- tabela própria em "A Receber", separada
+ * da lista por contrato. */
+export function useReceivablesStandalone() {
+  return useQuery({
+    queryKey: queryKeys.receivables.standalone(),
+    queryFn: receivablesService.listStandalone,
+  });
+}
+
 /** Margem só faz sentido quando o contrato tem `proposalId` -- passe
  * `enabled: false` quando não houver, pra não bater na API à toa. */
 export function useContractMargin(contractId: string | undefined, options?: { enabled?: boolean }) {
@@ -50,8 +60,12 @@ export function useContractMargin(contractId: string | undefined, options?: { en
 
 /** Invalida todas as sub-queries de receivables (prefixo) e, quando um
  * contractId é conhecido, o detalhe do contrato (a "Recebimento" mostrada
- * lá reage a qualquer mutação de parcela). */
-function invalidateAll(queryClient: ReturnType<typeof useQueryClient>, contractId?: string) {
+ * lá reage a qualquer mutação de parcela). `null`/`undefined` (receita
+ * avulsa, sem contrato) só invalida o prefixo. */
+function invalidateAll(
+  queryClient: ReturnType<typeof useQueryClient>,
+  contractId?: string | null,
+) {
   queryClient.invalidateQueries({ queryKey: queryKeys.receivables.all() });
   if (contractId) {
     queryClient.invalidateQueries({ queryKey: queryKeys.contracts.detail(contractId) });
@@ -68,6 +82,19 @@ export function useCreatePlan() {
     },
     onError: (err) =>
       toast.error(err instanceof ApiError ? err.message : "Erro ao criar plano de recebimento."),
+  });
+}
+
+export function useCreateStandalone() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: CreateStandaloneReceivablePayload) =>
+      receivablesService.createStandalone(payload),
+    onSuccess: () => {
+      invalidateAll(queryClient);
+      toast.success("Receita lançada.");
+    },
+    onError: (err) => toast.error(err instanceof ApiError ? err.message : "Erro ao lançar receita."),
   });
 }
 
@@ -112,7 +139,7 @@ export function useUpdateReceivable() {
 export function useDeleteReceivable() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ id }: { id: string; contractId: string }) => receivablesService.remove(id),
+    mutationFn: ({ id }: { id: string; contractId: string | null }) => receivablesService.remove(id),
     onSuccess: (_data, variables) => {
       invalidateAll(queryClient, variables.contractId);
       toast.success("Parcela excluída.");

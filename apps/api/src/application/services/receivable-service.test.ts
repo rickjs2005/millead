@@ -48,6 +48,7 @@ function fakeReceivable(overrides: Partial<Receivable> = {}): Receivable {
     id: "rec-1",
     organizationId: ORG,
     contractId: CONTRACT_ID,
+    description: null,
     kind: "PARCELA",
     installmentIndex: 1,
     amount: "200.00",
@@ -65,6 +66,16 @@ function fakeRepos(overrides: {
 } = {}) {
   const receivables = {
     createPlan: vi.fn().mockResolvedValue([fakeReceivable()]),
+    createStandalone: vi.fn().mockResolvedValue(
+      fakeReceivable({
+        id: "rec-avulsa",
+        contractId: null,
+        description: "Consultoria avulsa",
+        kind: "AVULSA",
+        installmentIndex: 0,
+      }),
+    ),
+    listStandalone: vi.fn().mockResolvedValue([]),
     listByContract: vi.fn().mockResolvedValue([fakeReceivable()]),
     findById: vi.fn().mockResolvedValue(fakeReceivable()),
     markPaid: vi.fn().mockResolvedValue(fakeReceivable({ paidAt: new Date("2026-08-01") })),
@@ -236,6 +247,88 @@ describe("ReceivableService.createPlan", () => {
   });
 });
 
+describe("ReceivableService.createStandalone", () => {
+  it("sem alreadyPaid: cria com paidAt null, contractId não entra no payload (repositório fixa null+installmentIndex 0)", async () => {
+    const { service, receivables } = fakeRepos();
+
+    await service.createStandalone(ORG, {
+      amount: 1500,
+      description: "Consultoria avulsa pro Rick",
+      dueDate: new Date("2026-09-10"),
+    });
+
+    expect(receivables.createStandalone).toHaveBeenCalledWith(ORG, {
+      description: "Consultoria avulsa pro Rick",
+      amount: "1500.00",
+      dueDate: new Date("2026-09-10"),
+      paidAt: null,
+    });
+  });
+
+  it("com alreadyPaid: paidAt = new Date() (timestamp real, regime de caixa) -- não usa a dueDate nem aceita data do cliente", async () => {
+    const now = new Date("2026-08-09T14:00:00Z");
+    vi.useFakeTimers();
+    vi.setSystemTime(now);
+
+    const { service, receivables } = fakeRepos();
+    await service.createStandalone(ORG, {
+      amount: 1500,
+      description: "Recebido em mãos",
+      dueDate: new Date("2026-07-01"), // data de vencimento, propositalmente diferente de "agora"
+      alreadyPaid: true,
+    });
+
+    expect(receivables.createStandalone).toHaveBeenCalledWith(
+      ORG,
+      expect.objectContaining({ paidAt: now }),
+    );
+
+    vi.useRealTimers();
+  });
+
+  it("alreadyPaid false explícito: paidAt continua null", async () => {
+    const { service, receivables } = fakeRepos();
+    await service.createStandalone(ORG, {
+      amount: 100,
+      description: "Teste",
+      dueDate: new Date("2026-09-10"),
+      alreadyPaid: false,
+    });
+    expect(receivables.createStandalone).toHaveBeenCalledWith(
+      ORG,
+      expect.objectContaining({ paidAt: null }),
+    );
+  });
+
+  it("retorna a avulsa criada (kind AVULSA, contractId null, installmentIndex 0)", async () => {
+    const { service } = fakeRepos();
+    const result = await service.createStandalone(ORG, {
+      amount: 1500,
+      description: "Consultoria",
+      dueDate: new Date("2026-09-10"),
+    });
+    expect(result.kind).toBe("AVULSA");
+    expect(result.contractId).toBeNull();
+    expect(result.installmentIndex).toBe(0);
+  });
+});
+
+describe("ReceivableService.listStandalone", () => {
+  it("delega ao repositório passando a org", async () => {
+    const { service, receivables } = fakeRepos({
+      receivables: {
+        listStandalone: vi.fn().mockResolvedValue([
+          fakeReceivable({ id: "rec-a", contractId: null, kind: "AVULSA", description: "A" }),
+        ]),
+      },
+    });
+    const result = await service.listStandalone(ORG);
+    expect(receivables.listStandalone).toHaveBeenCalledWith(ORG);
+    expect(result).toHaveLength(1);
+    expect(result[0]!.kind).toBe("AVULSA");
+  });
+});
+
 describe("ReceivableService.pay/unpay", () => {
   it("pay marca paga com sucesso", async () => {
     const { service, receivables } = fakeRepos();
@@ -272,6 +365,44 @@ describe("ReceivableService.pay/unpay", () => {
     const { service } = fakeRepos({ receivables: { findById: vi.fn().mockResolvedValue(fakeReceivable({ paidAt: null })) } });
     await expect(service.unpay(ORG, "rec-1")).rejects.toThrow(ConflictError);
   });
+
+  it("pay funciona em avulsa (contractId null) -- nenhuma checagem de contrato bloqueia o fluxo", async () => {
+    const avulsaAberta = fakeReceivable({
+      id: "rec-avulsa",
+      contractId: null,
+      kind: "AVULSA",
+      installmentIndex: 0,
+      description: "Consultoria avulsa",
+    });
+    const { service, receivables } = fakeRepos({
+      receivables: {
+        findById: vi.fn().mockResolvedValue(avulsaAberta),
+        markPaid: vi.fn().mockResolvedValue({ ...avulsaAberta, paidAt: new Date("2026-08-09") }),
+      },
+    });
+    const result = await service.pay(ORG, "rec-avulsa", {});
+    expect(result.paidAt).not.toBeNull();
+    expect(receivables.markPaid).toHaveBeenCalledWith(ORG, "rec-avulsa", expect.any(Date), null);
+  });
+
+  it("unpay funciona em avulsa paga (contractId null)", async () => {
+    const avulsaPaga = fakeReceivable({
+      id: "rec-avulsa",
+      contractId: null,
+      kind: "AVULSA",
+      installmentIndex: 0,
+      paidAt: new Date("2026-08-01"),
+    });
+    const { service, receivables } = fakeRepos({
+      receivables: {
+        findById: vi.fn().mockResolvedValue(avulsaPaga),
+        markUnpaid: vi.fn().mockResolvedValue({ ...avulsaPaga, paidAt: null }),
+      },
+    });
+    const result = await service.unpay(ORG, "rec-avulsa");
+    expect(result.paidAt).toBeNull();
+    expect(receivables.markUnpaid).toHaveBeenCalledWith(ORG, "rec-avulsa");
+  });
 });
 
 describe("ReceivableService.update/remove", () => {
@@ -301,6 +432,94 @@ describe("ReceivableService.update/remove", () => {
     });
     await expect(service.remove(ORG, "rec-1")).rejects.toThrow(ConflictError);
     expect(receivables.delete).not.toHaveBeenCalled();
+  });
+
+  it("update funciona em avulsa aberta (contractId null) -- service não exige contrato", async () => {
+    const avulsaAberta = fakeReceivable({
+      id: "rec-avulsa",
+      contractId: null,
+      kind: "AVULSA",
+      installmentIndex: 0,
+    });
+    const { service, receivables } = fakeRepos({
+      receivables: {
+        findById: vi.fn().mockResolvedValue(avulsaAberta),
+        update: vi.fn().mockResolvedValue({ ...avulsaAberta, amount: "1800.00" }),
+      },
+    });
+    await service.update(ORG, "rec-avulsa", { amount: 1800 });
+    expect(receivables.update).toHaveBeenCalledWith(
+      ORG,
+      "rec-avulsa",
+      expect.objectContaining({ amount: "1800.00" }),
+    );
+  });
+
+  it("remove funciona em avulsa aberta (contractId null)", async () => {
+    const avulsaAberta = fakeReceivable({
+      id: "rec-avulsa",
+      contractId: null,
+      kind: "AVULSA",
+      installmentIndex: 0,
+    });
+    const { service, receivables } = fakeRepos({
+      receivables: { findById: vi.fn().mockResolvedValue(avulsaAberta) },
+    });
+    await service.remove(ORG, "rec-avulsa");
+    expect(receivables.delete).toHaveBeenCalledWith(ORG, "rec-avulsa");
+  });
+
+  it("update de description numa avulsa aberta corrige o texto que identifica o lançamento", async () => {
+    const avulsaAberta = fakeReceivable({
+      id: "rec-avulsa",
+      contractId: null,
+      kind: "AVULSA",
+      installmentIndex: 0,
+      description: "Consultoria avulsa (com erro de digitação)",
+    });
+    const { service, receivables } = fakeRepos({
+      receivables: {
+        findById: vi.fn().mockResolvedValue(avulsaAberta),
+        update: vi.fn().mockResolvedValue({ ...avulsaAberta, description: "Consultoria avulsa pro Rick" }),
+      },
+    });
+    const result = await service.update(ORG, "rec-avulsa", { description: "Consultoria avulsa pro Rick" });
+    expect(receivables.update).toHaveBeenCalledWith(
+      ORG,
+      "rec-avulsa",
+      expect.objectContaining({ description: "Consultoria avulsa pro Rick" }),
+    );
+    expect(result.description).toBe("Consultoria avulsa pro Rick");
+  });
+
+  it("update de description numa PARCELA de contrato também funciona -- o campo existe pra ambas as origens, não só avulsa", async () => {
+    const parcelaAberta = fakeReceivable({
+      id: "rec-1",
+      contractId: CONTRACT_ID,
+      kind: "PARCELA",
+      installmentIndex: 1,
+      description: null,
+    });
+    const { service, receivables } = fakeRepos({
+      receivables: {
+        findById: vi.fn().mockResolvedValue(parcelaAberta),
+        update: vi.fn().mockResolvedValue({ ...parcelaAberta, description: "Nota da parcela" }),
+      },
+    });
+    const result = await service.update(ORG, "rec-1", { description: "Nota da parcela" });
+    expect(receivables.update).toHaveBeenCalledWith(
+      ORG,
+      "rec-1",
+      expect.objectContaining({ description: "Nota da parcela" }),
+    );
+    expect(result.description).toBe("Nota da parcela");
+  });
+
+  it("update sem description no patch não manda description undefined que sobrescreveria com null", async () => {
+    const { service, receivables } = fakeRepos();
+    await service.update(ORG, "rec-1", { amount: 250 });
+    const patch = vi.mocked(receivables.update).mock.calls[0]![2] as { description?: string };
+    expect(patch.description).toBeUndefined();
   });
 });
 
@@ -446,6 +665,63 @@ describe("ReceivableService.summary", () => {
     vi.useRealTimers();
   });
 
+  it("avulsa paga entra em 'received' do mês -- é o caso dos R$ 1.500 do Rick sem contrato: listForSummary/summary não filtram por contrato, então uma AVULSA soma igual a qualquer parcela", async () => {
+    const now = new Date("2026-08-15T12:00:00Z");
+    vi.useFakeTimers();
+    vi.setSystemTime(now);
+
+    const avulsaPaga = fakeReceivable({
+      id: "rec-avulsa-paga",
+      contractId: null,
+      description: "Consultoria avulsa pro Rick",
+      kind: "AVULSA",
+      installmentIndex: 0,
+      amount: "1500.00",
+      dueDate: new Date("2026-08-01"),
+      paidAt: new Date("2026-08-09"),
+    });
+
+    const { service } = fakeRepos({
+      receivables: { listForSummary: vi.fn().mockResolvedValue([avulsaPaga]) },
+    });
+
+    const result = await service.summary(ORG, "2026-08");
+
+    expect(result.received).toBe("1500.00");
+    expect(result.toReceive).toBe("0.00");
+    expect(result.overdue).toBe("0.00");
+
+    vi.useRealTimers();
+  });
+
+  it("avulsa pendente entra em 'toReceive' do mês do vencimento (regime de caixa: ainda não recebida)", async () => {
+    const now = new Date("2026-08-15T12:00:00Z");
+    vi.useFakeTimers();
+    vi.setSystemTime(now);
+
+    const avulsaPendente = fakeReceivable({
+      id: "rec-avulsa-pendente",
+      contractId: null,
+      description: "Sprint avulsa",
+      kind: "AVULSA",
+      installmentIndex: 0,
+      amount: "800.00",
+      dueDate: new Date("2026-09-20"),
+      paidAt: null,
+    });
+
+    const { service } = fakeRepos({
+      receivables: { listForSummary: vi.fn().mockResolvedValue([avulsaPendente]) },
+    });
+
+    const result = await service.summary(ORG, "2026-09");
+
+    expect(result.toReceive).toBe("800.00");
+    expect(result.received).toBe("0.00");
+
+    vi.useRealTimers();
+  });
+
   it("sem month explícito usa o mês atual (America/Sao_Paulo)", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-08-15T12:00:00Z"));
@@ -565,6 +841,47 @@ describe("ReceivableService.series", () => {
     const september = result.months.find((m) => m.month === "2026-09")!;
     expect(september.expected).toBe("500.00"); // dueDate: corte UTC, dia 1 = setembro
     expect(august.received).toBe("500.00"); // paidAt: corte SP, 01:00Z = 22h de 31/08
+
+    vi.useRealTimers();
+  });
+
+  it("avulsas entram na série igual a parcelas de contrato: uma paga no mês X aparece em received[X], uma pendente com dueDate em Y aparece em expected[Y] -- o caso dos R$ 1.500 do Rick", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-15T12:00:00Z"));
+
+    const avulsaPagaEmAgosto = fakeReceivable({
+      id: "rec-avulsa-paga",
+      contractId: null,
+      description: "Consultoria avulsa pro Rick",
+      kind: "AVULSA",
+      installmentIndex: 0,
+      amount: "1500.00",
+      dueDate: new Date("2026-08-01"),
+      paidAt: new Date("2026-08-09"),
+    });
+    const avulsaPendenteEmJunho = fakeReceivable({
+      id: "rec-avulsa-pendente",
+      contractId: null,
+      description: "Sprint avulsa",
+      kind: "AVULSA",
+      installmentIndex: 0,
+      amount: "2000.00",
+      dueDate: new Date("2026-06-15"),
+      paidAt: null,
+    });
+
+    const { service } = fakeRepos({
+      receivables: {
+        listForSeries: vi.fn().mockResolvedValue([avulsaPagaEmAgosto, avulsaPendenteEmJunho]),
+      },
+    });
+
+    const result = await service.series(ORG, 12);
+
+    const august = result.months.find((m) => m.month === "2026-08")!;
+    const june = result.months.find((m) => m.month === "2026-06")!;
+    expect(august.received).toBe("1500.00");
+    expect(june.expected).toBe("2000.00");
 
     vi.useRealTimers();
   });

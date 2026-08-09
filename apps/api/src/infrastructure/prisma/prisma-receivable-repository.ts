@@ -2,6 +2,7 @@ import { prisma, Prisma } from "@millead/database";
 import type { Receivable } from "../../domain/entities/receivable.js";
 import type {
   CreatePlanItem,
+  CreateStandaloneItem,
   ReceivableRepository,
 } from "../../domain/repositories/receivable-repository.js";
 
@@ -9,6 +10,7 @@ const receivableSelect = {
   id: true,
   organizationId: true,
   contractId: true,
+  description: true,
   kind: true,
   installmentIndex: true,
   amount: true,
@@ -51,6 +53,37 @@ export class PrismaReceivableRepository implements ReceivableRepository {
       });
       return rows.map(toDomain);
     });
+  }
+
+  async createStandalone(organizationId: string, item: CreateStandaloneItem): Promise<Receivable> {
+    // installmentIndex sempre 0 aqui: o `@@unique([contractId, installmentIndex])`
+    // do schema não conflita porque contractId é null -- Postgres trata cada
+    // NULL como distinto num índice único composto, então múltiplas avulsas
+    // (contractId=null, installmentIndex=0) coexistem sem violar a
+    // constraint (que só barra duplicidade dentro do MESMO contrato).
+    const row = await prisma.receivable.create({
+      data: {
+        organizationId,
+        contractId: null,
+        description: item.description,
+        kind: "AVULSA",
+        installmentIndex: 0,
+        amount: item.amount,
+        dueDate: item.dueDate,
+        paidAt: item.paidAt,
+      },
+      select: receivableSelect,
+    });
+    return toDomain(row);
+  }
+
+  async listStandalone(organizationId: string): Promise<Receivable[]> {
+    const rows = await prisma.receivable.findMany({
+      where: { organizationId, kind: "AVULSA", contractId: null },
+      select: receivableSelect,
+      orderBy: { dueDate: "desc" },
+    });
+    return rows.map(toDomain);
   }
 
   async listByContract(organizationId: string, contractId: string): Promise<Receivable[]> {
@@ -104,7 +137,7 @@ export class PrismaReceivableRepository implements ReceivableRepository {
   async update(
     organizationId: string,
     id: string,
-    patch: { amount?: string; dueDate?: Date },
+    patch: { amount?: string; description?: string; dueDate?: Date },
   ): Promise<Receivable | null> {
     const { count } = await prisma.receivable.updateMany({
       where: { id, organizationId, paidAt: null },
@@ -193,11 +226,18 @@ export class PrismaReceivableRepository implements ReceivableRepository {
       nextDueDate: Date | null;
     }>
   > {
-    const totalGroups = await prisma.receivable.groupBy({
-      by: ["contractId"],
-      where: { organizationId },
-      _sum: { amount: true },
-    });
+    // Esta listagem e por CONTRATO -- receita avulsa (contractId null) nao
+    // tem contrato pra agrupar, entao fica de fora daqui (aparece na lista
+    // separada de avulsas). O filtro `not: null` tambem estreita o tipo do
+    // TS: sem ele `g.contractId` seria `string | null` e quebraria as
+    // comparacoes abaixo que assumem contrato sempre presente.
+    const totalGroups = (
+      await prisma.receivable.groupBy({
+        by: ["contractId"],
+        where: { organizationId, contractId: { not: null } },
+        _sum: { amount: true },
+      })
+    ).filter((g): g is typeof g & { contractId: string } => g.contractId !== null);
     if (totalGroups.length === 0) return [];
 
     const contractIds = totalGroups.map((g) => g.contractId);
@@ -230,9 +270,9 @@ export class PrismaReceivableRepository implements ReceivableRepository {
       }),
     ]);
 
-    const paidMap = new Map(paidGroups.map((g) => [g.contractId, g._sum.amount]));
-    const openOverdueMap = new Map(openOverdueGroups.map((g) => [g.contractId, g._sum.amount]));
-    const nextDueMap = new Map(nextDueGroups.map((g) => [g.contractId, g._min.dueDate]));
+    const paidMap = new Map(paidGroups.map((g) => [g.contractId, g._sum?.amount]));
+    const openOverdueMap = new Map(openOverdueGroups.map((g) => [g.contractId, g._sum?.amount]));
+    const nextDueMap = new Map(nextDueGroups.map((g) => [g.contractId, g._min?.dueDate]));
     const contractMap = new Map(contracts.map((c) => [c.id, c]));
 
     return totalGroups.map((g) => {
