@@ -159,6 +159,21 @@ export class PrismaReceivableRepository implements ReceivableRepository {
     return rows.map(toDomain);
   }
 
+  async listForSeries(organizationId: string, from: Date, to: Date): Promise<Receivable[]> {
+    const rows = await prisma.receivable.findMany({
+      where: {
+        organizationId,
+        OR: [
+          { dueDate: { gte: from, lt: to } },
+          { paidAt: { gte: from, lt: to } },
+        ],
+      },
+      select: receivableSelect,
+      orderBy: { dueDate: "asc" },
+    });
+    return rows.map(toDomain);
+  }
+
   async sumPaidByContract(organizationId: string, contractId: string): Promise<string> {
     const result = await prisma.receivable.aggregate({
       where: { organizationId, contractId, paidAt: { not: null } },

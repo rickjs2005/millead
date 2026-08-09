@@ -63,3 +63,8 @@ export const receivableQuerySchema = z.object({
     .optional(),
 });
 export type ReceivableQuery = z.infer<typeof receivableQuerySchema>;
+
+export const receivableSeriesQuerySchema = z.object({
+  months: z.coerce.number().int().min(1).max(24).default(12),
+});
+export type ReceivableSeriesQuery = z.infer<typeof receivableSeriesQuerySchema>;

@@ -74,6 +74,7 @@ function fakeRepos(overrides: {
     hasPaid: vi.fn().mockResolvedValue(false),
     deleteOpenByContract: vi.fn().mockResolvedValue(0),
     listForSummary: vi.fn().mockResolvedValue([]),
+    listForSeries: vi.fn().mockResolvedValue([]),
     sumPaidByContract: vi.fn().mockResolvedValue("0"),
     listContractsWithTotals: vi.fn().mockResolvedValue([]),
     ...overrides.receivables,
@@ -392,6 +393,122 @@ describe("ReceivableService.summary", () => {
       new Date(Date.UTC(2026, 7, 1)),
       new Date(Date.UTC(2026, 8, 1)),
     );
+
+    vi.useRealTimers();
+  });
+});
+
+describe("ReceivableService.series", () => {
+  it("parcela com dueDate em jul e paidAt em ago conta em 'expected' de jul E 'received' de ago", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-15T12:00:00Z"));
+
+    const straddling = fakeReceivable({
+      id: "rec-straddle",
+      amount: "100.00",
+      dueDate: new Date("2026-07-10"),
+      paidAt: new Date("2026-08-05"),
+    });
+
+    const { service } = fakeRepos({
+      receivables: { listForSeries: vi.fn().mockResolvedValue([straddling]) },
+    });
+
+    const result = await service.series(ORG, 12);
+
+    const july = result.months.find((m) => m.month === "2026-07");
+    const august = result.months.find((m) => m.month === "2026-08");
+    expect(july).toEqual({ month: "2026-07", received: "0.00", expected: "100.00" });
+    expect(august).toEqual({ month: "2026-08", received: "100.00", expected: "0.00" });
+
+    vi.useRealTimers();
+  });
+
+  it("mês sem registro vem zerado e a série tem exatamente N entradas em ordem cronológica", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-15T12:00:00Z"));
+
+    const { service } = fakeRepos({
+      receivables: { listForSeries: vi.fn().mockResolvedValue([]) },
+    });
+
+    const result = await service.series(ORG, 5);
+
+    expect(result.months).toHaveLength(5);
+    expect(result.months.map((m) => m.month)).toEqual([
+      "2026-04",
+      "2026-05",
+      "2026-06",
+      "2026-07",
+      "2026-08",
+    ]);
+    for (const point of result.months) {
+      expect(point.received).toBe("0.00");
+      expect(point.expected).toBe("0.00");
+    }
+
+    vi.useRealTimers();
+  });
+
+  it("janela de 3 meses busca do repo com from/to cobrindo só os 3 meses (+ ano corrente)", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-15T12:00:00Z"));
+
+    const { service, receivables } = fakeRepos();
+
+    await service.series(ORG, 3);
+
+    // from = início de jan/2026 (o ano corrente é mais antigo que a janela
+    // de 3 meses, que começaria em jun/2026 -- prevalece o mais antigo).
+    // to = início de jan/2027 (yearTo do ano corrente é mais distante que o
+    // corte da janela de 3 meses, que seria set/2026 -- prevalece o mais tarde).
+    expect(receivables.listForSeries).toHaveBeenCalledWith(
+      ORG,
+      new Date(Date.UTC(2026, 0, 1)),
+      new Date(Date.UTC(2027, 0, 1)),
+    );
+
+    vi.useRealTimers();
+  });
+
+  it("yearTotals soma só o ano corrente, mesmo com registros de anos anteriores na janela da série", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-02-10T12:00:00Z"));
+
+    // Fora do ano corrente (2025) -- deve aparecer no bucket mensal mas NÃO em yearTotals.
+    const lastYear = fakeReceivable({
+      id: "rec-last-year",
+      amount: "100.00",
+      dueDate: new Date("2025-12-01"),
+      paidAt: new Date("2025-12-05"),
+    });
+    // Aberta em jan/2026, dentro do ano corrente.
+    const openThisYear = fakeReceivable({
+      id: "rec-open-this-year",
+      amount: "50.00",
+      dueDate: new Date("2026-01-10"),
+      paidAt: null,
+    });
+    // Paga no mês corrente (fev/2026), dentro do ano corrente.
+    const paidThisMonth = fakeReceivable({
+      id: "rec-paid-this-month",
+      amount: "75.00",
+      dueDate: new Date("2026-02-05"),
+      paidAt: new Date("2026-02-05"),
+    });
+
+    const { service } = fakeRepos({
+      receivables: {
+        listForSeries: vi.fn().mockResolvedValue([lastYear, openThisYear, paidThisMonth]),
+      },
+    });
+
+    const result = await service.series(ORG, 12);
+
+    expect(result.yearTotals).toEqual({ year: 2026, received: "75.00", expected: "125.00" });
+
+    const dec2025 = result.months.find((m) => m.month === "2025-12");
+    expect(dec2025).toEqual({ month: "2025-12", received: "100.00", expected: "100.00" });
 
     vi.useRealTimers();
   });

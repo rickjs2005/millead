@@ -41,6 +41,20 @@ export interface ContractMargin {
   realizedMargin: string | null; // received - projectedCost (null se sem custo)
 }
 
+/** Ponto da série mensal -- `expected` conta por `dueDate` (pago ou não),
+ *  `received` por `paidAt`. Uma mesma parcela pode contribuir pra `expected`
+ *  de um mês e `received` de outro (venceu em julho, foi paga em agosto). */
+export interface ReceivableSeriesPoint {
+  month: string;
+  received: string;
+  expected: string;
+}
+
+export interface ReceivableSeries {
+  months: ReceivableSeriesPoint[]; // exatamente N entradas, ordem cronológica asc, zero-fill
+  yearTotals: { year: number; received: string; expected: string };
+}
+
 /** Tolerância pra bater a soma de entrada+parcelas com o total informado --
  *  cobre arredondamento de centavos (ex.: 3 parcelas de total não-divisível
  *  por 3, onde o front já distribuiu o resto na última). */
@@ -56,6 +70,30 @@ function monthRangeUtc(month: string): { from: Date; to: Date } {
     from: new Date(Date.UTC(year, monthIndex, 1)),
     to: new Date(Date.UTC(year, monthIndex + 1, 1)),
   };
+}
+
+/** Lista N chaves "YYYY-MM" em ordem cronológica ascendente terminando em
+ *  `endMonth` (inclusive) -- monta o eixo X zero-filled da série. */
+function monthKeysAsc(endMonth: string, count: number): string[] {
+  const [yearStr, monthStr] = endMonth.split("-");
+  let year = Number(yearStr);
+  let monthIndex = Number(monthStr) - 1; // 0-based
+  const keys: string[] = [];
+  for (let i = 0; i < count; i += 1) {
+    keys.push(`${year}-${String(monthIndex + 1).padStart(2, "0")}`);
+    monthIndex -= 1;
+    if (monthIndex < 0) {
+      monthIndex = 11;
+      year -= 1;
+    }
+  }
+  return keys.reverse();
+}
+
+/** Chave "YYYY-MM" de uma data em UTC -- mesmo critério de `monthRangeUtc`
+ *  (bucketização por UTC, não pelo fuso local do servidor). */
+function monthKeyUtc(date: Date): string {
+  return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`;
 }
 
 export class ReceivableService {
@@ -216,6 +254,59 @@ export class ReceivableService {
       overdue: overdue.toFixed(2),
       overdueItems,
       received: received.toFixed(2),
+    };
+  }
+
+  /** Série mensal (últimos `months`, default 12) recebido x esperado, mais
+   *  totais do ano corrente -- alimenta gráfico de fluxo de caixa. */
+  async series(organizationId: string, months = 12): Promise<ReceivableSeries> {
+    const currentMonth = currentMonthInTimeZone();
+    const keys = monthKeysAsc(currentMonth, months);
+    const { from } = monthRangeUtc(keys[0]!);
+    const { to } = monthRangeUtc(currentMonth);
+
+    const currentYear = Number(currentMonth.split("-")[0]);
+    const yearFrom = new Date(Date.UTC(currentYear, 0, 1));
+    const yearTo = new Date(Date.UTC(currentYear + 1, 0, 1));
+
+    // A janela de busca precisa cobrir tanto os N meses da série quanto o
+    // ano corrente inteiro -- quando months < 12 (ou o ano corrente
+    // extrapola pro passado dos N meses), um intervalo não contém o outro.
+    const queryFrom = from < yearFrom ? from : yearFrom;
+    const queryTo = to > yearTo ? to : yearTo;
+
+    const rows = await this.receivables.listForSeries(organizationId, queryFrom, queryTo);
+
+    const buckets = new Map<string, { received: number; expected: number }>();
+    for (const key of keys) buckets.set(key, { received: 0, expected: 0 });
+
+    let yearReceived = 0;
+    let yearExpected = 0;
+
+    for (const row of rows) {
+      const amount = Number(row.amount);
+
+      if (row.paidAt) {
+        const bucket = buckets.get(monthKeyUtc(row.paidAt));
+        if (bucket) bucket.received += amount;
+        if (row.paidAt >= yearFrom && row.paidAt < yearTo) yearReceived += amount;
+      }
+
+      const dueBucket = buckets.get(monthKeyUtc(row.dueDate));
+      if (dueBucket) dueBucket.expected += amount;
+      if (row.dueDate >= yearFrom && row.dueDate < yearTo) yearExpected += amount;
+    }
+
+    return {
+      months: keys.map((key) => {
+        const bucket = buckets.get(key)!;
+        return { month: key, received: bucket.received.toFixed(2), expected: bucket.expected.toFixed(2) };
+      }),
+      yearTotals: {
+        year: currentYear,
+        received: yearReceived.toFixed(2),
+        expected: yearExpected.toFixed(2),
+      },
     };
   }
 
