@@ -149,10 +149,13 @@ export function useOverdueTasksList() {
 /** Mesma queryKey do sino de notificações (components/shell/notifications-bell.tsx)
  * -- os dois consomem `GET /leads/activities/recent`, então compartilham cache
  * (React Query dedupa por key) em vez de duplicar a chamada quando ambos estão
- * montados ao mesmo tempo (sino no topbar + card no dashboard). */
-export function useRecentActivities() {
+ * montados ao mesmo tempo (sino no topbar + card no dashboard). `enabled` segue
+ * o mesmo padrão do sino (`enabled: canRead`), pra não bater no endpoint sem
+ * permissão. */
+export function useRecentActivities(options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: ["notifications", "recent"],
     queryFn: leadsService.recentActivities,
+    enabled: options?.enabled ?? true,
   });
 }

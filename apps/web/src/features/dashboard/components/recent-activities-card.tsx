@@ -21,7 +21,7 @@ export function RecentActivitiesCard() {
   const hasPermission = useAuthStore((s) => s.hasPermission);
   const canRead = hasPermission("leads:read");
 
-  const { data: activities, isLoading } = useRecentActivities();
+  const { data: activities, isLoading } = useRecentActivities({ enabled: canRead });
 
   if (!canRead) return null;
 

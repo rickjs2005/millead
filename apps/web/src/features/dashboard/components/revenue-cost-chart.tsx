@@ -1,5 +1,6 @@
 "use client";
 
+import { useQuery } from "@tanstack/react-query";
 import { TrendingUp } from "lucide-react";
 import {
   Bar,
@@ -16,8 +17,10 @@ import { EmptyState } from "@/components/empty-state";
 import { ErrorState } from "@/components/error-state";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useUsageSeries } from "@/features/finance/hooks";
-import { useReceivablesSeries } from "@/features/receivables/hooks";
+import { queryKeys } from "@/lib/query-keys";
+import { costsService } from "@/services/costs";
+import { receivablesService } from "@/services/receivables";
+import { useAuthStore } from "@/stores/auth-store";
 import { formatCurrency } from "@/utils/format";
 import type { CostUsageSeriesPoint, ReceivableSeriesPoint } from "@/types/api";
 
@@ -117,8 +120,25 @@ function ChartTooltip({
 }
 
 export function RevenueCostChart() {
-  const receivables = useReceivablesSeries(12);
-  const usage = useUsageSeries(12);
+  const hasPermission = useAuthStore((s) => s.hasPermission);
+  const canView = hasPermission("proposals:read");
+
+  // Mesma queryKey que FinanceCards usa pras mesmas séries -- React Query
+  // dedupa por key, então os dois componentes no dashboard não duplicam a
+  // chamada. `enabled: canView` evita bater no endpoint sem permissão (o
+  // gate abaixo só esconde a UI, os hooks já rodaram nesse render).
+  const receivables = useQuery({
+    queryKey: queryKeys.receivables.series(12),
+    queryFn: () => receivablesService.series(12),
+    enabled: canView,
+  });
+  const usage = useQuery({
+    queryKey: queryKeys.costs.usageSeries(12),
+    queryFn: () => costsService.usageSeries(12),
+    enabled: canView,
+  });
+
+  if (!canView) return null;
 
   const isLoading = receivables.isLoading || usage.isLoading;
   const isError = receivables.isError || usage.isError;
