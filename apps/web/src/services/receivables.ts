@@ -5,6 +5,7 @@ import type {
   CreatePlanPayload,
   PayReceivablePayload,
   Receivable,
+  ReceivableSeries,
   ReceivableSummary,
   UpdateReceivablePayload,
 } from "@/types/api";
@@ -20,6 +21,12 @@ export const receivablesService = {
 
   summary: (month?: string) =>
     api.get<ReceivableSummary>("/api/v1/receivables/summary", month ? { month } : undefined),
+
+  series: (months?: number) =>
+    api.get<ReceivableSeries>(
+      "/api/v1/receivables/summary/series",
+      months ? { months } : undefined,
+    ),
 
   margin: (contractId: string) =>
     api.get<ContractMargin>("/api/v1/receivables/margin", { contractId }),

@@ -6,6 +6,7 @@ import {
   updateCostSubscriptionSchema,
   updateFinanceSettingsSchema,
   usageQuerySchema,
+  usageSeriesQuerySchema,
 } from "../../../application/dto/cost.dto.js";
 import { asyncHandler } from "../async-handler.js";
 import type { CostController } from "../controllers/cost-controller.js";
@@ -33,7 +34,10 @@ export function createCostRoutes(controller: CostController, authenticate: Reque
   router.get("/summary", read, asyncHandler(controller.summary));
 
   // Consumo de créditos (Fase 5) -- registradas antes de `/:id` de assinatura.
+  // "/usage/series" vem antes de "/usage/:id"-like (o DELETE abaixo) pra não
+  // ser engolida por um path param (mesmo cuidado do receivable-routes).
   router.get("/usage/summary", read, validateQuery(usageQuerySchema), asyncHandler(controller.usageSummary));
+  router.get("/usage/series", read, validateQuery(usageSeriesQuerySchema), asyncHandler(controller.usageSeries));
   router.get("/usage", read, validateQuery(usageQuerySchema), asyncHandler(controller.listUsage));
   router.post("/usage", write, validateBody(createUsageEntrySchema), asyncHandler(controller.createUsage));
   router.delete("/usage/:id", write, asyncHandler(controller.removeUsage));

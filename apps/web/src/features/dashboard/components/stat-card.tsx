@@ -11,6 +11,9 @@ interface StatCardProps {
   loading?: boolean;
   comingSoon?: boolean;
   accent?: "default" | "success" | "warning" | "destructive";
+  /** Nota curta abaixo do valor, pra avisar quando o número não segue a
+   * mesma regra implícita no label (ex.: um total que ignora o filtro de mês). */
+  sublabel?: string;
 }
 
 const ACCENT_CLASSES: Record<NonNullable<StatCardProps["accent"]>, string> = {
@@ -27,6 +30,7 @@ export function StatCard({
   loading,
   comingSoon,
   accent = "default",
+  sublabel,
 }: StatCardProps) {
   return (
     <Card>
@@ -46,6 +50,9 @@ export function StatCard({
             <Skeleton className="h-8 w-16" />
           ) : (
             <p className="text-2xl font-semibold tracking-tight">{value}</p>
+          )}
+          {sublabel && !loading && !comingSoon && (
+            <p className="text-[11px] text-muted-foreground/70">{sublabel}</p>
           )}
         </div>
         <div

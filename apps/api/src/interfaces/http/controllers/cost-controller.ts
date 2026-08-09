@@ -1,6 +1,6 @@
 import type { Request, Response } from "express";
 import type { CostService } from "../../../application/services/cost-service.js";
-import type { UsageQuery } from "../../../application/dto/cost.dto.js";
+import type { UsageQuery, UsageSeriesQuery } from "../../../application/dto/cost.dto.js";
 import { requireAuth } from "../require-auth.js";
 
 export class CostController {
@@ -70,5 +70,11 @@ export class CostController {
     const auth = requireAuth(req);
     const { month } = req.validatedQuery as UsageQuery;
     res.status(200).json(await this.costs.getUsageSummary(auth.organizationId, month));
+  };
+
+  usageSeries = async (req: Request, res: Response): Promise<void> => {
+    const auth = requireAuth(req);
+    const { months } = req.validatedQuery as UsageSeriesQuery;
+    res.status(200).json(await this.costs.getUsageSeries(auth.organizationId, months));
   };
 }

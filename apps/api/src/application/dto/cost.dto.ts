@@ -45,6 +45,11 @@ export const usageQuerySchema = z.object({
 });
 export type UsageQuery = z.infer<typeof usageQuerySchema>;
 
+export const usageSeriesQuerySchema = z.object({
+  months: z.coerce.number().int().min(1).max(24).default(12),
+});
+export type UsageSeriesQuery = z.infer<typeof usageSeriesQuerySchema>;
+
 export const updateFinanceSettingsSchema = z.object({
   usdToBrlRate: z.number().min(0.01).max(1000).optional(),
   defaultHourlyRate: money.optional(),

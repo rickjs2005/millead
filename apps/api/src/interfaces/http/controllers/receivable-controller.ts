@@ -1,6 +1,9 @@
 import type { Request, Response } from "express";
 import type { ReceivableService } from "../../../application/services/receivable-service.js";
-import type { ReceivableQuery } from "../../../application/dto/receivable.dto.js";
+import type {
+  ReceivableQuery,
+  ReceivableSeriesQuery,
+} from "../../../application/dto/receivable.dto.js";
 import { ValidationError } from "../../../domain/errors/app-error.js";
 import { requireAuth } from "../require-auth.js";
 
@@ -29,6 +32,12 @@ export class ReceivableController {
     const auth = requireAuth(req);
     const { month } = req.validatedQuery as ReceivableQuery;
     res.status(200).json(await this.receivables.summary(auth.organizationId, month));
+  };
+
+  series = async (req: Request, res: Response): Promise<void> => {
+    const auth = requireAuth(req);
+    const { months } = req.validatedQuery as ReceivableSeriesQuery;
+    res.status(200).json(await this.receivables.series(auth.organizationId, months));
   };
 
   margin = async (req: Request, res: Response): Promise<void> => {

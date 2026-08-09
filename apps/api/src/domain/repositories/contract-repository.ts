@@ -42,8 +42,15 @@ export interface ContractKpis {
   total: number;
   aguardandoAssinatura: number;
   assinados: number;
-  /** Soma de valorTotal dos ASSINADOS (string decimal). */
+  /** Soma de valorTotal dos ASSINADOS (string decimal, lifetime -- inclui
+   * ASSINADO com `assinadoEm` null). */
   valorFechado: string;
+  /** Soma de valorTotal dos ASSINADOS com `assinadoEm` no mês corrente
+   * (America/Sao_Paulo). ASSINADO com `assinadoEm` null não entra aqui. */
+  valorFechadoMes: string;
+  /** Soma de valorTotal dos ASSINADOS com `assinadoEm` no ano corrente
+   * (America/Sao_Paulo). ASSINADO com `assinadoEm` null não entra aqui. */
+  valorFechadoAno: string;
 }
 
 export interface ContractRepository {

@@ -5,6 +5,7 @@ import type {
   CostSubscriptionPayload,
   CostSummary,
   CostUsageEntry,
+  CostUsageSeries,
   CreateUsageEntryPayload,
   FinanceSettings,
   FinanceSettingsPayload,
@@ -29,4 +30,6 @@ export const costsService = {
   removeUsage: (id: string) => api.delete<void>(`/api/v1/costs/usage/${id}`),
   usageSummary: (month?: string) =>
     api.get<UsageSummary>("/api/v1/costs/usage/summary", month ? { month } : undefined),
+  usageSeries: (months?: number) =>
+    api.get<CostUsageSeries>("/api/v1/costs/usage/series", months ? { months } : undefined),
 };

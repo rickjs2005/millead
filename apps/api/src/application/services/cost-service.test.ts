@@ -589,3 +589,155 @@ describe("CostService", () => {
     });
   });
 });
+
+describe("CostService.getUsageSeries", () => {
+  const higgsfield = fakeSubscription({
+    id: "sub-hf",
+    name: "Higgsfield",
+    scope: "AGENCY",
+    amount: "239",
+    currency: "BRL",
+    billingCycle: "MONTHLY",
+    creditsIncluded: 1000,
+  });
+
+  it("lançamentos em meses distintos caem nos buckets certos por usedAt", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-07-15T12:00:00Z")); // America/Sao_Paulo: 2026-07
+
+    const { service } = fakeRepos({
+      listUsage: vi.fn().mockResolvedValue([
+        fakeUsageEntry({ subscriptionId: "sub-hf", credits: 100, usedAt: new Date("2026-05-10"), unitPriceBrl: null }),
+        fakeUsageEntry({ subscriptionId: "sub-hf", credits: 10, usedAt: new Date("2026-07-01"), unitPriceBrl: null }),
+      ]),
+      listSubscriptions: vi.fn().mockResolvedValue([higgsfield]),
+      getSettings: vi.fn().mockResolvedValue(fakeSettings({ usdToBrlRate: "5.00" })),
+    });
+
+    const result = await service.getUsageSeries(ORG, 3);
+
+    expect(result.months.map((m) => m.month)).toEqual(["2026-05", "2026-06", "2026-07"]);
+    const may = result.months.find((m) => m.month === "2026-05")!;
+    const june = result.months.find((m) => m.month === "2026-06")!;
+    const july = result.months.find((m) => m.month === "2026-07")!;
+    expect(may.usageCostBrl).toBeCloseTo(100 * 0.239, 6);
+    expect(june.usageCostBrl).toBe(0);
+    expect(july.usageCostBrl).toBeCloseTo(10 * 0.239, 6);
+
+    vi.useRealTimers();
+  });
+
+  it("zero-fill: mês sem lançamento vem com usageCostBrl 0 e a série tem exatamente N entradas em ordem cronológica", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-15T12:00:00Z")); // America/Sao_Paulo: 2026-08
+
+    const { service } = fakeRepos({ listUsage: vi.fn().mockResolvedValue([]) });
+
+    const result = await service.getUsageSeries(ORG, 5);
+
+    expect(result.months).toHaveLength(5);
+    expect(result.months.map((m) => m.month)).toEqual([
+      "2026-04",
+      "2026-05",
+      "2026-06",
+      "2026-07",
+      "2026-08",
+    ]);
+    for (const point of result.months) {
+      expect(point.usageCostBrl).toBe(0);
+    }
+    expect(result.yearTotal).toBe(0);
+
+    vi.useRealTimers();
+  });
+
+  it("custo por entrada usa o snapshot unitPriceBrl quando presente e deriva da assinatura quando ausente", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-07-15T12:00:00Z"));
+
+    // Assinatura hoje custa o dobro (478) do que custava quando o lançamento
+    // com snapshot foi gravado (239 -> unitPriceBrl 0.239).
+    const higgsfieldMaisCaro = { ...higgsfield, amount: "478" };
+    const { service } = fakeRepos({
+      listUsage: vi.fn().mockResolvedValue([
+        // Com snapshot: usa 0.239, IGNORA o preço atual (0.478).
+        fakeUsageEntry({ subscriptionId: "sub-hf", credits: 400, usedAt: new Date("2026-07-05"), unitPriceBrl: 0.239 }),
+        // Sem snapshot: deriva do preço atual da assinatura (478/1000=0.478).
+        fakeUsageEntry({ subscriptionId: "sub-hf", credits: 100, usedAt: new Date("2026-07-10"), unitPriceBrl: null }),
+      ]),
+      listSubscriptions: vi.fn().mockResolvedValue([higgsfieldMaisCaro]),
+      getSettings: vi.fn().mockResolvedValue(fakeSettings({ usdToBrlRate: "5.00" })),
+    });
+
+    const result = await service.getUsageSeries(ORG, 1);
+
+    expect(result.months).toEqual([
+      { month: "2026-07", usageCostBrl: 400 * 0.239 + 100 * 0.478 },
+    ]);
+
+    vi.useRealTimers();
+  });
+
+  it("yearTotal soma só o ano corrente, mesmo com lançamentos de anos anteriores dentro da janela de busca", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-02-10T12:00:00Z")); // America/Sao_Paulo: 2026-02
+
+    const { service } = fakeRepos({
+      listUsage: vi.fn().mockResolvedValue([
+        // Fora do ano corrente (2025) -- aparece no bucket mensal, não em yearTotal.
+        fakeUsageEntry({ subscriptionId: "sub-hf", credits: 100, usedAt: new Date("2025-12-01"), unitPriceBrl: null }),
+        // Dentro do ano corrente.
+        fakeUsageEntry({ subscriptionId: "sub-hf", credits: 50, usedAt: new Date("2026-02-05"), unitPriceBrl: null }),
+      ]),
+      listSubscriptions: vi.fn().mockResolvedValue([higgsfield]),
+      getSettings: vi.fn().mockResolvedValue(fakeSettings({ usdToBrlRate: "5.00" })),
+    });
+
+    const result = await service.getUsageSeries(ORG, 12);
+
+    expect(result.yearTotal).toBeCloseTo(50 * 0.239, 6);
+    const dec2025 = result.months.find((m) => m.month === "2025-12");
+    expect(dec2025?.usageCostBrl).toBeCloseTo(100 * 0.239, 6);
+
+    vi.useRealTimers();
+  });
+
+  it("janela de N meses busca o repo com from/to cobrindo a janela + o ano corrente inteiro (union)", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-15T12:00:00Z")); // America/Sao_Paulo: 2026-08
+
+    const { service, costs } = fakeRepos();
+
+    await service.getUsageSeries(ORG, 3);
+
+    // A janela dos 3 meses seria jun/2026..set/2026, mas o ano corrente
+    // (jan/2026..jan/2027) prevalece em ambas as pontas.
+    expect(costs.listUsage).toHaveBeenCalledWith(ORG, {
+      from: new Date(Date.UTC(2026, 0, 1)),
+      to: new Date(Date.UTC(2027, 0, 1)),
+    });
+
+    vi.useRealTimers();
+  });
+
+  it("recurringMonthlyBrl é a mesma soma de getSummary (totalMonthlyBrl)", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-07-15T12:00:00Z"));
+
+    const { service } = fakeRepos({
+      listUsage: vi.fn().mockResolvedValue([]),
+      listSubscriptions: vi.fn().mockResolvedValue([
+        fakeSubscription({ id: "sub-1", scope: "AGENCY", amount: "550", isActive: true }),
+        fakeSubscription({ id: "sub-2", scope: "CLIENT", amount: "100", isActive: true }),
+        fakeSubscription({ id: "sub-3", scope: "AGENCY", amount: "999", isActive: false }),
+      ]),
+      getSettings: vi.fn().mockResolvedValue(fakeSettings({ usdToBrlRate: "5.00" })),
+    });
+
+    const result = await service.getUsageSeries(ORG, 1);
+
+    expect(result.recurringMonthlyBrl).toBeCloseTo(650, 2);
+
+    vi.useRealTimers();
+  });
+});

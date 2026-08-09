@@ -43,6 +43,13 @@ export function useUsageSummary(month: string) {
   });
 }
 
+export function useUsageSeries(months?: number) {
+  return useQuery({
+    queryKey: queryKeys.costs.usageSeries(months),
+    queryFn: () => costsService.usageSeries(months),
+  });
+}
+
 /** Invalida list, catalog, settings e summary de uma vez -- qualquer mutação
  * de custo/config pode mudar o summary, então invalidamos tudo pelo prefixo. */
 function invalidateAll(queryClient: ReturnType<typeof useQueryClient>) {

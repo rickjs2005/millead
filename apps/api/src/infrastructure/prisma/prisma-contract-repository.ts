@@ -13,6 +13,7 @@ import {
   type PaginationParams,
 } from "../../shared/pagination.js";
 import type { ContractStatus } from "@millead/database";
+import { contractKpisRanges } from "./contract-kpis-range.js";
 
 // Seleção sem os Bytes dos PDFs (pesados) -- hasPdf* vem de flags derivadas.
 const baseSelect = {
@@ -183,12 +184,24 @@ export class PrismaContractRepository implements ContractRepository {
   }
 
   async kpis(organizationId: string): Promise<ContractKpis> {
-    const [total, aguardando, assinados, soma] = await Promise.all([
+    // `assinadoEm: { gte, lt }` já exclui os ASSINADO com assinadoEm null
+    // (comparação contra null não bate em SQL) -- esses só entram na `soma`
+    // lifetime, nunca no mês/ano.
+    const { monthFrom, monthTo, yearFrom, yearTo } = contractKpisRanges();
+    const [total, aguardando, assinados, soma, somaMes, somaAno] = await Promise.all([
       prisma.contract.count({ where: { organizationId } }),
       prisma.contract.count({ where: { organizationId, status: "AGUARDANDO_ASSINATURA" } }),
       prisma.contract.count({ where: { organizationId, status: "ASSINADO" } }),
       prisma.contract.aggregate({
         where: { organizationId, status: "ASSINADO" },
+        _sum: { valorTotal: true },
+      }),
+      prisma.contract.aggregate({
+        where: { organizationId, status: "ASSINADO", assinadoEm: { gte: monthFrom, lt: monthTo } },
+        _sum: { valorTotal: true },
+      }),
+      prisma.contract.aggregate({
+        where: { organizationId, status: "ASSINADO", assinadoEm: { gte: yearFrom, lt: yearTo } },
         _sum: { valorTotal: true },
       }),
     ]);
@@ -197,6 +210,8 @@ export class PrismaContractRepository implements ContractRepository {
       aguardandoAssinatura: aguardando,
       assinados,
       valorFechado: (soma._sum.valorTotal ?? new Prisma.Decimal(0)).toString(),
+      valorFechadoMes: (somaMes._sum.valorTotal ?? new Prisma.Decimal(0)).toString(),
+      valorFechadoAno: (somaAno._sum.valorTotal ?? new Prisma.Decimal(0)).toString(),
     };
   }
 

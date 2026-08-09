@@ -1,6 +1,15 @@
 "use client";
 
-import { CheckCircle2, Clock, FileSignature, Plus, Search, Wallet } from "lucide-react";
+import {
+  CalendarClock,
+  CheckCircle2,
+  Clock,
+  FileSignature,
+  Plus,
+  Search,
+  TrendingUp,
+  Wallet,
+} from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 import { EmptyState } from "@/components/empty-state";
@@ -121,7 +130,7 @@ export default function ContractsPage() {
       </div>
 
       {kpis && (
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
           <Kpi label="Contratos" value={String(kpis.total)} icon={FileSignature} />
           <Kpi
             label="Aguardando assinatura"
@@ -129,7 +138,21 @@ export default function ContractsPage() {
             icon={Clock}
           />
           <Kpi label="Assinados" value={String(kpis.assinados)} icon={CheckCircle2} />
-          <Kpi label="Valor fechado" value={formatCurrency(kpis.valorFechado)} icon={Wallet} />
+          <Kpi
+            label="Fechado no mês"
+            value={formatCurrency(kpis.valorFechadoMes)}
+            icon={CalendarClock}
+          />
+          <Kpi
+            label="Fechado no ano"
+            value={formatCurrency(kpis.valorFechadoAno)}
+            icon={TrendingUp}
+          />
+          <Kpi
+            label="Fechado desde o início"
+            value={formatCurrency(kpis.valorFechado)}
+            icon={Wallet}
+          />
         </div>
       )}
 

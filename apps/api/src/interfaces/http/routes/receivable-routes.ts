@@ -4,6 +4,7 @@ import {
   createPlanSchema,
   paySchema,
   receivableQuerySchema,
+  receivableSeriesQuerySchema,
   updateReceivableSchema,
 } from "../../../application/dto/receivable.dto.js";
 import { asyncHandler } from "../async-handler.js";
@@ -24,6 +25,15 @@ export function createReceivableRoutes(
 
   router.post("/plan", write, validateBody(createPlanSchema), asyncHandler(controller.createPlan));
   router.get("/", read, validateQuery(receivableQuerySchema), asyncHandler(controller.list));
+  // Registrada ANTES de qualquer rota "/:id" -- Express casa rotas na ordem
+  // de declaração, e "/summary/series" tem que resolver pro handler certo
+  // mesmo que uma rota "/:id"-like venha a existir depois neste arquivo.
+  router.get(
+    "/summary/series",
+    read,
+    validateQuery(receivableSeriesQuerySchema),
+    asyncHandler(controller.series),
+  );
   router.get("/summary", read, validateQuery(receivableQuerySchema), asyncHandler(controller.summary));
   router.get("/margin", read, validateQuery(receivableQuerySchema), asyncHandler(controller.margin));
 

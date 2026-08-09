@@ -61,6 +61,7 @@ export const queryKeys = {
     summary: () => ["costs", "summary"] as const,
     usage: (month: string) => ["costs", "usage", month] as const,
     usageSummary: (month: string) => ["costs", "usageSummary", month] as const,
+    usageSeries: (months?: number) => ["costs", "usageSeries", months ?? "default"] as const,
   },
   estimates: {
     list: (params: object) => ["estimates", "list", params] as const,
@@ -77,6 +78,7 @@ export const queryKeys = {
     byContract: (contractId: string) => ["receivables", "byContract", contractId] as const,
     contracts: () => ["receivables", "contracts"] as const,
     summary: (month?: string) => ["receivables", "summary", month ?? "current"] as const,
+    series: (months?: number) => ["receivables", "series", months ?? "default"] as const,
     margin: (contractId: string) => ["receivables", "margin", contractId] as const,
   },
 };

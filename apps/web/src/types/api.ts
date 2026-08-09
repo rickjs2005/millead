@@ -530,6 +530,10 @@ export interface ContractKpis {
   aguardandoAssinatura: number;
   assinados: number;
   valorFechado: string;
+  /** Soma de `valorTotal` dos contratos assinados no mês corrente. */
+  valorFechadoMes: string;
+  /** Soma de `valorTotal` dos contratos assinados no ano corrente. */
+  valorFechadoAno: string;
 }
 
 /** Resumo financeiro dos leads ganhos -- `wonWithoutContract*` exclui leads
@@ -807,6 +811,24 @@ export interface UsageSummary {
   byClient: { companyId: string | null; companyName: string; credits: number; costBrl: number }[];
 }
 
+/** Um mês da série de consumo (`GET /costs/usage/series`) -- sempre presente
+ * mesmo sem lançamento no mês (zero-fill), 0 nesse caso. Diferente de
+ * `ReceivableSeriesPoint`, os valores já vêm como number (não Decimal). */
+export interface CostUsageSeriesPoint {
+  month: string; // "YYYY-MM"
+  usageCostBrl: number;
+}
+
+/** Série mensal de consumo + totais (`GET /costs/usage/series?months=N`).
+ * `months` vem em ordem ascendente, sempre com N entradas (zero-fill).
+ * `recurringMonthlyBrl` é o custo fixo ATUAL (mesma conta de `CostSummary.totalMonthlyBrl`) --
+ * não há histórico de assinaturas, então é o mesmo valor em todos os meses da série. */
+export interface CostUsageSeries {
+  months: CostUsageSeriesPoint[];
+  yearTotal: number;
+  recurringMonthlyBrl: number;
+}
+
 export interface CreateUsageEntryPayload {
   subscriptionId: string;
   companyId?: string | null;
@@ -1060,6 +1082,25 @@ export interface ContractMargin {
   received: string;
   projectedCost: string | null;
   realizedMargin: string | null;
+}
+
+/** Um mês da série (`GET /receivables/summary/series`) -- sempre presente
+ * mesmo sem movimento no mês (zero-fill), "0" nesse caso. */
+export interface ReceivableSeriesPoint {
+  month: string; // "YYYY-MM"
+  received: string; // Decimal do Prisma serializa como string
+  expected: string; // Decimal do Prisma serializa como string
+}
+
+/** Série mensal + totais do ano corrente (`GET /receivables/summary/series?months=N`).
+ * `months` vem em ordem ascendente, sempre com N entradas (zero-fill). */
+export interface ReceivableSeries {
+  months: ReceivableSeriesPoint[];
+  yearTotals: {
+    year: number;
+    received: string; // Decimal do Prisma serializa como string
+    expected: string; // Decimal do Prisma serializa como string
+  };
 }
 
 export interface CreatePlanPayload {

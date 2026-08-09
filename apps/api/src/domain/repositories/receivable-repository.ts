@@ -24,6 +24,9 @@ export interface ReceivableRepository {
   deleteOpenByContract(organizationId: string, contractId: string): Promise<number>;
   /** Todas as parcelas da org no intervalo [from, to) por dueDate + todas em aberto vencidas antes de from. */
   listForSummary(organizationId: string, from: Date, to: Date): Promise<Receivable[]>;
+  /** Parcelas da org com dueDate OU paidAt no intervalo [from, to) -- base
+   *  bruta pra série mensal (bucketização em memória fica no service). */
+  listForSeries(organizationId: string, from: Date, to: Date): Promise<Receivable[]>;
   /** Agregado por contrato: soma paga (para margem). */
   sumPaidByContract(organizationId: string, contractId: string): Promise<string>;
   /** Contratos da org que tem parcelas, com totais (pago/total/aberto) -- alimenta a listagem. */

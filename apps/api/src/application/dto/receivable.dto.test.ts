@@ -3,6 +3,7 @@ import {
   createPlanSchema,
   paySchema,
   receivableQuerySchema,
+  receivableSeriesQuerySchema,
   updateReceivableSchema,
 } from "./receivable.dto.js";
 
@@ -138,5 +139,34 @@ describe("receivableQuerySchema", () => {
 
   it("aceita contractId opcional", () => {
     expect(receivableQuerySchema.safeParse({ contractId: "contract-1" }).success).toBe(true);
+  });
+});
+
+describe("receivableSeriesQuerySchema", () => {
+  it("months omitido -> default 12", () => {
+    const result = receivableSeriesQuerySchema.safeParse({});
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.months).toBe(12);
+  });
+
+  it("aceita os limites 1 e 24", () => {
+    expect(receivableSeriesQuerySchema.safeParse({ months: "1" }).success).toBe(true);
+    expect(receivableSeriesQuerySchema.safeParse({ months: "24" }).success).toBe(true);
+  });
+
+  it("rejeita 0 (abaixo do mínimo)", () => {
+    expect(receivableSeriesQuerySchema.safeParse({ months: "0" }).success).toBe(false);
+  });
+
+  it("rejeita 25 (acima do máximo)", () => {
+    expect(receivableSeriesQuerySchema.safeParse({ months: "25" }).success).toBe(false);
+  });
+
+  it("rejeita valor não-inteiro", () => {
+    expect(receivableSeriesQuerySchema.safeParse({ months: "3.5" }).success).toBe(false);
+  });
+
+  it("rejeita valor não-numérico", () => {
+    expect(receivableSeriesQuerySchema.safeParse({ months: "abc" }).success).toBe(false);
   });
 });
