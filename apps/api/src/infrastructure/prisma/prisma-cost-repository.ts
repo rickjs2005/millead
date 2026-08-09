@@ -62,6 +62,8 @@ interface FinanceSettingsRow {
   id: string;
   organizationId: string;
   usdToBrlRate: Prisma.Decimal;
+  usdRateAuto: boolean;
+  usdRateUpdatedAt: Date | null;
   defaultHourlyRate: Prisma.Decimal;
   supportReservePct: Prisma.Decimal;
   defaultMarginPct: Prisma.Decimal;
@@ -182,7 +184,7 @@ export class PrismaCostRepository implements CostRepository {
 
   async updateSettings(
     organizationId: string,
-    data: UpdateFinanceSettingsInput,
+    data: UpdateFinanceSettingsInput & { usdRateUpdatedAt?: Date },
   ): Promise<FinanceSettings> {
     const row = await prisma.financeSettings.upsert({
       where: { organizationId },

@@ -41,6 +41,12 @@ export interface FinanceSettings {
   id: string;
   organizationId: string;
   usdToBrlRate: string; // Decimal do Prisma serializa como string
+  /** true = `usdToBrlRate` é atualizado sozinho (lazy, no read) quando
+   * `usdRateUpdatedAt` for null ou tiver mais de 24h; editar `usdToBrlRate`
+   * na mão desliga isso automaticamente (ver `CostService.updateSettings`). */
+  usdRateAuto: boolean;
+  /** Timestamp da última atualização (manual ou automática) de `usdToBrlRate`. */
+  usdRateUpdatedAt: Date | null;
   defaultHourlyRate: string; // Decimal do Prisma serializa como string
   supportReservePct: string; // Decimal do Prisma serializa como string
   defaultMarginPct: string; // Decimal do Prisma serializa como string

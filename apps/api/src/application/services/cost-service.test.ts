@@ -10,6 +10,9 @@ import {
   computeCapacity,
   computeUsageSummary,
   currentMonthInTimeZone,
+  needsUsdRateRefresh,
+  parseUsdRateBid,
+  type UsdRateFetcher,
 } from "./cost-service.js";
 
 describe("monthlyAmountBrl", () => {
@@ -220,6 +223,13 @@ function fakeSettings(overrides: Partial<FinanceSettings> = {}): FinanceSettings
     id: "set-1",
     organizationId: ORG,
     usdToBrlRate: "5.00",
+    // Default `false`/`null` de propósito -- é um fixture de teste, não o
+    // default de produção (que é `true`, ver schema.prisma). Deixar o
+    // fetcher OFF por padrão evita que testes de outras features disparem o
+    // fetch real (ou um mock que não existe) sem querer; os testes de
+    // refresh lazy abaixo sobrescrevem explicitamente.
+    usdRateAuto: false,
+    usdRateUpdatedAt: null,
     defaultHourlyRate: "120",
     supportReservePct: "10",
     defaultMarginPct: "30",
@@ -230,7 +240,7 @@ function fakeSettings(overrides: Partial<FinanceSettings> = {}): FinanceSettings
   };
 }
 
-function fakeRepos(costOverrides: Partial<CostRepository> = {}) {
+function fakeRepos(costOverrides: Partial<CostRepository> = {}, rateFetcher?: UsdRateFetcher) {
   const costs = {
     listSubscriptions: vi.fn().mockResolvedValue([]),
     findSubscriptionById: vi.fn().mockResolvedValue(null),
@@ -250,7 +260,11 @@ function fakeRepos(costOverrides: Partial<CostRepository> = {}) {
   const companies = {
     findByIdForOrg: vi.fn().mockResolvedValue(null),
   } as unknown as CompanyRepository;
-  return { costs, companies, service: new CostService(costs, companies) };
+  const service =
+    rateFetcher !== undefined
+      ? new CostService(costs, companies, rateFetcher)
+      : new CostService(costs, companies);
+  return { costs, companies, service };
 }
 
 describe("currentMonthInTimeZone", () => {
@@ -765,5 +779,318 @@ describe("CostService.getUsageSeries", () => {
     expect(result.recurringMonthlyBrl).toBeCloseTo(650, 2);
 
     vi.useRealTimers();
+  });
+});
+
+describe("parseUsdRateBid", () => {
+  it("aceita bid numérico dentro de 1..20", () => {
+    expect(parseUsdRateBid("5.4321")).toBeCloseTo(5.4321, 4);
+    expect(parseUsdRateBid(5.4321)).toBeCloseTo(5.4321, 4);
+  });
+
+  it("descarta bid fora do intervalo 1..20 (sanidade -- API fora do ar/bugada não pode injetar lixo)", () => {
+    expect(parseUsdRateBid("0.99")).toBeNull();
+    expect(parseUsdRateBid("20.01")).toBeNull();
+    expect(parseUsdRateBid("0")).toBeNull();
+    expect(parseUsdRateBid("-5")).toBeNull();
+  });
+
+  it("aceita os limites 1 e 20", () => {
+    expect(parseUsdRateBid("1")).toBe(1);
+    expect(parseUsdRateBid("20")).toBe(20);
+  });
+
+  it("descarta valor não numérico ou ausente", () => {
+    expect(parseUsdRateBid("abc")).toBeNull();
+    expect(parseUsdRateBid(undefined)).toBeNull();
+    expect(parseUsdRateBid(null)).toBeNull();
+    expect(parseUsdRateBid("")).toBeNull();
+  });
+});
+
+describe("needsUsdRateRefresh", () => {
+  const NOW = new Date("2026-08-09T12:00:00Z");
+
+  it("usdRateAuto false -> nunca precisa, mesmo sem updatedAt", () => {
+    expect(needsUsdRateRefresh({ usdRateAuto: false, usdRateUpdatedAt: null }, NOW)).toBe(false);
+  });
+
+  it("usdRateAuto true + updatedAt null -> precisa", () => {
+    expect(needsUsdRateRefresh({ usdRateAuto: true, usdRateUpdatedAt: null }, NOW)).toBe(true);
+  });
+
+  it("usdRateAuto true + updatedAt há 23h -> NÃO precisa", () => {
+    const updatedAt = new Date(NOW.getTime() - 23 * 60 * 60 * 1000);
+    expect(needsUsdRateRefresh({ usdRateAuto: true, usdRateUpdatedAt: updatedAt }, NOW)).toBe(false);
+  });
+
+  it("usdRateAuto true + updatedAt há 25h -> precisa", () => {
+    const updatedAt = new Date(NOW.getTime() - 25 * 60 * 60 * 1000);
+    expect(needsUsdRateRefresh({ usdRateAuto: true, usdRateUpdatedAt: updatedAt }, NOW)).toBe(true);
+  });
+});
+
+describe("CostService -- cotação USD-BRL automática (refresh lazy no read)", () => {
+  it("usdRateAuto true + updatedAt null -> chama o fetcher e persiste rate+timestamp", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-09T12:00:00Z"));
+    try {
+      const rateFetcher = vi.fn().mockResolvedValue(5.42);
+      const settings = fakeSettings({ usdRateAuto: true, usdRateUpdatedAt: null });
+      const refreshed = fakeSettings({
+        usdToBrlRate: "5.42",
+        usdRateAuto: true,
+        usdRateUpdatedAt: new Date("2026-08-09T12:00:00Z"),
+      });
+      const { service, costs } = fakeRepos(
+        {
+          getSettings: vi.fn().mockResolvedValue(settings),
+          updateSettings: vi.fn().mockResolvedValue(refreshed),
+        },
+        rateFetcher,
+      );
+
+      const result = await service.getSettings(ORG);
+
+      expect(rateFetcher).toHaveBeenCalledTimes(1);
+      expect(costs.updateSettings).toHaveBeenCalledWith(
+        ORG,
+        expect.objectContaining({ usdToBrlRate: 5.42, usdRateUpdatedAt: new Date("2026-08-09T12:00:00Z") }),
+      );
+      expect(result).toBe(refreshed);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("usdRateAuto true + updatedAt >24h -> chama o fetcher", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-09T12:00:00Z"));
+    try {
+      const rateFetcher = vi.fn().mockResolvedValue(5.5);
+      const settings = fakeSettings({
+        usdRateAuto: true,
+        usdRateUpdatedAt: new Date("2026-08-08T11:00:00Z"), // 25h atrás
+      });
+      const { service, costs } = fakeRepos(
+        { getSettings: vi.fn().mockResolvedValue(settings) },
+        rateFetcher,
+      );
+
+      await service.getSettings(ORG);
+
+      expect(rateFetcher).toHaveBeenCalledTimes(1);
+      expect(costs.updateSettings).toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("usdRateAuto true + updatedAt <24h -> NÃO chama o fetcher, retorna o valor persistido", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-09T12:00:00Z"));
+    try {
+      const rateFetcher = vi.fn();
+      const settings = fakeSettings({
+        usdRateAuto: true,
+        usdRateUpdatedAt: new Date("2026-08-09T00:00:00Z"), // 12h atrás
+      });
+      const { service, costs } = fakeRepos(
+        { getSettings: vi.fn().mockResolvedValue(settings) },
+        rateFetcher,
+      );
+
+      const result = await service.getSettings(ORG);
+
+      expect(rateFetcher).not.toHaveBeenCalled();
+      expect(costs.updateSettings).not.toHaveBeenCalled();
+      expect(result).toBe(settings);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("usdRateAuto false -> NÃO chama o fetcher independente de updatedAt", async () => {
+    const rateFetcher = vi.fn();
+    const settings = fakeSettings({ usdRateAuto: false, usdRateUpdatedAt: null });
+    const { service, costs } = fakeRepos({ getSettings: vi.fn().mockResolvedValue(settings) }, rateFetcher);
+
+    const result = await service.getSettings(ORG);
+
+    expect(rateFetcher).not.toHaveBeenCalled();
+    expect(costs.updateSettings).not.toHaveBeenCalled();
+    expect(result).toBe(settings);
+  });
+
+  it("fetcher rejeita -> mantém o valor persistido, NUNCA lança, loga warn", async () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const rateFetcher = vi.fn().mockRejectedValue(new Error("timeout de rede"));
+      const settings = fakeSettings({ usdRateAuto: true, usdRateUpdatedAt: null });
+      const { service, costs } = fakeRepos(
+        { getSettings: vi.fn().mockResolvedValue(settings) },
+        rateFetcher,
+      );
+
+      await expect(service.getSettings(ORG)).resolves.toBe(settings);
+      expect(costs.updateSettings).not.toHaveBeenCalled();
+      expect(warnSpy).toHaveBeenCalled();
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+
+  it("fetcher resolve null (ex.: bid inválido/API fora do ar) -> mantém o valor persistido sem lançar", async () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const rateFetcher = vi.fn().mockResolvedValue(null);
+      const settings = fakeSettings({ usdRateAuto: true, usdRateUpdatedAt: null });
+      const { service, costs } = fakeRepos(
+        { getSettings: vi.fn().mockResolvedValue(settings) },
+        rateFetcher,
+      );
+
+      await expect(service.getSettings(ORG)).resolves.toBe(settings);
+      expect(costs.updateSettings).not.toHaveBeenCalled();
+      expect(warnSpy).toHaveBeenCalled();
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+
+  it("duas leituras concorrentes podem disparar 2 fetches -- aceitável; nenhuma delas lança", async () => {
+    const rateFetcher = vi.fn().mockResolvedValue(5.6);
+    const settings = fakeSettings({ usdRateAuto: true, usdRateUpdatedAt: null });
+    const { service } = fakeRepos({ getSettings: vi.fn().mockResolvedValue(settings) }, rateFetcher);
+
+    await expect(Promise.all([service.getSettings(ORG), service.getSettings(ORG)])).resolves.toBeDefined();
+    expect(rateFetcher).toHaveBeenCalledTimes(2);
+  });
+
+  it("getSummary passa pelo mesmo ponto único de leitura de settings (refresh lazy também acontece aqui)", async () => {
+    const rateFetcher = vi.fn().mockResolvedValue(5.75);
+    const settings = fakeSettings({ usdRateAuto: true, usdRateUpdatedAt: null, activeClientsCount: 1 });
+    const refreshed = fakeSettings({
+      usdToBrlRate: "5.75",
+      usdRateAuto: true,
+      usdRateUpdatedAt: new Date(),
+      activeClientsCount: 1,
+    });
+    const { service } = fakeRepos(
+      {
+        getSettings: vi.fn().mockResolvedValue(settings),
+        updateSettings: vi.fn().mockResolvedValue(refreshed),
+      },
+      rateFetcher,
+    );
+
+    await service.getSummary(ORG);
+
+    expect(rateFetcher).toHaveBeenCalledTimes(1);
+  });
+
+  it("getUsageSummary passa pelo mesmo ponto único de leitura de settings", async () => {
+    const rateFetcher = vi.fn().mockResolvedValue(5.75);
+    const settings = fakeSettings({ usdRateAuto: true, usdRateUpdatedAt: null });
+    const { service } = fakeRepos(
+      {
+        getSettings: vi.fn().mockResolvedValue(settings),
+        updateSettings: vi.fn().mockResolvedValue(fakeSettings({ usdToBrlRate: "5.75" })),
+      },
+      rateFetcher,
+    );
+
+    await service.getUsageSummary(ORG, "2026-07");
+
+    expect(rateFetcher).toHaveBeenCalledTimes(1);
+  });
+
+  it("getUsageSeries passa pelo mesmo ponto único de leitura de settings", async () => {
+    const rateFetcher = vi.fn().mockResolvedValue(5.75);
+    const settings = fakeSettings({ usdRateAuto: true, usdRateUpdatedAt: null });
+    const { service } = fakeRepos(
+      {
+        getSettings: vi.fn().mockResolvedValue(settings),
+        updateSettings: vi.fn().mockResolvedValue(fakeSettings({ usdToBrlRate: "5.75" })),
+      },
+      rateFetcher,
+    );
+
+    await service.getUsageSeries(ORG, 1);
+
+    expect(rateFetcher).toHaveBeenCalledTimes(1);
+  });
+
+  it("createUsage passa pelo mesmo ponto único de leitura de settings", async () => {
+    const rateFetcher = vi.fn().mockResolvedValue(5.75);
+    const settings = fakeSettings({ usdRateAuto: true, usdRateUpdatedAt: null });
+    const { service } = fakeRepos(
+      {
+        findSubscriptionById: vi.fn().mockResolvedValue(fakeSubscription({ creditsIncluded: 1000 })),
+        getSettings: vi.fn().mockResolvedValue(settings),
+        updateSettings: vi.fn().mockResolvedValue(fakeSettings({ usdToBrlRate: "5.75" })),
+      },
+      rateFetcher,
+    );
+
+    await service.createUsage(ORG, { subscriptionId: "sub-1", credits: 10, usedAt: new Date("2026-07-15") });
+
+    expect(rateFetcher).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("CostService.updateSettings -- PATCH manual vs. cotação automática", () => {
+  it("PATCH com usdToBrlRate manual desliga usdRateAuto automaticamente e grava o timestamp", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-09T12:00:00Z"));
+    try {
+      const { service, costs } = fakeRepos();
+
+      await service.updateSettings(ORG, { usdToBrlRate: 5.6 });
+
+      expect(costs.updateSettings).toHaveBeenCalledWith(
+        ORG,
+        expect.objectContaining({
+          usdToBrlRate: 5.6,
+          usdRateAuto: false,
+          usdRateUpdatedAt: new Date("2026-08-09T12:00:00Z"),
+        }),
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("PATCH pode religar usdRateAuto=true explicitamente (sem mexer no rate)", async () => {
+    const { service, costs } = fakeRepos();
+
+    await service.updateSettings(ORG, { usdRateAuto: true });
+
+    expect(costs.updateSettings).toHaveBeenCalledWith(ORG, { usdRateAuto: true });
+  });
+
+  it("PATCH com rate + usdRateAuto=true explícito respeita o explícito (não força false)", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-09T12:00:00Z"));
+    try {
+      const { service, costs } = fakeRepos();
+
+      await service.updateSettings(ORG, { usdToBrlRate: 5.6, usdRateAuto: true });
+
+      expect(costs.updateSettings).toHaveBeenCalledWith(
+        ORG,
+        expect.objectContaining({ usdToBrlRate: 5.6, usdRateAuto: true }),
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("PATCH que não toca em usdToBrlRate/usdRateAuto não mexe nesses campos", async () => {
+    const { service, costs } = fakeRepos();
+
+    await service.updateSettings(ORG, { defaultHourlyRate: 150 });
+
+    expect(costs.updateSettings).toHaveBeenCalledWith(ORG, { defaultHourlyRate: 150 });
   });
 });

@@ -48,6 +48,8 @@ function fakeSettings(overrides: Partial<FinanceSettings> = {}): FinanceSettings
     id: "set-1",
     organizationId: ORG,
     usdToBrlRate: "5.00",
+    usdRateAuto: false,
+    usdRateUpdatedAt: null,
     defaultHourlyRate: "120",
     supportReservePct: "10",
     defaultMarginPct: "30",
