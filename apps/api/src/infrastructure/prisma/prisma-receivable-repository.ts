@@ -193,11 +193,18 @@ export class PrismaReceivableRepository implements ReceivableRepository {
       nextDueDate: Date | null;
     }>
   > {
-    const totalGroups = await prisma.receivable.groupBy({
-      by: ["contractId"],
-      where: { organizationId },
-      _sum: { amount: true },
-    });
+    // Esta listagem e por CONTRATO -- receita avulsa (contractId null) nao
+    // tem contrato pra agrupar, entao fica de fora daqui (aparece na lista
+    // separada de avulsas). O filtro `not: null` tambem estreita o tipo do
+    // TS: sem ele `g.contractId` seria `string | null` e quebraria as
+    // comparacoes abaixo que assumem contrato sempre presente.
+    const totalGroups = (
+      await prisma.receivable.groupBy({
+        by: ["contractId"],
+        where: { organizationId, contractId: { not: null } },
+        _sum: { amount: true },
+      })
+    ).filter((g): g is typeof g & { contractId: string } => g.contractId !== null);
     if (totalGroups.length === 0) return [];
 
     const contractIds = totalGroups.map((g) => g.contractId);
@@ -230,9 +237,9 @@ export class PrismaReceivableRepository implements ReceivableRepository {
       }),
     ]);
 
-    const paidMap = new Map(paidGroups.map((g) => [g.contractId, g._sum.amount]));
-    const openOverdueMap = new Map(openOverdueGroups.map((g) => [g.contractId, g._sum.amount]));
-    const nextDueMap = new Map(nextDueGroups.map((g) => [g.contractId, g._min.dueDate]));
+    const paidMap = new Map(paidGroups.map((g) => [g.contractId, g._sum?.amount]));
+    const openOverdueMap = new Map(openOverdueGroups.map((g) => [g.contractId, g._sum?.amount]));
+    const nextDueMap = new Map(nextDueGroups.map((g) => [g.contractId, g._min?.dueDate]));
     const contractMap = new Map(contracts.map((c) => [c.id, c]));
 
     return totalGroups.map((g) => {

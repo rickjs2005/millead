@@ -1,9 +1,13 @@
-export type ReceivableKind = "ENTRADA" | "PARCELA";
+export type ReceivableKind = "ENTRADA" | "PARCELA" | "AVULSA";
 
 export interface Receivable {
   id: string;
   organizationId: string;
-  contractId: string;
+  // Nullable desde a migração de receita avulsa (Task 1 do épico
+  // financeiro-fechamento) -- ainda não consumido: os fluxos existentes
+  // (plano de contrato) sempre passam contractId, então continuam
+  // funcionando com string aqui.
+  contractId: string | null;
   kind: ReceivableKind;
   installmentIndex: number; // 0 = entrada, 1..N = parcelas
   amount: string; // Decimal serializa como string

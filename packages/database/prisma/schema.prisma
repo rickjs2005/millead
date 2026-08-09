@@ -904,6 +904,9 @@ enum ContractSignatureProvider {
 enum ReceivableKind {
   ENTRADA
   PARCELA
+  /// Receita sem contrato (ex.: um recebimento avulso registrado à mão).
+  /// `installmentIndex` fica fixo em 0 e `contractId` é null nesse caso.
+  AVULSA
 
   @@map("receivable_kind")
 }
@@ -1017,10 +1020,19 @@ model ContractSequence {
 
 /// Parcela do plano de recebimento de um contrato. "Vencida" e derivado
 /// (paidAt null && dueDate < hoje) -- nunca materializado.
+///
+/// `contractId` e opcional: receita "avulsa" (kind=AVULSA, ex.: um
+/// recebimento sem contrato formal) nao tem contrato pra pendurar em --
+/// nesse caso `description` carrega o texto livre que explica o
+/// lancamento (contratos normais nao usam `description`, o resumo deles
+/// vem do proprio Contract). Postgres permite varios NULL num unique
+/// composto, entao `@@unique([contractId, installmentIndex])` nao
+/// colide entre receitas avulsas (contractId null em todas).
 model Receivable {
   id               String         @id @default(cuid())
   organizationId   String         @map("organization_id")
-  contractId       String         @map("contract_id")
+  contractId       String?        @map("contract_id")
+  description      String?
   kind             ReceivableKind
   installmentIndex Int            @map("installment_index")
   amount           Decimal        @db.Decimal(12, 2)
@@ -1031,7 +1043,7 @@ model Receivable {
   updatedAt        DateTime       @updatedAt @map("updated_at")
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  contract     Contract     @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  contract     Contract?    @relation(fields: [contractId], references: [id], onDelete: Cascade)
 
   @@unique([contractId, installmentIndex])
   @@index([organizationId, dueDate])
@@ -1426,15 +1438,25 @@ model CostServiceCatalog {
 }
 
 model FinanceSettings {
-  id                 String   @id @default(cuid())
-  organizationId     String   @unique @map("organization_id")
-  usdToBrlRate       Decimal  @default(5.30) @map("usd_to_brl_rate") @db.Decimal(8, 4)
-  defaultHourlyRate  Decimal  @default(120) @map("default_hourly_rate") @db.Decimal(12, 2)
-  supportReservePct  Decimal  @default(10) @map("support_reserve_pct") @db.Decimal(5, 2)
-  defaultMarginPct   Decimal  @default(30) @map("default_margin_pct") @db.Decimal(5, 2)
-  activeClientsCount Int      @default(1) @map("active_clients_count")
-  createdAt          DateTime @default(now()) @map("created_at")
-  updatedAt          DateTime @updatedAt @map("updated_at")
+  id                 String    @id @default(cuid())
+  organizationId     String    @unique @map("organization_id")
+  usdToBrlRate       Decimal   @default(5.30) @map("usd_to_brl_rate") @db.Decimal(8, 4)
+  /// Se true, `usdToBrlRate` e atualizado sozinho (lazy, no read) a partir
+  /// de uma API de cotacao quando `usdRateUpdatedAt` for null ou tiver mais
+  /// de 24h. Editar `usdToBrlRate` na mao desliga isso automaticamente
+  /// (a aplicacao seta false) -- edicao manual sempre vence o automatico
+  /// ate o usuario religar.
+  usdRateAuto        Boolean   @default(true) @map("usd_rate_auto")
+  /// Timestamp da ultima atualizacao (manual ou automatica) de
+  /// `usdToBrlRate` -- usado pra decidir se a cotacao automatica esta
+  /// "velha" (> 24h) e precisa buscar de novo.
+  usdRateUpdatedAt   DateTime? @map("usd_rate_updated_at")
+  defaultHourlyRate  Decimal   @default(120) @map("default_hourly_rate") @db.Decimal(12, 2)
+  supportReservePct  Decimal   @default(10) @map("support_reserve_pct") @db.Decimal(5, 2)
+  defaultMarginPct   Decimal   @default(30) @map("default_margin_pct") @db.Decimal(5, 2)
+  activeClientsCount Int       @default(1) @map("active_clients_count")
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
