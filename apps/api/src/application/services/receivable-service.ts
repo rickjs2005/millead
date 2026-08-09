@@ -60,15 +60,21 @@ export interface ReceivableSeries {
  *  por 3, onde o front já distribuiu o resto na última). */
 const SUM_TOLERANCE = 0.01;
 
+/** Brasil aboliu horário de verão em 2019; America/Sao_Paulo é UTC-3 fixo o
+ *  ano inteiro. Meia-noite de Brasília = 03:00 UTC. Se o DST voltar, este é
+ *  o único lugar a ajustar (nesta cópia). */
+const SP_UTC_OFFSET_HOURS = 3;
+
 /** Intervalo [from, to) em UTC pra filtrar `dueDate`/`paidAt` de um mês
- *  "YYYY-MM" -- mesmo padrão do cost-service (usage/getUsageSummary). */
-function monthRangeUtc(month: string): { from: Date; to: Date } {
+ *  "YYYY-MM", cortado em meia-noite de Brasília (não meia-noite UTC) --
+ *  mesmo padrão do cost-service (usage/getUsageSummary). */
+function monthRangeSp(month: string): { from: Date; to: Date } {
   const [yearStr, monthStr] = month.split("-");
   const year = Number(yearStr);
   const monthIndex = Number(monthStr) - 1;
   return {
-    from: new Date(Date.UTC(year, monthIndex, 1)),
-    to: new Date(Date.UTC(year, monthIndex + 1, 1)),
+    from: new Date(Date.UTC(year, monthIndex, 1, SP_UTC_OFFSET_HOURS, 0, 0)),
+    to: new Date(Date.UTC(year, monthIndex + 1, 1, SP_UTC_OFFSET_HOURS, 0, 0)),
   };
 }
 
@@ -90,10 +96,13 @@ function monthKeysAsc(endMonth: string, count: number): string[] {
   return keys.reverse();
 }
 
-/** Chave "YYYY-MM" de uma data em UTC -- mesmo critério de `monthRangeUtc`
- *  (bucketização por UTC, não pelo fuso local do servidor). */
-function monthKeyUtc(date: Date): string {
-  return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`;
+/** Chave "YYYY-MM" de uma data, bucketizada em America/Sao_Paulo -- desloca
+ *  o timestamp -3h (mesmo corte de `monthRangeSp`) antes de extrair ano/mês
+ *  em UTC, senão um pagamento das 21h-23h59 de Brasília cairia no mês UTC
+ *  seguinte. */
+function monthKeySp(date: Date): string {
+  const spShifted = new Date(date.getTime() - SP_UTC_OFFSET_HOURS * 60 * 60 * 1000);
+  return `${spShifted.getUTCFullYear()}-${String(spShifted.getUTCMonth() + 1).padStart(2, "0")}`;
 }
 
 export class ReceivableService {
@@ -219,7 +228,7 @@ export class ReceivableService {
    *  mês consultado (uma parcela vencida em maio some no resumo de agosto). */
   async summary(organizationId: string, month?: string): Promise<ReceivableSummary> {
     const resolvedMonth = month ?? currentMonthInTimeZone();
-    const { from, to } = monthRangeUtc(resolvedMonth);
+    const { from, to } = monthRangeSp(resolvedMonth);
     const now = new Date();
 
     const rows = await this.receivables.listForSummary(organizationId, from, to);
@@ -262,12 +271,12 @@ export class ReceivableService {
   async series(organizationId: string, months = 12): Promise<ReceivableSeries> {
     const currentMonth = currentMonthInTimeZone();
     const keys = monthKeysAsc(currentMonth, months);
-    const { from } = monthRangeUtc(keys[0]!);
-    const { to } = monthRangeUtc(currentMonth);
+    const { from } = monthRangeSp(keys[0]!);
+    const { to } = monthRangeSp(currentMonth);
 
     const currentYear = Number(currentMonth.split("-")[0]);
-    const yearFrom = new Date(Date.UTC(currentYear, 0, 1));
-    const yearTo = new Date(Date.UTC(currentYear + 1, 0, 1));
+    const yearFrom = new Date(Date.UTC(currentYear, 0, 1, SP_UTC_OFFSET_HOURS, 0, 0));
+    const yearTo = new Date(Date.UTC(currentYear + 1, 0, 1, SP_UTC_OFFSET_HOURS, 0, 0));
 
     // A janela de busca precisa cobrir tanto os N meses da série quanto o
     // ano corrente inteiro -- quando months < 12 (ou o ano corrente
@@ -287,12 +296,12 @@ export class ReceivableService {
       const amount = Number(row.amount);
 
       if (row.paidAt) {
-        const bucket = buckets.get(monthKeyUtc(row.paidAt));
+        const bucket = buckets.get(monthKeySp(row.paidAt));
         if (bucket) bucket.received += amount;
         if (row.paidAt >= yearFrom && row.paidAt < yearTo) yearReceived += amount;
       }
 
-      const dueBucket = buckets.get(monthKeyUtc(row.dueDate));
+      const dueBucket = buckets.get(monthKeySp(row.dueDate));
       if (dueBucket) dueBucket.expected += amount;
       if (row.dueDate >= yearFrom && row.dueDate < yearTo) yearExpected += amount;
     }

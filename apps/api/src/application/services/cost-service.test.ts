@@ -456,12 +456,12 @@ describe("CostService", () => {
   });
 
   describe("usage", () => {
-    it("listUsage com mês explícito filtra by from/to em UTC", async () => {
+    it("listUsage com mês explícito filtra by from/to cortado em meia-noite de Brasília (03:00 UTC)", async () => {
       const { service, costs } = fakeRepos();
       await service.listUsage(ORG, "2026-07");
       expect(costs.listUsage).toHaveBeenCalledWith(ORG, {
-        from: new Date("2026-07-01T00:00:00.000Z"),
-        to: new Date("2026-08-01T00:00:00.000Z"),
+        from: new Date("2026-07-01T03:00:00.000Z"),
+        to: new Date("2026-08-01T03:00:00.000Z"),
       });
     });
 
@@ -472,12 +472,29 @@ describe("CostService", () => {
         const { service, costs } = fakeRepos();
         await service.listUsage(ORG);
         expect(costs.listUsage).toHaveBeenCalledWith(ORG, {
-          from: new Date("2026-07-01T00:00:00.000Z"),
-          to: new Date("2026-08-01T00:00:00.000Z"),
+          from: new Date("2026-07-01T03:00:00.000Z"),
+          to: new Date("2026-08-01T03:00:00.000Z"),
         });
       } finally {
         vi.useRealTimers();
       }
+    });
+
+    it("corte de mês em meia-noite de Brasília, não meia-noite UTC: usedAt 01:00Z (22h de SP da véspera) cai no mês anterior, 03:00Z (meia-noite SP) cai no mês novo", async () => {
+      const { service, costs } = fakeRepos({
+        listUsage: vi.fn().mockResolvedValue([
+          // 2026-07-01T01:00:00Z = 2026-06-30T22:00:00 em America/Sao_Paulo --
+          // ainda é junho lá; NÃO deveria vir na consulta de julho, mas o
+          // repositório é mockado aqui -- o que testamos é o range passado.
+          fakeUsageEntry({ usedAt: new Date("2026-07-01T01:00:00Z") }),
+        ]),
+      });
+      await service.listUsage(ORG, "2026-07");
+      const call = vi.mocked(costs.listUsage).mock.calls[0]![1] as { from: Date; to: Date };
+      // 22h de SP da véspera do mês (01:00Z) fica ANTES do corte de `from`.
+      expect(new Date("2026-07-01T01:00:00Z").getTime()).toBeLessThan(call.from.getTime());
+      // meia-noite de SP do 1º dia do mês (03:00Z) é exatamente o corte.
+      expect(call.from.toISOString()).toBe("2026-07-01T03:00:00.000Z");
     });
 
     it("createUsage rejeita subscriptionId de outra org sem gravar", async () => {
@@ -608,7 +625,8 @@ describe("CostService.getUsageSeries", () => {
     const { service } = fakeRepos({
       listUsage: vi.fn().mockResolvedValue([
         fakeUsageEntry({ subscriptionId: "sub-hf", credits: 100, usedAt: new Date("2026-05-10"), unitPriceBrl: null }),
-        fakeUsageEntry({ subscriptionId: "sub-hf", credits: 10, usedAt: new Date("2026-07-01"), unitPriceBrl: null }),
+        // Meio-dia (não meia-noite UTC) -- inequivocamente julho em SP.
+        fakeUsageEntry({ subscriptionId: "sub-hf", credits: 10, usedAt: new Date("2026-07-01T12:00:00Z"), unitPriceBrl: null }),
       ]),
       listSubscriptions: vi.fn().mockResolvedValue([higgsfield]),
       getSettings: vi.fn().mockResolvedValue(fakeSettings({ usdToBrlRate: "5.00" })),
@@ -684,8 +702,10 @@ describe("CostService.getUsageSeries", () => {
 
     const { service } = fakeRepos({
       listUsage: vi.fn().mockResolvedValue([
-        // Fora do ano corrente (2025) -- aparece no bucket mensal, não em yearTotal.
-        fakeUsageEntry({ subscriptionId: "sub-hf", credits: 100, usedAt: new Date("2025-12-01"), unitPriceBrl: null }),
+        // Fora do ano corrente (2025) -- aparece no bucket mensal, não em
+        // yearTotal. Meio-dia (não meia-noite UTC) pra não cair na virada de
+        // mês/fuso -- o objetivo aqui é testar o corte de ANO, não o de mês.
+        fakeUsageEntry({ subscriptionId: "sub-hf", credits: 100, usedAt: new Date("2025-12-01T12:00:00Z"), unitPriceBrl: null }),
         // Dentro do ano corrente.
         fakeUsageEntry({ subscriptionId: "sub-hf", credits: 50, usedAt: new Date("2026-02-05"), unitPriceBrl: null }),
       ]),
@@ -713,9 +733,36 @@ describe("CostService.getUsageSeries", () => {
     // A janela dos 3 meses seria jun/2026..set/2026, mas o ano corrente
     // (jan/2026..jan/2027) prevalece em ambas as pontas.
     expect(costs.listUsage).toHaveBeenCalledWith(ORG, {
-      from: new Date(Date.UTC(2026, 0, 1)),
-      to: new Date(Date.UTC(2027, 0, 1)),
+      from: new Date(Date.UTC(2026, 0, 1, 3, 0, 0)),
+      to: new Date(Date.UTC(2027, 0, 1, 3, 0, 0)),
     });
+
+    vi.useRealTimers();
+  });
+
+  it("corte de mês em meia-noite de Brasília, não meia-noite UTC: usedAt 01:00Z (22h de SP da véspera) cai no bucket do mês anterior, 03:00Z (meia-noite SP) cai no bucket do mês novo", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-09-15T12:00:00Z")); // America/Sao_Paulo: 2026-09
+
+    const { service } = fakeRepos({
+      listUsage: vi.fn().mockResolvedValue([
+        // 2026-09-01T01:00:00Z = 2026-08-31T22:00:00 em America/Sao_Paulo --
+        // ainda é agosto lá, então entra no bucket de agosto.
+        fakeUsageEntry({ subscriptionId: "sub-hf", credits: 100, usedAt: new Date("2026-09-01T01:00:00Z"), unitPriceBrl: null }),
+        // 2026-09-01T03:00:00Z = meia-noite em America/Sao_Paulo -- já é
+        // setembro lá, então entra no bucket de setembro.
+        fakeUsageEntry({ subscriptionId: "sub-hf", credits: 10, usedAt: new Date("2026-09-01T03:00:00Z"), unitPriceBrl: null }),
+      ]),
+      listSubscriptions: vi.fn().mockResolvedValue([higgsfield]),
+      getSettings: vi.fn().mockResolvedValue(fakeSettings({ usdToBrlRate: "5.00" })),
+    });
+
+    const result = await service.getUsageSeries(ORG, 2);
+
+    const august = result.months.find((m) => m.month === "2026-08")!;
+    const september = result.months.find((m) => m.month === "2026-09")!;
+    expect(august.usageCostBrl).toBeCloseTo(100 * 0.239, 6);
+    expect(september.usageCostBrl).toBeCloseTo(10 * 0.239, 6);
 
     vi.useRealTimers();
   });

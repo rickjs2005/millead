@@ -344,9 +344,44 @@ describe("ReceivableService.summary", () => {
     expect(result.received).toBe("400.00");
     expect(receivables.listForSummary).toHaveBeenCalledWith(
       ORG,
-      new Date(Date.UTC(2026, 7, 1)),
-      new Date(Date.UTC(2026, 8, 1)),
+      new Date(Date.UTC(2026, 7, 1, 3, 0, 0)),
+      new Date(Date.UTC(2026, 8, 1, 3, 0, 0)),
     );
+
+    vi.useRealTimers();
+  });
+
+  it("corte de mês em meia-noite de Brasília, não meia-noite UTC: paidAt 01:00Z (22h de SP da véspera) cai no mês anterior, 03:00Z (meia-noite SP) cai no mês novo", async () => {
+    const now = new Date("2026-09-15T12:00:00Z");
+    vi.useFakeTimers();
+    vi.setSystemTime(now);
+
+    // 2026-09-01T01:00:00Z = 2026-08-31T22:00:00 em America/Sao_Paulo --
+    // ainda é agosto lá, então NÃO deve contar no 'received' de setembro.
+    const paidLastHourOfAugustSp = fakeReceivable({
+      id: "rec-paid-edge-aug",
+      amount: "111.00",
+      dueDate: new Date("2026-08-20"),
+      paidAt: new Date("2026-09-01T01:00:00Z"),
+    });
+    // 2026-09-01T03:00:00Z = meia-noite em América/Sao_Paulo -- já é
+    // setembro lá, então DEVE contar no 'received' de setembro.
+    const paidMidnightSp = fakeReceivable({
+      id: "rec-paid-edge-sep",
+      amount: "222.00",
+      dueDate: new Date("2026-09-05"),
+      paidAt: new Date("2026-09-01T03:00:00Z"),
+    });
+
+    const { service } = fakeRepos({
+      receivables: {
+        listForSummary: vi.fn().mockResolvedValue([paidLastHourOfAugustSp, paidMidnightSp]),
+      },
+    });
+
+    const result = await service.summary(ORG, "2026-09");
+
+    expect(result.received).toBe("222.00");
 
     vi.useRealTimers();
   });
@@ -390,8 +425,8 @@ describe("ReceivableService.summary", () => {
     expect(result.month).toBe("2026-08");
     expect(receivables.listForSummary).toHaveBeenCalledWith(
       ORG,
-      new Date(Date.UTC(2026, 7, 1)),
-      new Date(Date.UTC(2026, 8, 1)),
+      new Date(Date.UTC(2026, 7, 1, 3, 0, 0)),
+      new Date(Date.UTC(2026, 8, 1, 3, 0, 0)),
     );
 
     vi.useRealTimers();
@@ -464,9 +499,44 @@ describe("ReceivableService.series", () => {
     // corte da janela de 3 meses, que seria set/2026 -- prevalece o mais tarde).
     expect(receivables.listForSeries).toHaveBeenCalledWith(
       ORG,
-      new Date(Date.UTC(2026, 0, 1)),
-      new Date(Date.UTC(2027, 0, 1)),
+      new Date(Date.UTC(2026, 0, 1, 3, 0, 0)),
+      new Date(Date.UTC(2027, 0, 1, 3, 0, 0)),
     );
+
+    vi.useRealTimers();
+  });
+
+  it("corte de mês em meia-noite de Brasília, não meia-noite UTC: dueDate 01:00Z (22h de SP da véspera) cai no mês anterior, 03:00Z (meia-noite SP) cai no mês novo", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-09-15T12:00:00Z"));
+
+    // 2026-09-01T01:00:00Z = 2026-08-31T22:00:00 em America/Sao_Paulo --
+    // ainda é agosto lá, então entra no bucket 'expected' de agosto.
+    const dueLastHourOfAugustSp = fakeReceivable({
+      id: "rec-due-edge-aug",
+      amount: "111.00",
+      dueDate: new Date("2026-09-01T01:00:00Z"),
+      paidAt: null,
+    });
+    // 2026-09-01T03:00:00Z = meia-noite em America/Sao_Paulo -- já é
+    // setembro lá, então entra no bucket 'expected' de setembro.
+    const dueMidnightSp = fakeReceivable({
+      id: "rec-due-edge-sep",
+      amount: "222.00",
+      dueDate: new Date("2026-09-01T03:00:00Z"),
+      paidAt: null,
+    });
+
+    const { service } = fakeRepos({
+      receivables: { listForSeries: vi.fn().mockResolvedValue([dueLastHourOfAugustSp, dueMidnightSp]) },
+    });
+
+    const result = await service.series(ORG, 12);
+
+    const august = result.months.find((m) => m.month === "2026-08");
+    const september = result.months.find((m) => m.month === "2026-09");
+    expect(august?.expected).toBe("111.00");
+    expect(september?.expected).toBe("222.00");
 
     vi.useRealTimers();
   });
@@ -476,11 +546,13 @@ describe("ReceivableService.series", () => {
     vi.setSystemTime(new Date("2026-02-10T12:00:00Z"));
 
     // Fora do ano corrente (2025) -- deve aparecer no bucket mensal mas NÃO em yearTotals.
+    // Timestamps a meio-dia (não meia-noite UTC) pra não cair na virada de
+    // mês/fuso -- o objetivo aqui é testar o corte de ANO, não o de mês.
     const lastYear = fakeReceivable({
       id: "rec-last-year",
       amount: "100.00",
-      dueDate: new Date("2025-12-01"),
-      paidAt: new Date("2025-12-05"),
+      dueDate: new Date("2025-12-01T12:00:00Z"),
+      paidAt: new Date("2025-12-05T12:00:00Z"),
     });
     // Aberta em jan/2026, dentro do ano corrente.
     const openThisYear = fakeReceivable({
