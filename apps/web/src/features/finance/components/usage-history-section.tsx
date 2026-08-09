@@ -106,6 +106,7 @@ export function UsageHistorySection() {
               {recurringMonthlyBrl > 0 ? (
                 <ReferenceLine
                   y={recurringMonthlyBrl}
+                  ifOverflow="extendDomain"
                   stroke="hsl(var(--destructive))"
                   strokeDasharray="4 4"
                   label={{
