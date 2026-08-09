@@ -21,7 +21,12 @@ const LABELS: Record<string, string> = {
   team: "Equipe",
   integrations: "Integrações",
   "api-keys": "API Keys",
+  admin: "Admin",
+  milsocial: "MilSocial",
 };
+
+// Segmentos que existem só na URL, sem página própria (linkar daria 404).
+const NOT_A_PAGE = new Set(["admin"]);
 
 export function Breadcrumb() {
   const pathname = usePathname();
@@ -39,8 +44,8 @@ export function Breadcrumb() {
         return (
           <Fragment key={href}>
             {i > 0 && <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />}
-            {isLast ? (
-              <span className="font-medium text-foreground">{label}</span>
+            {isLast || NOT_A_PAGE.has(segment) ? (
+              <span className={isLast ? "font-medium text-foreground" : "text-muted-foreground"}>{label}</span>
             ) : (
               <Link href={href} className="text-muted-foreground hover:text-foreground">
                 {label}

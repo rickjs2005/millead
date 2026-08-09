@@ -11,8 +11,9 @@ import { useAuthStore } from "@/stores/auth-store";
  * arquivo proprio (fora de layout.tsx) porque o Next so aceita um conjunto
  * fixo de exports nomeados em arquivos de layout/page -- exportar um
  * componente extra ali quebra a checagem de tipos de rotas.
- * Layout que usa este guard fica SEM AppShell/sidebar do CRM de proposito: a
- * ferramenta e pessoal e nao deve aparecer na navegacao de ninguem. A
+ * A rota renderiza DENTRO do ProtectedShell (sidebar/topbar do CRM): o item
+ * MilSocial da sidebar e ownerOnly, entao a navegacao continua invisivel pros
+ * outros usuarios -- sem shell a pagina virava beco sem saida (sem volta). A
  * protecao real e a da API (requireOwner); aqui e so pra nao renderizar a UI.
  */
 export function MilsocialGuard({ children }: { children: ReactNode }) {
@@ -30,5 +31,6 @@ export function MilsocialGuard({ children }: { children: ReactNode }) {
   const owner = process.env.NEXT_PUBLIC_OWNER_EMAIL?.trim().toLowerCase();
   if (!owner || user.email.trim().toLowerCase() !== owner) notFound();
 
-  return <div className="mx-auto max-w-6xl p-6">{children}</div>;
+  // padding vem do <main> do AppShell; p-6 aqui dobrava o respiro
+  return <div className="mx-auto max-w-6xl">{children}</div>;
 }
