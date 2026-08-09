@@ -1,6 +1,13 @@
 "use client";
 
-import { AlertTriangle, CheckCircle2, HandCoins, Wallet } from "lucide-react";
+import {
+  AlertTriangle,
+  CalendarRange,
+  CheckCircle2,
+  HandCoins,
+  TrendingUp,
+  Wallet,
+} from "lucide-react";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useConfirmDialog } from "@/components/confirm-dialog";
@@ -21,9 +28,11 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { StatCard } from "@/features/dashboard/components/stat-card";
+import { MonthlyChart } from "@/features/receivables/components/monthly-chart";
 import {
   usePayReceivable,
   useReceivableContracts,
+  useReceivablesSeries,
   useReceivablesSummary,
 } from "@/features/receivables/hooks";
 import { formatCurrency } from "@/utils/format";
@@ -144,6 +153,7 @@ export default function ReceivablesPage() {
 
   const summary = useReceivablesSummary(month);
   const contracts = useReceivableContracts();
+  const series = useReceivablesSeries(12);
 
   const contractById = useMemo(() => {
     const map = new Map<string, ContractWithTotals>();
@@ -194,6 +204,7 @@ export default function ReceivablesPage() {
           icon={AlertTriangle}
           loading={summary.isLoading}
           accent={overdueTotal > 0 ? "destructive" : "default"}
+          sublabel="acumulado geral (não segue o mês)"
         />
         <StatCard
           label="Recebido no mês"
@@ -203,6 +214,24 @@ export default function ReceivablesPage() {
           accent="success"
         />
       </div>
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <StatCard
+          label="Recebido no ano"
+          value={formatCurrency(series.data?.yearTotals.received ?? 0)}
+          icon={TrendingUp}
+          loading={series.isLoading}
+          accent="success"
+        />
+        <StatCard
+          label="Previsto no ano"
+          value={formatCurrency(series.data?.yearTotals.expected ?? 0)}
+          icon={CalendarRange}
+          loading={series.isLoading}
+        />
+      </div>
+
+      <MonthlyChart />
 
       {isError ? (
         <ErrorState

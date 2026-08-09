@@ -31,6 +31,13 @@ export function useReceivablesSummary(month?: string) {
   });
 }
 
+export function useReceivablesSeries(months?: number) {
+  return useQuery({
+    queryKey: queryKeys.receivables.series(months),
+    queryFn: () => receivablesService.series(months),
+  });
+}
+
 /** Margem só faz sentido quando o contrato tem `proposalId` -- passe
  * `enabled: false` quando não houver, pra não bater na API à toa. */
 export function useContractMargin(contractId: string | undefined, options?: { enabled?: boolean }) {

@@ -1062,6 +1062,25 @@ export interface ContractMargin {
   realizedMargin: string | null;
 }
 
+/** Um mês da série (`GET /receivables/summary/series`) -- sempre presente
+ * mesmo sem movimento no mês (zero-fill), "0" nesse caso. */
+export interface ReceivableSeriesPoint {
+  month: string; // "YYYY-MM"
+  received: string; // Decimal do Prisma serializa como string
+  expected: string; // Decimal do Prisma serializa como string
+}
+
+/** Série mensal + totais do ano corrente (`GET /receivables/summary/series?months=N`).
+ * `months` vem em ordem ascendente, sempre com N entradas (zero-fill). */
+export interface ReceivableSeries {
+  months: ReceivableSeriesPoint[];
+  yearTotals: {
+    year: number;
+    received: string; // Decimal do Prisma serializa como string
+    expected: string; // Decimal do Prisma serializa como string
+  };
+}
+
 export interface CreatePlanPayload {
   contractId: string;
   total: number;

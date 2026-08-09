@@ -77,6 +77,7 @@ export const queryKeys = {
     byContract: (contractId: string) => ["receivables", "byContract", contractId] as const,
     contracts: () => ["receivables", "contracts"] as const,
     summary: (month?: string) => ["receivables", "summary", month ?? "current"] as const,
+    series: (months?: number) => ["receivables", "series", months ?? "default"] as const,
     margin: (contractId: string) => ["receivables", "margin", contractId] as const,
   },
 };
