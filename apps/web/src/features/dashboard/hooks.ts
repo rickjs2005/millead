@@ -100,6 +100,14 @@ export function useDashboardCounts() {
     wonLeadsError: won.isError,
     lostLeads: lost.data?.total ?? 0,
     lostLeadsError: lost.isError,
+    /** `LeadStatusChart` some as 3 flags acima num único `isError` pra decidir
+     * entre pizza e `ErrorState` -- retry dispara as 3 queries de novo (só
+     * elas, não as outras 9). */
+    refetchLeadStatus: () => {
+      open.refetch();
+      won.refetch();
+      lost.refetch();
+    },
     pendingTasks: pendingTasks.data?.total ?? 0,
     pendingTasksError: pendingTasks.isError,
     overdueTasks: overdueTasks.data?.total ?? 0,
