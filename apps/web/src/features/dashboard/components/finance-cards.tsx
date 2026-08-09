@@ -96,16 +96,18 @@ export function FinanceCards() {
   // ---- Ano ----
   const recebidoAno = Number(series.data?.yearTotals.received ?? 0);
   const consumoAno = usageSeries.data?.yearTotal ?? 0;
-  const recurringMonthlyBrl = usageSeries.data?.recurringMonthlyBrl ?? 0;
-  // Janeiro = 1 ... mês corrente incluso.
-  const monthsElapsed = new Date().getMonth() + 1;
+  const yearGrandTotal = usageSeries.data?.yearGrandTotal ?? 0;
   const recebidoAnoValue = series.isError ? null : recebidoAno;
   const fechadoAnoValue = kpis.isError ? null : (kpis.data?.valorFechadoAno ?? 0);
   const consumoAnoValue = usageSeries.isError ? null : consumoAno;
 
   const loadingResultado = series.isLoading || usageSeries.isLoading;
   const resultadoError = series.isError || usageSeries.isError;
-  const resultadoAno = recebidoAno - (consumoAno + recurringMonthlyBrl * monthsElapsed);
+  // `yearGrandTotal` já soma consumo + recorrente (estimado pela data de
+  // cadastro de cada assinatura, mês a mês) -- mais honesto que o custo fixo
+  // ATUAL multiplicado pelos meses decorridos (constante, ignorava altas/baixas
+  // de assinatura ao longo do ano).
+  const resultadoAno = recebidoAno - yearGrandTotal;
 
   // ---- Alerta: ganhos sem contrato ----
   const wonWithoutContractCount = finance.data?.wonWithoutContractCount ?? 0;
@@ -199,7 +201,7 @@ export function FinanceCards() {
                           {formatCurrency(resultadoAno)}
                         </p>
                         <p className="text-[11px] text-muted-foreground/70">
-                          estimativa (custo fixo = valor atual)
+                          custos do ano (consumo + assinaturas)
                         </p>
                       </>
                     )}

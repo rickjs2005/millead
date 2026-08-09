@@ -43,30 +43,31 @@ interface ChartPoint {
   label: string;
   received: number;
   usageCostBrl: number;
-  recurringMonthlyBrl: number;
+  recurringCostBrl: number;
   cost: number;
 }
 
 /** Junta a série de recebíveis com a de consumo pela CHAVE do mês (não pelo
  * índice) -- as duas vêm zero-filled e em ordem ascendente com o mesmo N,
- * mas alinhar por chave é à prova de uma janela mudar sem a outra acompanhar. */
+ * mas alinhar por chave é à prova de uma janela mudar sem a outra acompanhar.
+ * `cost` usa `totalCostBrl` (consumo + recorrente) DO MÊS -- não mais a
+ * constante do custo fixo atual projetada pra trás. */
 function mergeSeries(
   receivableMonths: ReceivableSeriesPoint[],
   usageMonths: CostUsageSeriesPoint[],
-  recurringMonthlyBrl: number,
 ): ChartPoint[] {
-  const usageByMonth = new Map(usageMonths.map((m) => [m.month, m.usageCostBrl]));
+  const usageByMonth = new Map(usageMonths.map((m) => [m.month, m]));
   const merged = new Map<string, ChartPoint>();
 
   for (const r of receivableMonths) {
-    const usageCostBrl = usageByMonth.get(r.month) ?? 0;
+    const usage = usageByMonth.get(r.month);
     merged.set(r.month, {
       month: r.month,
       label: monthLabel(r.month),
       received: Number(r.received),
-      usageCostBrl,
-      recurringMonthlyBrl,
-      cost: usageCostBrl + recurringMonthlyBrl,
+      usageCostBrl: usage?.usageCostBrl ?? 0,
+      recurringCostBrl: usage?.recurringCostBrl ?? 0,
+      cost: usage?.totalCostBrl ?? 0,
     });
   }
   for (const u of usageMonths) {
@@ -76,8 +77,8 @@ function mergeSeries(
       label: monthLabel(u.month),
       received: 0,
       usageCostBrl: u.usageCostBrl,
-      recurringMonthlyBrl,
-      cost: u.usageCostBrl + recurringMonthlyBrl,
+      recurringCostBrl: u.recurringCostBrl,
+      cost: u.totalCostBrl,
     });
   }
 
@@ -86,7 +87,7 @@ function mergeSeries(
 
 /** Tooltip customizado -- o gráfico só desenha a barra (recebido) e a linha
  * (custo total), mas o hover precisa abrir as três grandezas que compõem o
- * custo total (consumo + fixo atual) separadamente. */
+ * custo total do mês (consumo + recorrente) separadamente. */
 function ChartTooltip({
   active,
   payload,
@@ -110,9 +111,9 @@ function ChartTooltip({
         <span className="font-medium text-foreground">{formatCurrency(point.usageCostBrl)}</span>
       </p>
       <p className="flex items-center justify-between gap-4 text-muted-foreground">
-        <span>Fixo atual</span>
+        <span>Recorrente</span>
         <span className="font-medium text-foreground">
-          {formatCurrency(point.recurringMonthlyBrl)}
+          {formatCurrency(point.recurringCostBrl)}
         </span>
       </p>
     </div>
@@ -144,9 +145,7 @@ export function RevenueCostChart() {
   const isError = receivables.isError || usage.isError;
 
   const chartData =
-    receivables.data && usage.data
-      ? mergeSeries(receivables.data.months, usage.data.months, usage.data.recurringMonthlyBrl)
-      : [];
+    receivables.data && usage.data ? mergeSeries(receivables.data.months, usage.data.months) : [];
   const hasMovement = chartData.some((d) => d.received > 0 || d.usageCostBrl > 0);
 
   return (
@@ -191,7 +190,7 @@ export function RevenueCostChart() {
               <Line
                 type="monotone"
                 dataKey="cost"
-                name="Custo total (consumo + fixo)"
+                name="Custo total (consumo + recorrente)"
                 stroke="hsl(var(--destructive))"
                 strokeWidth={2}
                 dot={{ r: 3 }}
