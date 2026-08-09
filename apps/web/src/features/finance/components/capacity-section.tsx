@@ -1,5 +1,6 @@
 "use client";
 
+import { ErrorState } from "@/components/error-state";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
@@ -48,7 +49,7 @@ function CapacityRow({ entry }: { entry: CapacityEntry }) {
 }
 
 export function CapacitySection() {
-  const { data: summary, isLoading } = useCostSummary();
+  const { data: summary, isLoading, isError, refetch } = useCostSummary();
   const capacity = summary?.capacity ?? [];
 
   return (
@@ -62,6 +63,11 @@ export function CapacitySection() {
             <Skeleton className="h-10 w-full" />
             <Skeleton className="h-10 w-full" />
           </>
+        ) : isError ? (
+          // Erro de rede não pode cair no mesmo texto de "nenhuma assinatura
+          // com capacidade definida" -- isso esconderia o problema atrás de
+          // um estado que parece configuração pendente, não falha.
+          <ErrorState onRetry={() => refetch()} className="border-none py-10" />
         ) : capacity.length === 0 ? (
           <p className="text-sm text-muted-foreground">
             Defina limite e uso nas assinaturas para acompanhar a capacidade.

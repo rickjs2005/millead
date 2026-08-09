@@ -84,18 +84,48 @@ export function useDashboardCounts() {
 
   return {
     isLoading: queries.some((q) => q.isLoading),
+    // Cada contagem carrega o número (com fallback `?? 0` de sempre, pra não
+    // quebrar consumidores existentes como `LeadStatusChart`) e um flag
+    // `*Error` irmão -- os StatCards do dashboard/page.tsx que exibem
+    // contagem checam o flag e trocam "0" por "—" quando a query dele (só
+    // ela, não as outras 11) falhou. Precisão por métrica em vez de um
+    // `isError` agregado: das 12 queries de listagem independentes, é raro
+    // todas falharem juntas -- uma falhar sozinha (o caso comum) não deveria
+    // apagar as outras 11 que carregaram normalmente.
     totalLeads: total.data?.total ?? 0,
+    totalLeadsError: total.isError,
     openLeads: open.data?.total ?? 0,
+    openLeadsError: open.isError,
     wonLeads: won.data?.total ?? 0,
+    wonLeadsError: won.isError,
     lostLeads: lost.data?.total ?? 0,
+    lostLeadsError: lost.isError,
+    /** `LeadStatusChart` some as 3 flags acima num único `isError` pra decidir
+     * entre pizza e `ErrorState` -- retry dispara as 3 queries de novo (só
+     * elas, não as outras 9). */
+    refetchLeadStatus: () => {
+      open.refetch();
+      won.refetch();
+      lost.refetch();
+    },
     pendingTasks: pendingTasks.data?.total ?? 0,
+    pendingTasksError: pendingTasks.isError,
     overdueTasks: overdueTasks.data?.total ?? 0,
+    overdueTasksError: overdueTasks.isError,
     scheduledMeetings: scheduledMeetings.data?.total ?? 0,
+    scheduledMeetingsError: scheduledMeetings.isError,
     sentProposals: sentProposals.data?.total ?? 0,
+    sentProposalsError: sentProposals.isError,
     acceptedProposals: acceptedProposals.data?.total ?? 0,
+    acceptedProposalsError: acceptedProposals.isError,
     /** aguardando o cliente: link enviado (PENDING) ou preenchendo (IN_PROGRESS) */
     openBriefings: (pendingBriefings.data?.total ?? 0) + (inProgressBriefings.data?.total ?? 0),
+    /** falha se qualquer uma das duas queries que compõem esse total falhar --
+     * a soma parcial (só PENDING ou só IN_PROGRESS) seria um número real só
+     * que errado, pior que "—". */
+    openBriefingsError: pendingBriefings.isError || inProgressBriefings.isError,
     completedBriefings: completedBriefings.data?.total ?? 0,
+    completedBriefingsError: completedBriefings.isError,
   };
 }
 

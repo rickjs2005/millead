@@ -1,6 +1,7 @@
 "use client";
 
 import { Cell, Legend, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
+import { ErrorState } from "@/components/error-state";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useDashboardCounts } from "../hooks";
@@ -12,7 +13,21 @@ const COLORS = {
 };
 
 export function LeadStatusChart() {
-  const { openLeads, wonLeads, lostLeads, isLoading } = useDashboardCounts();
+  const {
+    openLeads,
+    wonLeads,
+    lostLeads,
+    openLeadsError,
+    wonLeadsError,
+    lostLeadsError,
+    refetchLeadStatus,
+    isLoading,
+  } = useDashboardCounts();
+
+  // Se qualquer uma das 3 falhar sozinha, a pizza com as outras 2 reais é um
+  // resultado real-mas-errado -- pior que o empty state, porque `hasData`
+  // continua true e nada avisa que um terço do gráfico está faltando.
+  const isError = openLeadsError || wonLeadsError || lostLeadsError;
 
   const data = [
     { name: "Abertos", value: openLeads },
@@ -29,6 +44,12 @@ export function LeadStatusChart() {
       <CardContent>
         {isLoading ? (
           <Skeleton className="h-64 w-full" />
+        ) : isError ? (
+          <ErrorState
+            description="Não foi possível carregar os leads por status."
+            onRetry={() => refetchLeadStatus()}
+            className="border-none py-10"
+          />
         ) : !hasData ? (
           <div className="flex h-64 items-center justify-center text-sm text-muted-foreground">
             Nenhum lead cadastrado ainda.

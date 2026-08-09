@@ -13,6 +13,7 @@ import {
   YAxis,
 } from "recharts";
 import { EmptyState } from "@/components/empty-state";
+import { ErrorState } from "@/components/error-state";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useUsageSeries } from "@/features/finance/hooks";
@@ -90,10 +91,14 @@ function ChartTooltip({
  * histórica: assinatura ativa conta a partir da própria data de cadastro,
  * inativa não conta em mês nenhum por falta de data de cancelamento). */
 export function UsageHistorySection() {
-  const { data, isLoading } = useUsageSeries(12);
+  const { data, isLoading, isError, refetch } = useUsageSeries(12);
   const chartData = toChartData(data?.months ?? []);
   const hasUsage = chartData.some((m) => m.usageCostBrl > 0 || m.recurringCostBrl > 0);
   const recurringMonthlyBrl = data?.recurringMonthlyBrl ?? 0;
+  // Igual ao critério de `receivables/page.tsx`: em erro, valor vira `null`
+  // (formatCurrency renderiza "—") em vez de somar 0 e mostrar um total falso.
+  const yearGrandTotalValue = isError ? null : (data?.yearGrandTotal ?? 0);
+  const yearTotalValue = isError ? null : (data?.yearTotal ?? 0);
 
   return (
     <Card>
@@ -111,10 +116,10 @@ export function UsageHistorySection() {
           <div className="text-right">
             <p className="text-xs text-muted-foreground">Custo no ano</p>
             <p className="text-lg font-semibold tabular-nums">
-              {formatCurrency(data?.yearGrandTotal ?? 0)}
+              {formatCurrency(yearGrandTotalValue)}
             </p>
             <p className="text-[11px] text-muted-foreground/70">
-              consumo {formatCurrency(data?.yearTotal ?? 0)}
+              consumo {formatCurrency(yearTotalValue)}
             </p>
           </div>
         )}
@@ -122,6 +127,10 @@ export function UsageHistorySection() {
       <CardContent>
         {isLoading ? (
           <Skeleton className="h-72 w-full" />
+        ) : isError ? (
+          // Erro de rede não pode cair no empty-state "Sem custo lançado" --
+          // isso esconderia o problema atrás de um "não há dado" enganoso.
+          <ErrorState onRetry={() => refetch()} className="border-none py-10" />
         ) : !hasUsage ? (
           <EmptyState
             icon={Wallet2}

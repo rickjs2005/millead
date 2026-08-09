@@ -406,13 +406,87 @@ describe("ReceivableService.pay/unpay", () => {
 });
 
 describe("ReceivableService.update/remove", () => {
-  it("update em parcela aberta funciona", async () => {
-    const { service, receivables } = fakeRepos();
-    await service.update(ORG, "rec-1", { amount: 250 });
-    expect(receivables.update).toHaveBeenCalledWith(ORG, "rec-1", expect.objectContaining({ amount: "250.00" }));
+  // Fixture-base pros testes de invariante: parcela única do contrato,
+  // valor bate exatamente com o valorTotal (200.00) -- espelha o estado que
+  // createPlan garante na criação (soma == contract.valorTotal).
+  function singleInstallmentContractRepos(overrides: Parameters<typeof fakeRepos>[0] = {}) {
+    return fakeRepos({
+      ...overrides,
+      contracts: {
+        findByIdForOrg: vi.fn().mockResolvedValue(fakeContract({ valorTotal: "200.00" })),
+        ...overrides.contracts,
+      },
+      receivables: {
+        listByContract: vi.fn().mockResolvedValue([fakeReceivable({ amount: "200.00" })]),
+        ...overrides.receivables,
+      },
+    });
+  }
+
+  it("update em parcela aberta que MANTÉM a soma do contrato (idempotente: mesmo valor) funciona", async () => {
+    const { service, receivables } = singleInstallmentContractRepos();
+    await service.update(ORG, "rec-1", { amount: 200 });
+    expect(receivables.update).toHaveBeenCalledWith(ORG, "rec-1", expect.objectContaining({ amount: "200.00" }));
   });
 
-  it("update em parcela paga -> ConflictError", async () => {
+  it("update de amount que QUEBRA a soma do contrato -> ValidationError citando os dois valores", async () => {
+    const { service, receivables } = singleInstallmentContractRepos();
+    await expect(service.update(ORG, "rec-1", { amount: 500 })).rejects.toThrow(ValidationError);
+    expect(receivables.update).not.toHaveBeenCalled();
+
+    try {
+      await service.update(ORG, "rec-1", { amount: 500 });
+      expect.unreachable();
+    } catch (error) {
+      expect((error as Error).message).toContain("500.00");
+      expect((error as Error).message).toContain("200.00");
+    }
+  });
+
+  it("update de amount considera parcelas PAGAS pelo valor histórico + as demais abertas ao recalcular a soma", async () => {
+    // Contrato de 1000: uma entrada PAGA de 400 (valor histórico, não muda)
+    // + parcela aberta rec-2 de 300 (não editada, entra como está) + rec-1
+    // (parcela editada). Soma hipotética válida: 400 + 300 + 300 = 1000.
+    const { service, receivables } = fakeRepos({
+      contracts: { findByIdForOrg: vi.fn().mockResolvedValue(fakeContract({ valorTotal: "1000.00" })) },
+      receivables: {
+        listByContract: vi.fn().mockResolvedValue([
+          fakeReceivable({ id: "rec-entrada", kind: "ENTRADA", installmentIndex: 0, amount: "400.00", paidAt: new Date("2026-07-01") }),
+          fakeReceivable({ id: "rec-2", installmentIndex: 2, amount: "300.00" }),
+          fakeReceivable({ id: "rec-1", installmentIndex: 1, amount: "200.00" }),
+        ]),
+      },
+    });
+    await service.update(ORG, "rec-1", { amount: 300 });
+    expect(receivables.update).toHaveBeenCalledWith(ORG, "rec-1", expect.objectContaining({ amount: "300.00" }));
+  });
+
+  it("update de amount numa AVULSA (contractId null) NUNCA bloqueia por divergência de total -- não há contrato pra bater", async () => {
+    const avulsaAberta = fakeReceivable({
+      id: "rec-avulsa",
+      contractId: null,
+      kind: "AVULSA",
+      installmentIndex: 0,
+      amount: "200.00",
+    });
+    const { service, receivables, contracts } = fakeRepos({
+      receivables: {
+        findById: vi.fn().mockResolvedValue(avulsaAberta),
+        update: vi.fn().mockResolvedValue({ ...avulsaAberta, amount: "99999.00" }),
+      },
+    });
+    await service.update(ORG, "rec-avulsa", { amount: 99999 });
+    expect(receivables.update).toHaveBeenCalledWith(
+      ORG,
+      "rec-avulsa",
+      expect.objectContaining({ amount: "99999.00" }),
+    );
+    // Nem chega a olhar pro contrato -- confirma que a checagem é pulada de
+    // verdade, não só "por acaso bateu".
+    expect(contracts.findByIdForOrg).not.toHaveBeenCalled();
+  });
+
+  it("update em parcela paga -> ConflictError (regressão: bloqueio pré-existente continua valendo, não é a checagem de soma nova)", async () => {
     const { service, receivables } = fakeRepos({
       receivables: { findById: vi.fn().mockResolvedValue(fakeReceivable({ paidAt: new Date("2026-07-01") })) },
     });
@@ -420,13 +494,45 @@ describe("ReceivableService.update/remove", () => {
     expect(receivables.update).not.toHaveBeenCalled();
   });
 
-  it("remove em parcela aberta funciona", async () => {
-    const { service, receivables } = fakeRepos();
-    await service.remove(ORG, "rec-1");
-    expect(receivables.delete).toHaveBeenCalledWith(ORG, "rec-1");
+  // Não existe um "remove de parcela de contrato que MANTÉM a soma" realista:
+  // toda parcela criada por createPlan tem amount > 0 (money.positive()), e
+  // o invariante da criação garante soma == valorTotal. Remover qualquer
+  // parcela aberta subtrai um valor positivo dessa soma já batida -- o único
+  // jeito de "sobrar batido" seria remover uma parcela de valor zero (não
+  // criável) ou o contrato ter valorTotal 0 (borda inexistente na prática).
+  // Por isso o caso feliz de remove() só existe pra AVULSA (testado abaixo,
+  // "remove funciona em avulsa aberta") -- pra contrato, remove SEMPRE
+  // diverge e o teste abaixo cobre exatamente isso.
+  it("remove de parcela aberta de contrato deixa a soma divergente -> ValidationError citando os dois valores", async () => {
+    const { service, receivables } = fakeRepos(); // fixture default: 1 parcela de 200.00, contrato de 1000.00
+    await expect(service.remove(ORG, "rec-1")).rejects.toThrow(ValidationError);
+    expect(receivables.delete).not.toHaveBeenCalled();
+
+    try {
+      await service.remove(ORG, "rec-1");
+      expect.unreachable();
+    } catch (error) {
+      expect((error as Error).message).toContain("0.00");
+      expect((error as Error).message).toContain("1000.00");
+    }
   });
 
-  it("remove em parcela paga -> ConflictError", async () => {
+  it("remove de parcela aberta de AVULSA nunca é bloqueado por divergência de total", async () => {
+    const avulsaAberta = fakeReceivable({
+      id: "rec-avulsa",
+      contractId: null,
+      kind: "AVULSA",
+      installmentIndex: 0,
+    });
+    const { service, receivables, contracts } = fakeRepos({
+      receivables: { findById: vi.fn().mockResolvedValue(avulsaAberta) },
+    });
+    await service.remove(ORG, "rec-avulsa");
+    expect(receivables.delete).toHaveBeenCalledWith(ORG, "rec-avulsa");
+    expect(contracts.findByIdForOrg).not.toHaveBeenCalled();
+  });
+
+  it("remove em parcela paga -> ConflictError (regressão: bloqueio pré-existente continua valendo, checado antes da soma)", async () => {
     const { service, receivables } = fakeRepos({
       receivables: { findById: vi.fn().mockResolvedValue(fakeReceivable({ paidAt: new Date("2026-07-01") })) },
     });
@@ -516,7 +622,9 @@ describe("ReceivableService.update/remove", () => {
   });
 
   it("update sem description no patch não manda description undefined que sobrescreveria com null", async () => {
-    const { service, receivables } = fakeRepos();
+    const { service, receivables } = fakeRepos({
+      contracts: { findByIdForOrg: vi.fn().mockResolvedValue(fakeContract({ valorTotal: "250.00" })) },
+    });
     await service.update(ORG, "rec-1", { amount: 250 });
     const patch = vi.mocked(receivables.update).mock.calls[0]![2] as { description?: string };
     expect(patch.description).toBeUndefined();

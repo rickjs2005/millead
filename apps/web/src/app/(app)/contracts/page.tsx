@@ -75,7 +75,12 @@ export default function ContractsPage() {
   const [prefill, setPrefill] = useState<ContractPrefill | undefined>(undefined);
   const debouncedSearch = useDebounce(search, 300);
 
-  const { data: kpis } = useContractKpis();
+  const {
+    data: kpis,
+    isLoading: kpisLoading,
+    isError: kpisError,
+    refetch: refetchKpis,
+  } = useContractKpis();
   const createContract = useCreateContract();
   const { data, isLoading, isError, refetch } = useContracts({
     page,
@@ -129,31 +134,41 @@ export default function ContractsPage() {
         </Dialog>
       </div>
 
-      {kpis && (
+      {kpisError ? (
+        <ErrorState onRetry={() => refetchKpis()} />
+      ) : kpisLoading ? (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-          <Kpi label="Contratos" value={String(kpis.total)} icon={FileSignature} />
-          <Kpi
-            label="Aguardando assinatura"
-            value={String(kpis.aguardandoAssinatura)}
-            icon={Clock}
-          />
-          <Kpi label="Assinados" value={String(kpis.assinados)} icon={CheckCircle2} />
-          <Kpi
-            label="Fechado no mês"
-            value={formatCurrency(kpis.valorFechadoMes)}
-            icon={CalendarClock}
-          />
-          <Kpi
-            label="Fechado no ano"
-            value={formatCurrency(kpis.valorFechadoAno)}
-            icon={TrendingUp}
-          />
-          <Kpi
-            label="Fechado desde o início"
-            value={formatCurrency(kpis.valorFechado)}
-            icon={Wallet}
-          />
+          {Array.from({ length: 6 }).map((_, i) => (
+            <Skeleton key={i} className="h-[68px] w-full" />
+          ))}
         </div>
+      ) : (
+        kpis && (
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+            <Kpi label="Contratos" value={String(kpis.total)} icon={FileSignature} />
+            <Kpi
+              label="Aguardando assinatura"
+              value={String(kpis.aguardandoAssinatura)}
+              icon={Clock}
+            />
+            <Kpi label="Assinados" value={String(kpis.assinados)} icon={CheckCircle2} />
+            <Kpi
+              label="Fechado no mês"
+              value={formatCurrency(kpis.valorFechadoMes)}
+              icon={CalendarClock}
+            />
+            <Kpi
+              label="Fechado no ano"
+              value={formatCurrency(kpis.valorFechadoAno)}
+              icon={TrendingUp}
+            />
+            <Kpi
+              label="Fechado desde o início"
+              value={formatCurrency(kpis.valorFechado)}
+              icon={Wallet}
+            />
+          </div>
+        )
       )}
 
       <div className="flex flex-wrap items-center gap-2">

@@ -3,6 +3,7 @@
 import { BarChart3 } from "lucide-react";
 import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { EmptyState } from "@/components/empty-state";
+import { ErrorState } from "@/components/error-state";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -33,7 +34,7 @@ function toChartData(months: ReceivableSeriesPoint[]) {
 }
 
 export function MonthlyChart() {
-  const { data, isLoading } = useReceivablesSeries(12);
+  const { data, isLoading, isError, refetch } = useReceivablesSeries(12);
   const chartData = toChartData(data?.months ?? []);
   const hasMovement = chartData.some((m) => m.received > 0 || m.expected > 0);
 
@@ -45,6 +46,10 @@ export function MonthlyChart() {
       <CardContent>
         {isLoading ? (
           <Skeleton className="h-72 w-full" />
+        ) : isError ? (
+          // Erro de rede não pode cair no empty-state "Sem movimento" --
+          // isso esconderia o problema atrás de um "não há dado" enganoso.
+          <ErrorState onRetry={() => refetch()} className="border-none py-10" />
         ) : !hasMovement ? (
           <EmptyState
             icon={BarChart3}

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { toast } from "sonner";
 import { EmptyState } from "@/components/empty-state";
+import { ErrorState } from "@/components/error-state";
 import { useConfirmDialog } from "@/components/confirm-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -24,12 +25,13 @@ import {
   useUpdateContractStatus,
 } from "@/features/contracts/hooks";
 import { InstallmentsCard } from "@/features/receivables/components/installments-card";
+import { ApiError } from "@/services/api-client";
 import { contractsService } from "@/services/contracts";
 import { formatCurrency, formatDateTime } from "@/utils/format";
 
 export default function ContractDetailPage() {
   const { id } = useParams<{ id: string }>();
-  const { data: contract, isLoading } = useContract(id);
+  const { data: contract, isLoading, isError, error, refetch } = useContract(id);
   const updateStatus = useUpdateContractStatus();
   const reprocess = useReprocessContract();
   const { confirm, dialog } = useConfirmDialog();
@@ -42,8 +44,14 @@ export default function ContractDetailPage() {
       </div>
     );
   }
-  if (!contract) {
-    return <EmptyState icon={FileSignature} title="Contrato não encontrado" />;
+  // A API distingue 404 real (contrato inexistente) de outros erros via
+  // ApiError.status -- só nesse caso a mensagem "não encontrado" é correta.
+  // Qualquer outro erro (rede, 5xx) é transitório: ErrorState com retry.
+  if (isError || !contract) {
+    if (error instanceof ApiError && error.status === 404) {
+      return <EmptyState icon={FileSignature} title="Contrato não encontrado" />;
+    }
+    return <ErrorState onRetry={() => refetch()} className="py-20" />;
   }
 
   const c = contract.contractorSnapshot;

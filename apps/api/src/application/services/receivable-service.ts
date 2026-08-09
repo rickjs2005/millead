@@ -256,6 +256,16 @@ export class ReceivableService {
     if (!existing) throw new NotFoundError("Parcela não encontrada.");
     if (existing.paidAt) throw new ConflictError("Parcela paga não pode ser alterada.");
 
+    // Só mudança de amount pode quebrar o invariante de soma -- e só importa
+    // pra parcela DE CONTRATO (contractId != null); avulsa não tem total pra
+    // bater contra.
+    if (existing.contractId && patch.amount != null) {
+      const newAmount = patch.amount;
+      await this.assertContractSumMatches(organizationId, existing.contractId, (items) =>
+        items.reduce((sum, item) => sum + (item.id === id ? newAmount : Number(item.amount)), 0),
+      );
+    }
+
     const updated = await this.receivables.update(organizationId, id, {
       amount: patch.amount != null ? patch.amount.toFixed(2) : undefined,
       description: patch.description,
@@ -270,8 +280,48 @@ export class ReceivableService {
     if (!existing) throw new NotFoundError("Parcela não encontrada.");
     if (existing.paidAt) throw new ConflictError("Parcela paga não pode ser excluída.");
 
+    if (existing.contractId) {
+      await this.assertContractSumMatches(organizationId, existing.contractId, (items) =>
+        items.filter((item) => item.id !== id).reduce((sum, item) => sum + Number(item.amount), 0),
+      );
+    }
+
     const ok = await this.receivables.delete(organizationId, id);
     if (!ok) throw new ConflictError("Parcela paga não pode ser excluída.");
+  }
+
+  /** Guarda o invariante que `createPlan` garante na criação
+   *  (entrada + parcelas === contract.valorTotal) contra edição/exclusão
+   *  avulsa de uma parcela -- sem isso, editar ou apagar uma parcela sozinha
+   *  faz o total cobrado divergir silenciosamente do valor assinado.
+   *
+   *  `hypotheticalSum` recebe o estado ATUAL de todas as parcelas do
+   *  contrato (pagas com valor histórico + abertas como estão) e devolve a
+   *  soma pós-operação (a chamadora decide o que muda: valor novo numa
+   *  parcela, ou a parcela removida da lista). Mesma tolerância e mesmo tipo
+   *  de erro (`ValidationError`) que `createPlan` usa pro check análogo. */
+  private async assertContractSumMatches(
+    organizationId: string,
+    contractId: string,
+    hypotheticalSum: (items: Receivable[]) => number,
+  ): Promise<void> {
+    const [contract, items] = await Promise.all([
+      this.contracts.findByIdForOrg(contractId, organizationId),
+      this.receivables.listByContract(organizationId, contractId),
+    ]);
+    // Contrato não encontrado é uma inconsistência referencial fora do
+    // escopo desta checagem (a parcela já existe e aponta pra um contractId
+    // -- se ele sumiu, não é este método que deve decidir o que fazer).
+    if (!contract) return;
+
+    const total = Number(contract.valorTotal);
+    const sum = hypotheticalSum(items);
+    const diff = Math.round((sum - total) * 100) / 100;
+    if (Math.abs(diff) > SUM_TOLERANCE) {
+      throw new ValidationError(
+        `Isso deixaria o total do contrato em R$ ${sum.toFixed(2)}, mas o contrato vale R$ ${total.toFixed(2)}.`,
+      );
+    }
   }
 
   /** `month` default: mês atual em America/Sao_Paulo (mesmo padrão do
