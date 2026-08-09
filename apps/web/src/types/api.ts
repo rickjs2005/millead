@@ -530,6 +530,10 @@ export interface ContractKpis {
   aguardandoAssinatura: number;
   assinados: number;
   valorFechado: string;
+  /** Soma de `valorTotal` dos contratos assinados no mês corrente. */
+  valorFechadoMes: string;
+  /** Soma de `valorTotal` dos contratos assinados no ano corrente. */
+  valorFechadoAno: string;
 }
 
 /** Resumo financeiro dos leads ganhos -- `wonWithoutContract*` exclui leads
