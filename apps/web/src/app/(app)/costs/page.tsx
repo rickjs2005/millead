@@ -9,6 +9,7 @@ import { CreditUsageSection } from "@/features/finance/components/credit-usage-s
 import { CostSubscriptionsList } from "@/features/finance/components/cost-subscriptions-list";
 import { CostSummaryCards } from "@/features/finance/components/cost-summary-cards";
 import { FinanceSettingsDialog } from "@/features/finance/components/finance-settings-dialog";
+import { UsageHistorySection } from "@/features/finance/components/usage-history-section";
 
 export default function CostsPage() {
   return (
@@ -41,6 +42,8 @@ export default function CostsPage() {
       <CostSummaryCards />
 
       <CapacitySection />
+
+      <UsageHistorySection />
 
       <CreditUsageSection />
 

@@ -807,6 +807,24 @@ export interface UsageSummary {
   byClient: { companyId: string | null; companyName: string; credits: number; costBrl: number }[];
 }
 
+/** Um mês da série de consumo (`GET /costs/usage/series`) -- sempre presente
+ * mesmo sem lançamento no mês (zero-fill), 0 nesse caso. Diferente de
+ * `ReceivableSeriesPoint`, os valores já vêm como number (não Decimal). */
+export interface CostUsageSeriesPoint {
+  month: string; // "YYYY-MM"
+  usageCostBrl: number;
+}
+
+/** Série mensal de consumo + totais (`GET /costs/usage/series?months=N`).
+ * `months` vem em ordem ascendente, sempre com N entradas (zero-fill).
+ * `recurringMonthlyBrl` é o custo fixo ATUAL (mesma conta de `CostSummary.totalMonthlyBrl`) --
+ * não há histórico de assinaturas, então é o mesmo valor em todos os meses da série. */
+export interface CostUsageSeries {
+  months: CostUsageSeriesPoint[];
+  yearTotal: number;
+  recurringMonthlyBrl: number;
+}
+
 export interface CreateUsageEntryPayload {
   subscriptionId: string;
   companyId?: string | null;
