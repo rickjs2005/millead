@@ -3,8 +3,10 @@
 import { BarChart3 } from "lucide-react";
 import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { EmptyState } from "@/components/empty-state";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { StandaloneDialog } from "@/features/receivables/components/standalone-dialog";
 import { useReceivablesSeries } from "@/features/receivables/hooks";
 import { formatCurrency } from "@/utils/format";
 import type { ReceivableSeriesPoint } from "@/types/api";
@@ -47,6 +49,7 @@ export function MonthlyChart() {
           <EmptyState
             icon={BarChart3}
             title="Sem movimento nos últimos 12 meses"
+            action={<StandaloneDialog trigger={<Button size="sm">Lançar receita</Button>} />}
             className="border-none py-10"
           />
         ) : (
