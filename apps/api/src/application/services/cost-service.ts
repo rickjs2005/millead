@@ -124,6 +124,21 @@ function unitPriceBrlFor(sub: UsageSubscription | undefined, usdRate: number): n
   return monthlyAmountBrl(Number(sub.amount), sub.currency, sub.billingCycle, usdRate) / sub.creditsIncluded;
 }
 
+/** Custo em BRL de UM lançamento -- usa o preço GRAVADO no momento
+ * (snapshot); só cai pro preço ao vivo da assinatura em lançamentos antigos
+ * que não tinham snapshot. Isso evita que trocar o preço da assinatura ou o
+ * câmbio da org reescreva retroativamente o custo de um mês já fechado.
+ * Extraída pra ser reusada por `computeUsageSummary` e `getUsageSeries` --
+ * MESMA regra nos dois lugares, sem duplicar. */
+export function entryCostBrl(
+  entry: Pick<UsageEntryForSummary, "credits" | "unitPriceBrl">,
+  subscription: UsageSubscription | undefined,
+  usdRate: number,
+): number {
+  const unitPrice = entry.unitPriceBrl ?? unitPriceBrlFor(subscription, usdRate);
+  return unitPrice != null ? entry.credits * unitPrice : 0;
+}
+
 /** Puro pra ser testável sem repo -- o service delega aqui. `month` é
  * responsabilidade do caller (getUsageSummary), que já filtrou `entries`
  * pelo período antes de chamar. */
@@ -133,15 +148,8 @@ export function computeUsageSummary(
   usdRate: number,
 ): Omit<UsageSummary, "month"> {
   const subsById = new Map(subscriptions.map((s) => [s.id, s]));
-
-  // Custo de cada lançamento usa o preço GRAVADO no momento (snapshot);
-  // só cai pro preço ao vivo da assinatura em lançamentos antigos que não
-  // tinham snapshot. Isso evita que trocar o preço da assinatura ou o
-  // câmbio da org reescreva retroativamente o custo de um mês já fechado.
-  const costOf = (entry: UsageEntryForSummary): number => {
-    const unitPrice = entry.unitPriceBrl ?? unitPriceBrlFor(subsById.get(entry.subscriptionId), usdRate);
-    return unitPrice != null ? entry.credits * unitPrice : 0;
-  };
+  const costOf = (entry: UsageEntryForSummary): number =>
+    entryCostBrl(entry, subsById.get(entry.subscriptionId), usdRate);
 
   const bySubMap = new Map<string, { credits: number; costBrl: number }>();
   for (const entry of entries) {
@@ -212,6 +220,44 @@ function monthRangeUtc(month: string): { from: Date; to: Date } {
     from: new Date(Date.UTC(year, monthIndex, 1)),
     to: new Date(Date.UTC(year, monthIndex + 1, 1)),
   };
+}
+
+/** Lista N chaves "YYYY-MM" em ordem cronológica ascendente terminando em
+ * `endMonth` (inclusive) -- monta o eixo X zero-filled da série (mesmo
+ * padrão do receivable-service). */
+function monthKeysAsc(endMonth: string, count: number): string[] {
+  const [yearStr, monthStr] = endMonth.split("-");
+  let year = Number(yearStr);
+  let monthIndex = Number(monthStr) - 1; // 0-based
+  const keys: string[] = [];
+  for (let i = 0; i < count; i += 1) {
+    keys.push(`${year}-${String(monthIndex + 1).padStart(2, "0")}`);
+    monthIndex -= 1;
+    if (monthIndex < 0) {
+      monthIndex = 11;
+      year -= 1;
+    }
+  }
+  return keys.reverse();
+}
+
+/** Chave "YYYY-MM" de uma data em UTC -- mesmo critério de `monthRangeUtc`
+ * (bucketização por UTC, não pelo fuso local do servidor). */
+function monthKeyUtc(date: Date): string {
+  return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`;
+}
+
+/** Ponto da série mensal de consumo -- custo em BRL já resolvido (snapshot
+ * ou derivado, ver `entryCostBrl`). */
+export interface CostUsageSeriesPoint {
+  month: string;
+  usageCostBrl: number;
+}
+
+export interface CostUsageSeries {
+  months: CostUsageSeriesPoint[]; // exatamente N entradas, ordem cronológica asc, zero-fill
+  yearTotal: number; // consumo do ano corrente
+  recurringMonthlyBrl: number; // totalMonthlyBrl atual (mesma conta do getSummary)
 }
 
 export class CostService {
@@ -336,6 +382,58 @@ export class CostService {
     return {
       month: resolvedMonth,
       ...computeUsageSummary(entries, subscriptions, Number(settings.usdToBrlRate)),
+    };
+  }
+
+  /** Série mensal (últimos `months`, default 12) de custo de consumo, mais o
+   * total do ano corrente e o recorrente mensal atual -- alimenta gráfico de
+   * consumo. Mesmo padrão de janela do `ReceivableService.series`. */
+  async getUsageSeries(organizationId: string, months = 12): Promise<CostUsageSeries> {
+    const currentMonth = currentMonthInTimeZone();
+    const keys = monthKeysAsc(currentMonth, months);
+    const { from } = monthRangeUtc(keys[0]!);
+    const { to } = monthRangeUtc(currentMonth);
+
+    const currentYear = Number(currentMonth.split("-")[0]);
+    const yearFrom = new Date(Date.UTC(currentYear, 0, 1));
+    const yearTo = new Date(Date.UTC(currentYear + 1, 0, 1));
+
+    // A janela de busca precisa cobrir tanto os N meses da série quanto o
+    // ano corrente inteiro -- quando months < 12 (ou o ano corrente
+    // extrapola pro passado dos N meses), um intervalo não contém o outro.
+    const queryFrom = from < yearFrom ? from : yearFrom;
+    const queryTo = to > yearTo ? to : yearTo;
+
+    // UMA chamada cobrindo a janela inteira -- listUsage já aceita range.
+    const [entries, subscriptions, settings, summary] = await Promise.all([
+      this.repository.listUsage(organizationId, { from: queryFrom, to: queryTo }),
+      this.repository.listSubscriptions(organizationId),
+      this.repository.getSettings(organizationId),
+      this.getSummary(organizationId),
+    ]);
+
+    const usdRate = Number(settings.usdToBrlRate);
+    const subsById = new Map(subscriptions.map((s) => [s.id, s]));
+
+    const buckets = new Map<string, number>();
+    for (const key of keys) buckets.set(key, 0);
+
+    let yearTotal = 0;
+
+    for (const entry of entries) {
+      const cost = entryCostBrl(entry, subsById.get(entry.subscriptionId), usdRate);
+
+      const bucketKey = monthKeyUtc(entry.usedAt);
+      const bucket = buckets.get(bucketKey);
+      if (bucket !== undefined) buckets.set(bucketKey, bucket + cost);
+
+      if (entry.usedAt >= yearFrom && entry.usedAt < yearTo) yearTotal += cost;
+    }
+
+    return {
+      months: keys.map((key) => ({ month: key, usageCostBrl: buckets.get(key)! })),
+      yearTotal,
+      recurringMonthlyBrl: summary.totalMonthlyBrl,
     };
   }
 }
