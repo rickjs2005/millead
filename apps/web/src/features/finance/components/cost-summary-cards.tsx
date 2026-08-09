@@ -11,19 +11,27 @@ import { formatCurrency } from "@/utils/format";
  * (R$ X ÷ N clientes) que o StatCard genérico não suporta -- por isso
  * este card é montado à mão em vez de reusar o StatCard aqui. */
 export function CostSummaryCards() {
-  const { data: summary, isLoading } = useCostSummary();
+  const { data: summary, isLoading, isError } = useCostSummary();
+
+  // Igual ao critério de `receivables/page.tsx`: em erro, valor vira `null`
+  // (formatCurrency renderiza "—") em vez de cair no `?? 0` e mostrar
+  // custo/rateio falso.
+  const agencyMonthlyValue = isError ? null : (summary?.agencyMonthlyBrl ?? 0);
+  const clientMonthlyValue = isError ? null : (summary?.clientMonthlyBrl ?? 0);
+  const perClientShareValue = isError ? null : (summary?.perClientShareBrl ?? 0);
+  const activeSubscriptionsValue = isError ? "—" : (summary?.activeSubscriptions ?? 0);
 
   return (
     <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
       <StatCard
         label="Custo fixo mensal"
-        value={formatCurrency(summary?.agencyMonthlyBrl ?? 0)}
+        value={formatCurrency(agencyMonthlyValue)}
         icon={Wallet}
         loading={isLoading}
       />
       <StatCard
         label="Infra de clientes/mês"
-        value={formatCurrency(summary?.clientMonthlyBrl ?? 0)}
+        value={formatCurrency(clientMonthlyValue)}
         icon={Server}
         loading={isLoading}
       />
@@ -36,12 +44,18 @@ export function CostSummaryCards() {
             ) : (
               <>
                 <p className="text-2xl font-semibold tracking-tight">
-                  {formatCurrency(summary?.perClientShareBrl ?? 0)}
+                  {formatCurrency(perClientShareValue)}
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  {formatCurrency(summary?.agencyMonthlyBrl ?? 0)} ÷{" "}
-                  {summary?.activeClientsCount ?? 0} cliente
-                  {summary?.activeClientsCount === 1 ? "" : "s"}
+                  {isError ? (
+                    "—"
+                  ) : (
+                    <>
+                      {formatCurrency(agencyMonthlyValue)} ÷ {summary?.activeClientsCount ?? 0}{" "}
+                      cliente
+                      {summary?.activeClientsCount === 1 ? "" : "s"}
+                    </>
+                  )}
                 </p>
               </>
             )}
@@ -53,7 +67,7 @@ export function CostSummaryCards() {
       </Card>
       <StatCard
         label="Assinaturas ativas"
-        value={summary?.activeSubscriptions ?? 0}
+        value={activeSubscriptionsValue}
         icon={CreditCard}
         loading={isLoading}
       />
