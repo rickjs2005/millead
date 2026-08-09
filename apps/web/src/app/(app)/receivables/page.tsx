@@ -169,11 +169,23 @@ export default function ReceivablesPage() {
   }, [contracts.data]);
 
   const isLoading = summary.isLoading || contracts.isLoading;
+  // Erro de `series` fica de fora deste gate de página inteira: as duas
+  // tabelas abaixo (vencidas / por contrato) não usam `series` -- bloqueá-las
+  // por causa de um erro que não afeta seus dados esconderia informação
+  // válida atrás de um ErrorState. `series` trata o próprio erro localmente:
+  // os StatCards do ano viram "—" e o MonthlyChart mostra seu ErrorState.
   const isError = summary.isError || contracts.isError;
   const noPlans = !isLoading && !isError && (contracts.data?.length ?? 0) === 0;
 
   const overdueCount = summary.data?.overdueItems.length ?? 0;
-  const overdueTotal = Number(summary.data?.overdue ?? 0);
+  const overdue = Number(summary.data?.overdue ?? 0);
+  // Igual ao critério de `finance-cards.tsx`: em erro, valor vira `null`
+  // (formatCurrency renderiza "—") em vez de somar 0 e mostrar um total falso.
+  const toReceiveValue = summary.isError ? null : Number(summary.data?.toReceive ?? 0);
+  const overdueValue = summary.isError ? null : overdue;
+  const receivedMonthValue = summary.isError ? null : Number(summary.data?.received ?? 0);
+  const receivedYearValue = series.isError ? null : Number(series.data?.yearTotals.received ?? 0);
+  const expectedYearValue = series.isError ? null : Number(series.data?.yearTotals.expected ?? 0);
 
   return (
     <div className="flex flex-col gap-4">
@@ -204,21 +216,21 @@ export default function ReceivablesPage() {
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <StatCard
           label="A receber no mês"
-          value={formatCurrency(summary.data?.toReceive ?? 0)}
+          value={formatCurrency(toReceiveValue)}
           icon={HandCoins}
           loading={summary.isLoading}
         />
         <StatCard
           label={overdueCount > 0 ? `Vencidas (${overdueCount})` : "Vencidas"}
-          value={formatCurrency(overdueTotal)}
+          value={formatCurrency(overdueValue)}
           icon={AlertTriangle}
           loading={summary.isLoading}
-          accent={overdueTotal > 0 ? "destructive" : "default"}
+          accent={!summary.isError && overdue > 0 ? "destructive" : "default"}
           sublabel="acumulado geral (não segue o mês)"
         />
         <StatCard
           label="Recebido no mês"
-          value={formatCurrency(summary.data?.received ?? 0)}
+          value={formatCurrency(receivedMonthValue)}
           icon={Wallet}
           loading={summary.isLoading}
           accent="success"
@@ -228,14 +240,14 @@ export default function ReceivablesPage() {
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <StatCard
           label="Recebido no ano"
-          value={formatCurrency(series.data?.yearTotals.received ?? 0)}
+          value={formatCurrency(receivedYearValue)}
           icon={TrendingUp}
           loading={series.isLoading}
           accent="success"
         />
         <StatCard
           label="Previsto no ano"
-          value={formatCurrency(series.data?.yearTotals.expected ?? 0)}
+          value={formatCurrency(expectedYearValue)}
           icon={CalendarRange}
           loading={series.isLoading}
         />
