@@ -2,6 +2,7 @@ import { prisma, Prisma } from "@millead/database";
 import type { Receivable } from "../../domain/entities/receivable.js";
 import type {
   CreatePlanItem,
+  CreateStandaloneItem,
   ReceivableRepository,
 } from "../../domain/repositories/receivable-repository.js";
 
@@ -9,6 +10,7 @@ const receivableSelect = {
   id: true,
   organizationId: true,
   contractId: true,
+  description: true,
   kind: true,
   installmentIndex: true,
   amount: true,
@@ -51,6 +53,37 @@ export class PrismaReceivableRepository implements ReceivableRepository {
       });
       return rows.map(toDomain);
     });
+  }
+
+  async createStandalone(organizationId: string, item: CreateStandaloneItem): Promise<Receivable> {
+    // installmentIndex sempre 0 aqui: o `@@unique([contractId, installmentIndex])`
+    // do schema não conflita porque contractId é null -- Postgres trata cada
+    // NULL como distinto num índice único composto, então múltiplas avulsas
+    // (contractId=null, installmentIndex=0) coexistem sem violar a
+    // constraint (que só barra duplicidade dentro do MESMO contrato).
+    const row = await prisma.receivable.create({
+      data: {
+        organizationId,
+        contractId: null,
+        description: item.description,
+        kind: "AVULSA",
+        installmentIndex: 0,
+        amount: item.amount,
+        dueDate: item.dueDate,
+        paidAt: item.paidAt,
+      },
+      select: receivableSelect,
+    });
+    return toDomain(row);
+  }
+
+  async listStandalone(organizationId: string): Promise<Receivable[]> {
+    const rows = await prisma.receivable.findMany({
+      where: { organizationId, kind: "AVULSA" },
+      select: receivableSelect,
+      orderBy: { dueDate: "desc" },
+    });
+    return rows.map(toDomain);
   }
 
   async listByContract(organizationId: string, contractId: string): Promise<Receivable[]> {

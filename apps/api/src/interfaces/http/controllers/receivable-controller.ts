@@ -15,6 +15,16 @@ export class ReceivableController {
     res.status(201).json(await this.receivables.createPlan(auth.organizationId, req.body));
   };
 
+  createStandalone = async (req: Request, res: Response): Promise<void> => {
+    const auth = requireAuth(req);
+    res.status(201).json(await this.receivables.createStandalone(auth.organizationId, req.body));
+  };
+
+  listStandalone = async (req: Request, res: Response): Promise<void> => {
+    const auth = requireAuth(req);
+    res.status(200).json(await this.receivables.listStandalone(auth.organizationId));
+  };
+
   list = async (req: Request, res: Response): Promise<void> => {
     const auth = requireAuth(req);
     const { contractId } = req.validatedQuery as ReceivableQuery;

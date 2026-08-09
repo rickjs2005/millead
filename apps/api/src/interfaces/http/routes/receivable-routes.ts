@@ -2,6 +2,7 @@ import { PERMISSIONS } from "@millead/database/permissions";
 import { Router, type RequestHandler } from "express";
 import {
   createPlanSchema,
+  createStandaloneSchema,
   paySchema,
   receivableQuerySchema,
   receivableSeriesQuerySchema,
@@ -24,6 +25,15 @@ export function createReceivableRoutes(
   const write = requirePermission(PERMISSIONS.PROPOSALS_WRITE);
 
   router.post("/plan", write, validateBody(createPlanSchema), asyncHandler(controller.createPlan));
+  // "/standalone" (receita avulsa) registrada ANTES das rotas parametricas
+  // "/:id" abaixo -- mesma convenção de "/summary/series" vs "/summary".
+  router.post(
+    "/standalone",
+    write,
+    validateBody(createStandaloneSchema),
+    asyncHandler(controller.createStandalone),
+  );
+  router.get("/standalone", read, asyncHandler(controller.listStandalone));
   router.get("/", read, validateQuery(receivableQuerySchema), asyncHandler(controller.list));
   // Registrada ANTES de qualquer rota "/:id" -- Express casa rotas na ordem
   // de declaração, e "/summary/series" tem que resolver pro handler certo

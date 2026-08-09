@@ -7,6 +7,7 @@ import type {
 } from "../../domain/repositories/receivable-repository.js";
 import type {
   CreatePlanInput,
+  CreateStandaloneInput,
   PayInput,
   UpdateReceivableInput,
 } from "../dto/receivable.dto.js";
@@ -207,6 +208,22 @@ export class ReceivableService {
 
   listByContract(organizationId: string, contractId: string): Promise<Receivable[]> {
     return this.receivables.listByContract(organizationId, contractId);
+  }
+
+  /** Receita avulsa: sem contrato, kind AVULSA, installmentIndex 0 (fixado
+   *  no repositório). `alreadyPaid` resolve pra `paidAt = new Date()` --
+   *  regime de caixa, mesmo timestamp-real que `pay()` usa. */
+  createStandalone(organizationId: string, input: CreateStandaloneInput): Promise<Receivable> {
+    return this.receivables.createStandalone(organizationId, {
+      description: input.description,
+      amount: input.amount.toFixed(2),
+      dueDate: input.dueDate,
+      paidAt: input.alreadyPaid ? new Date() : null,
+    });
+  }
+
+  listStandalone(organizationId: string): Promise<Receivable[]> {
+    return this.receivables.listStandalone(organizationId);
   }
 
   async pay(organizationId: string, id: string, input: PayInput): Promise<Receivable> {

@@ -7,9 +7,22 @@ export interface CreatePlanItem {
   dueDate: Date;
 }
 
+export interface CreateStandaloneItem {
+  description: string;
+  amount: string;
+  dueDate: Date;
+  /** Já resolvido pelo service (`new Date()` se `alreadyPaid`, senão null) --
+   *  o repositório só persiste. */
+  paidAt: Date | null;
+}
+
 export interface ReceivableRepository {
   /** Cria o plano numa transacao. Retorna null se o contrato ja tem QUALQUER parcela (plano existente). */
   createPlan(organizationId: string, contractId: string, items: CreatePlanItem[]): Promise<Receivable[] | null>;
+  /** Receita avulsa: kind AVULSA, contractId null, installmentIndex sempre 0. */
+  createStandalone(organizationId: string, item: CreateStandaloneItem): Promise<Receivable>;
+  /** Avulsas da org (kind AVULSA), dueDate desc. */
+  listStandalone(organizationId: string): Promise<Receivable[]>;
   listByContract(organizationId: string, contractId: string): Promise<Receivable[]>;
   findById(organizationId: string, id: string): Promise<Receivable | null>;
   /** CAS: marca paga so se paidAt null. Retorna null se ja paga/inexistente. */
