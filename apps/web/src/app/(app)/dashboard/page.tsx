@@ -34,7 +34,10 @@ export default function DashboardPage() {
   const hasPipeline = (pipelines ?? []).some((p) => p.stages.length > 0);
   const hasLeads = counts.totalLeads > 0;
   const dataReady = !counts.isLoading && !pipelinesLoading;
-  const showOnboarding = dataReady && (!hasPipeline || !hasLeads);
+  // Se a contagem de leads falhou, `hasLeads` (calculado do fallback `?? 0`)
+  // não é confiável -- não dá pra concluir "sem leads ainda" de um erro de
+  // rede, então não força o checklist de onboarding nesse caso.
+  const showOnboarding = dataReady && !counts.totalLeadsError && (!hasPipeline || !hasLeads);
 
   return (
     <div className="flex flex-col gap-6">
@@ -82,58 +85,58 @@ export default function DashboardPage() {
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <StatCard
           label="Total de leads"
-          value={counts.totalLeads}
+          value={counts.totalLeadsError ? "—" : counts.totalLeads}
           icon={Users2}
           loading={counts.isLoading}
         />
         <StatCard
           label="Leads abertos"
-          value={counts.openLeads}
+          value={counts.openLeadsError ? "—" : counts.openLeads}
           icon={ClipboardCheck}
           loading={counts.isLoading}
         />
         <StatCard
           label="Leads ganhos"
-          value={counts.wonLeads}
+          value={counts.wonLeadsError ? "—" : counts.wonLeads}
           icon={Handshake}
           loading={counts.isLoading}
           accent="success"
         />
         <StatCard
           label="Tarefas atrasadas"
-          value={counts.overdueTasks}
+          value={counts.overdueTasksError ? "—" : counts.overdueTasks}
           icon={ShieldAlert}
           loading={counts.isLoading}
-          accent={counts.overdueTasks > 0 ? "destructive" : "default"}
+          accent={!counts.overdueTasksError && counts.overdueTasks > 0 ? "destructive" : "default"}
         />
         <StatCard
           label="Tarefas pendentes"
-          value={counts.pendingTasks}
+          value={counts.pendingTasksError ? "—" : counts.pendingTasks}
           icon={CheckSquare}
           loading={counts.isLoading}
         />
         <StatCard
           label="Reuniões agendadas"
-          value={counts.scheduledMeetings}
+          value={counts.scheduledMeetingsError ? "—" : counts.scheduledMeetings}
           icon={CalendarCheck}
           loading={counts.isLoading}
         />
         <StatCard
           label="Propostas enviadas"
-          value={counts.sentProposals}
+          value={counts.sentProposalsError ? "—" : counts.sentProposals}
           icon={Handshake}
           loading={counts.isLoading}
         />
         <StatCard
           label="Briefings aguardando cliente"
-          value={counts.openBriefings}
+          value={counts.openBriefingsError ? "—" : counts.openBriefings}
           icon={FileText}
           loading={counts.isLoading}
-          accent={counts.openBriefings > 0 ? "success" : "default"}
+          accent={!counts.openBriefingsError && counts.openBriefings > 0 ? "success" : "default"}
         />
         <StatCard
           label="Briefings concluídos"
-          value={counts.completedBriefings}
+          value={counts.completedBriefingsError ? "—" : counts.completedBriefings}
           icon={ClipboardCheck}
           loading={counts.isLoading}
         />
