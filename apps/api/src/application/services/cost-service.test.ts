@@ -688,9 +688,11 @@ describe("CostService.getUsageSeries", () => {
 
     const result = await service.getUsageSeries(ORG, 1);
 
-    expect(result.months).toEqual([
-      { month: "2026-07", usageCostBrl: 400 * 0.239 + 100 * 0.478 },
-    ]);
+    // Só o campo sob teste (usageCostBrl) -- não toEqual no ponto inteiro,
+    // que agora também carrega recurringCostBrl/totalCostBrl (fora do escopo
+    // deste teste; ver describe de custos recorrentes mais abaixo).
+    expect(result.months[0]!.month).toBe("2026-07");
+    expect(result.months[0]!.usageCostBrl).toBeCloseTo(400 * 0.239 + 100 * 0.478, 6);
 
     vi.useRealTimers();
   });
@@ -779,6 +781,225 @@ describe("CostService.getUsageSeries", () => {
     expect(result.recurringMonthlyBrl).toBeCloseTo(650, 2);
 
     vi.useRealTimers();
+  });
+});
+
+describe("CostService.getUsageSeries -- custos recorrentes na série (aditivo)", () => {
+  it("assinatura criada em mar/26 conta de mar/26 em diante e NÃO antes", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-05-15T12:00:00Z")); // America/Sao_Paulo: 2026-05
+    try {
+      const { service } = fakeRepos({
+        listUsage: vi.fn().mockResolvedValue([]),
+        listSubscriptions: vi.fn().mockResolvedValue([
+          fakeSubscription({
+            id: "sub-1",
+            amount: "100",
+            currency: "BRL",
+            billingCycle: "MONTHLY",
+            isActive: true,
+            createdAt: new Date("2026-03-10T12:00:00Z"),
+          }),
+        ]),
+        getSettings: vi.fn().mockResolvedValue(fakeSettings({ usdToBrlRate: "5.00" })),
+      });
+
+      // months=4 -> fev/mar/abr/mai/2026 -- fev é ANTES da criação (mar).
+      const result = await service.getUsageSeries(ORG, 4);
+
+      const byMonth = new Map(result.months.map((m) => [m.month, m]));
+      expect(byMonth.get("2026-02")!.recurringCostBrl).toBe(0);
+      expect(byMonth.get("2026-03")!.recurringCostBrl).toBeCloseTo(100, 2);
+      expect(byMonth.get("2026-04")!.recurringCostBrl).toBeCloseTo(100, 2);
+      expect(byMonth.get("2026-05")!.recurringCostBrl).toBeCloseTo(100, 2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("assinatura inativa não conta em nenhum mês, mesmo criada antes da janela", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-05-15T12:00:00Z"));
+    try {
+      const { service } = fakeRepos({
+        listUsage: vi.fn().mockResolvedValue([]),
+        listSubscriptions: vi.fn().mockResolvedValue([
+          fakeSubscription({
+            id: "sub-1",
+            amount: "100",
+            currency: "BRL",
+            billingCycle: "MONTHLY",
+            isActive: false,
+            createdAt: new Date("2026-01-01T00:00:00Z"),
+          }),
+        ]),
+        getSettings: vi.fn().mockResolvedValue(fakeSettings({ usdToBrlRate: "5.00" })),
+      });
+
+      const result = await service.getUsageSeries(ORG, 3);
+
+      for (const point of result.months) {
+        expect(point.recurringCostBrl).toBe(0);
+      }
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("YEARLY divide por 12 e USD converte pela taxa atual no cálculo do recorrente", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-05-15T12:00:00Z"));
+    try {
+      const { service } = fakeRepos({
+        listUsage: vi.fn().mockResolvedValue([]),
+        listSubscriptions: vi.fn().mockResolvedValue([
+          fakeSubscription({
+            id: "sub-yearly",
+            amount: "1200",
+            currency: "BRL",
+            billingCycle: "YEARLY",
+            isActive: true,
+            createdAt: new Date("2026-01-01T00:00:00Z"),
+          }),
+          fakeSubscription({
+            id: "sub-usd",
+            amount: "20",
+            currency: "USD",
+            billingCycle: "MONTHLY",
+            isActive: true,
+            createdAt: new Date("2026-01-01T00:00:00Z"),
+          }),
+        ]),
+        getSettings: vi.fn().mockResolvedValue(fakeSettings({ usdToBrlRate: "5.00" })),
+      });
+
+      const result = await service.getUsageSeries(ORG, 1);
+
+      // 1200 BRL/ano ÷ 12 = 100 -- 20 USD * 5.00 = 100 -- total 200.
+      expect(result.months[0]!.recurringCostBrl).toBeCloseTo(200, 2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("totalCostBrl de cada ponto é usageCostBrl + recurringCostBrl", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-07-15T12:00:00Z"));
+    try {
+      const higgsfield = fakeSubscription({
+        id: "sub-hf",
+        amount: "239",
+        currency: "BRL",
+        billingCycle: "MONTHLY",
+        creditsIncluded: 1000,
+        isActive: true,
+        createdAt: new Date("2026-01-01T00:00:00Z"),
+      });
+      const { service } = fakeRepos({
+        listUsage: vi.fn().mockResolvedValue([
+          fakeUsageEntry({ subscriptionId: "sub-hf", credits: 100, usedAt: new Date("2026-07-05"), unitPriceBrl: null }),
+        ]),
+        listSubscriptions: vi.fn().mockResolvedValue([higgsfield]),
+        getSettings: vi.fn().mockResolvedValue(fakeSettings({ usdToBrlRate: "5.00" })),
+      });
+
+      const result = await service.getUsageSeries(ORG, 1);
+      const july = result.months[0]!;
+
+      expect(july.usageCostBrl).toBeCloseTo(100 * 0.239, 6);
+      expect(july.recurringCostBrl).toBeCloseTo(239, 2);
+      expect(july.totalCostBrl).toBeCloseTo(july.usageCostBrl + july.recurringCostBrl, 6);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("yearRecurringTotal soma o recorrente dos meses do ano corrente até o mês atual, mesmo com janela N menor que o ano", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-03-15T12:00:00Z")); // America/Sao_Paulo: 2026-03
+    try {
+      const { service } = fakeRepos({
+        listUsage: vi.fn().mockResolvedValue([]),
+        listSubscriptions: vi.fn().mockResolvedValue([
+          fakeSubscription({
+            id: "sub-1",
+            amount: "50",
+            currency: "BRL",
+            billingCycle: "MONTHLY",
+            isActive: true,
+            createdAt: new Date("2026-01-01T00:00:00Z"),
+          }),
+        ]),
+        getSettings: vi.fn().mockResolvedValue(fakeSettings({ usdToBrlRate: "5.00" })),
+      });
+
+      // janela de 1 mês só cobre março -- mas yearRecurringTotal precisa
+      // cobrir jan+fev+mar do ano corrente (assinatura ativa desde jan).
+      const result = await service.getUsageSeries(ORG, 1);
+
+      expect(result.yearRecurringTotal).toBeCloseTo(50 * 3, 2);
+      expect(result.yearGrandTotal).toBeCloseTo(result.yearTotal + result.yearRecurringTotal, 6);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("yearGrandTotal = yearTotal (consumo) + yearRecurringTotal, com consumo real no ano", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-02-10T12:00:00Z")); // America/Sao_Paulo: 2026-02
+    try {
+      const higgsfield = fakeSubscription({
+        id: "sub-hf",
+        amount: "239",
+        currency: "BRL",
+        billingCycle: "MONTHLY",
+        creditsIncluded: 1000,
+        isActive: true,
+        createdAt: new Date("2026-01-01T00:00:00Z"),
+      });
+      const { service } = fakeRepos({
+        listUsage: vi.fn().mockResolvedValue([
+          fakeUsageEntry({ subscriptionId: "sub-hf", credits: 50, usedAt: new Date("2026-02-05"), unitPriceBrl: null }),
+        ]),
+        listSubscriptions: vi.fn().mockResolvedValue([higgsfield]),
+        getSettings: vi.fn().mockResolvedValue(fakeSettings({ usdToBrlRate: "5.00" })),
+      });
+
+      const result = await service.getUsageSeries(ORG, 12);
+
+      // yearTotal: consumo de jan+fev = 50*0.239 (só fev teve lançamento).
+      expect(result.yearTotal).toBeCloseTo(50 * 0.239, 6);
+      // yearRecurringTotal: 239/mês * (jan+fev) = 478.
+      expect(result.yearRecurringTotal).toBeCloseTo(239 * 2, 2);
+      expect(result.yearGrandTotal).toBeCloseTo(result.yearTotal + result.yearRecurringTotal, 6);
+
+      vi.useRealTimers();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("regressão -- campos antigos (usageCostBrl, yearTotal, recurringMonthlyBrl) continuam presentes e corretos", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-15T12:00:00Z"));
+    try {
+      const { service } = fakeRepos({ listUsage: vi.fn().mockResolvedValue([]) });
+
+      const result = await service.getUsageSeries(ORG, 5);
+
+      expect(result.months).toHaveLength(5);
+      for (const point of result.months) {
+        expect(point.usageCostBrl).toBe(0);
+        expect(typeof point.recurringCostBrl).toBe("number");
+        expect(typeof point.totalCostBrl).toBe("number");
+      }
+      expect(result.yearTotal).toBe(0);
+      expect(typeof result.recurringMonthlyBrl).toBe("number");
+      expect(typeof result.yearRecurringTotal).toBe("number");
+      expect(typeof result.yearGrandTotal).toBe("number");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

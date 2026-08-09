@@ -291,17 +291,72 @@ function monthKeyUtc(date: Date): string {
   return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`;
 }
 
-/** Ponto da série mensal de consumo -- custo em BRL já resolvido (snapshot
- * ou derivado, ver `entryCostBrl`). */
+interface RecurringSubscription {
+  amount: number | { toString(): string };
+  currency: Currency;
+  billingCycle: Cycle;
+  isActive: boolean;
+  createdAt: Date;
+}
+
+/**
+ * Custo recorrente estimado (BRL) no mês `month` -- soma das assinaturas
+ * ATIVAS cuja `createdAt` é anterior ao FIM do mês (aproximação: usamos o
+ * mesmo corte de `monthRangeUtc(month).to`, que é a meia-noite UTC do
+ * primeiro dia do mês SEGUINTE -- "fim do mês m" na prática).
+ *
+ * Duas aproximações conscientes, documentadas (ver spec seção C):
+ *  - `createdAt` é timestamp real (não date-only como `usedAt`), mas o corte
+ *    em UTC puro dispensa precisão de fuso -- uma assinatura criada nas
+ *    últimas horas do último dia do mês em horário de Brasília (já virado
+ *    pro dia seguinte em UTC) pode ficar um mês adiantada na contagem.
+ *    Aceitável: é uma ESTIMATIVA "pela data de cadastro", não um fechamento
+ *    contábil.
+ *  - Assinatura INATIVA não conta em NENHUM mês, nem nos que ela esteve ativa
+ *    de fato. Não há histórico de cancelamento no schema (`isActive` é um
+ *    flag sem data de desativação) -- contá-la até `updatedAt` seria chutar
+ *    que a última edição foi a desativação, o que nem sempre é verdade.
+ *    Decisão: simplicidade > precisão retroativa nesse caso.
+ *
+ * YEARLY÷12, USD pela taxa ATUAL (mesma regra de `monthlyAmountBrl` usada em
+ * todo o resto do serviço -- não existe snapshot de câmbio por assinatura
+ * recorrente, diferente do `unitPriceBrl` de consumo).
+ */
+export function recurringCostBrlForMonth(
+  subscriptions: readonly RecurringSubscription[],
+  monthEndExclusive: Date,
+  usdRate: number,
+): number {
+  return subscriptions
+    .filter((s) => s.isActive && s.createdAt < monthEndExclusive)
+    .reduce((acc, s) => acc + monthlyAmountBrl(Number(s.amount), s.currency, s.billingCycle, usdRate), 0);
+}
+
+/** Ponto da série mensal -- custo de consumo em BRL já resolvido (snapshot
+ * ou derivado, ver `entryCostBrl`) SOMADO ao custo recorrente estimado do mês
+ * (ver `recurringCostBrlForMonth`). */
 export interface CostUsageSeriesPoint {
   month: string;
   usageCostBrl: number;
+  /** Estimativa do custo recorrente ATIVO no mês -- ver `recurringCostBrlForMonth`
+   * pras aproximações assumidas (corte UTC, inativa não conta em mês nenhum). */
+  recurringCostBrl: number;
+  /** usageCostBrl + recurringCostBrl -- conveniência pro consumidor (gráfico
+   * empilhado, "resultado do ano") não recalcular a soma. */
+  totalCostBrl: number;
 }
 
 export interface CostUsageSeries {
   months: CostUsageSeriesPoint[]; // exatamente N entradas, ordem cronológica asc, zero-fill
   yearTotal: number; // consumo do ano corrente
-  recurringMonthlyBrl: number; // totalMonthlyBrl atual (mesma conta do getSummary)
+  recurringMonthlyBrl: number; // totalMonthlyBrl atual (mesma conta do getSummary) -- mantido por compat
+  /** Soma de `recurringCostBrl` dos meses do ano corrente até o mês atual
+   * (year-to-date), independente da janela `months` pedida -- ver
+   * `getUsageSeries`. */
+  yearRecurringTotal: number;
+  /** yearTotal (consumo) + yearRecurringTotal -- "resultado do ano" honesto,
+   * sem assumir que o recorrente foi constante o ano inteiro. */
+  yearGrandTotal: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -568,10 +623,32 @@ export class CostService {
       if (entry.usedAt >= yearFrom && entry.usedAt < yearTo) yearTotal += cost;
     }
 
+    // Meses do ano corrente até o mês atual (year-to-date) -- INDEPENDENTE
+    // da janela `months` pedida: yearRecurringTotal precisa cobrir o ano
+    // inteiro decorrido mesmo quando `months` é menor (ex.: months=1 em
+    // março ainda soma jan+fev+mar). `currentMonth` é sempre "YYYY-MM", então
+    // o número do mês (1-based) é exatamente a contagem de meses de jan até
+    // ele, inclusive.
+    const currentMonthNum = Number(currentMonth.split("-")[1]);
+    const yearToDateKeys = monthKeysAsc(currentMonth, currentMonthNum);
+
+    let yearRecurringTotal = 0;
+    for (const key of yearToDateKeys) {
+      const { to: monthEndExclusive } = monthRangeUtc(key);
+      yearRecurringTotal += recurringCostBrlForMonth(subscriptions, monthEndExclusive, usdRate);
+    }
+
     return {
-      months: keys.map((key) => ({ month: key, usageCostBrl: buckets.get(key)! })),
+      months: keys.map((key) => {
+        const usageCostBrl = buckets.get(key)!;
+        const { to: monthEndExclusive } = monthRangeUtc(key);
+        const recurringCostBrl = recurringCostBrlForMonth(subscriptions, monthEndExclusive, usdRate);
+        return { month: key, usageCostBrl, recurringCostBrl, totalCostBrl: usageCostBrl + recurringCostBrl };
+      }),
       yearTotal,
       recurringMonthlyBrl: summary.totalMonthlyBrl,
+      yearRecurringTotal,
+      yearGrandTotal: yearTotal + yearRecurringTotal,
     };
   }
 }
