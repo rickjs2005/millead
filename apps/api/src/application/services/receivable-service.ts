@@ -60,14 +60,41 @@ export interface ReceivableSeries {
  *  por 3, onde o front já distribuiu o resto na última). */
 const SUM_TOLERANCE = 0.01;
 
-/** Brasil aboliu horário de verão em 2019; America/Sao_Paulo é UTC-3 fixo o
- *  ano inteiro. Meia-noite de Brasília = 03:00 UTC. Se o DST voltar, este é
- *  o único lugar a ajustar (nesta cópia). */
+/**
+ * Dois campos, dois cortes -- essa é a parte não óbvia do domínio:
+ *
+ * - `dueDate` é DATE-ONLY: vem de `<input type="date">` no front
+ *   (plan-dialog.tsx) e é coagido por `z.coerce.date()` (ver
+ *   receivable.dto.ts) pra SEMPRE `YYYY-MM-DDT00:00:00Z` -- não existe
+ *   "hora de Brasília" pra essa data, é só um dia do calendário. Corte em
+ *   meia-noite UTC (`monthRangeUtc`/`monthKeyUtc`) é o que faz "vence dia 1"
+ *   cair no mês do dia 1 -- aplicar o corte de Brasília aqui empurraria todo
+ *   vencimento dia 1 (padrão comum de cobrança) pro mês anterior.
+ * - `paidAt` é TIMESTAMP REAL: default `new Date()` no momento da baixa (ver
+ *   `pay()` abaixo) -- representa quando o pagamento de fato aconteceu, no
+ *   fuso de quem opera o sistema (Brasília). Corte em meia-noite de Brasília
+ *   (`monthRangeSp`/`monthKeySp`) é o certo aqui.
+ *
+ * Brasil aboliu horário de verão em 2019; America/Sao_Paulo é UTC-3 fixo o
+ * ano inteiro. Meia-noite de Brasília = 03:00 UTC. Se o DST voltar, este é
+ * o único lugar a ajustar (nesta cópia).
+ */
 const SP_UTC_OFFSET_HOURS = 3;
 
-/** Intervalo [from, to) em UTC pra filtrar `dueDate`/`paidAt` de um mês
- *  "YYYY-MM", cortado em meia-noite de Brasília (não meia-noite UTC) --
- *  mesmo padrão do cost-service (usage/getUsageSummary). */
+/** Intervalo [from, to) em UTC pra filtrar `dueDate` (date-only, sem fuso)
+ *  de um mês "YYYY-MM" -- corte em meia-noite UTC pura. */
+function monthRangeUtc(month: string): { from: Date; to: Date } {
+  const [yearStr, monthStr] = month.split("-");
+  const year = Number(yearStr);
+  const monthIndex = Number(monthStr) - 1;
+  return {
+    from: new Date(Date.UTC(year, monthIndex, 1)),
+    to: new Date(Date.UTC(year, monthIndex + 1, 1)),
+  };
+}
+
+/** Intervalo [from, to) em UTC pra filtrar `paidAt` (timestamp real) de um
+ *  mês "YYYY-MM", cortado em meia-noite de Brasília (não meia-noite UTC). */
 function monthRangeSp(month: string): { from: Date; to: Date } {
   const [yearStr, monthStr] = month.split("-");
   const year = Number(yearStr);
@@ -96,10 +123,16 @@ function monthKeysAsc(endMonth: string, count: number): string[] {
   return keys.reverse();
 }
 
+/** Chave "YYYY-MM" de uma data em UTC puro -- usar SÓ com `dueDate`
+ *  (date-only, ver comentário de `monthRangeUtc`/`monthRangeSp` acima). */
+function monthKeyUtc(date: Date): string {
+  return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`;
+}
+
 /** Chave "YYYY-MM" de uma data, bucketizada em America/Sao_Paulo -- desloca
  *  o timestamp -3h (mesmo corte de `monthRangeSp`) antes de extrair ano/mês
  *  em UTC, senão um pagamento das 21h-23h59 de Brasília cairia no mês UTC
- *  seguinte. */
+ *  seguinte. Usar SÓ com `paidAt` (timestamp real). */
 function monthKeySp(date: Date): string {
   const spShifted = new Date(date.getTime() - SP_UTC_OFFSET_HOURS * 60 * 60 * 1000);
   return `${spShifted.getUTCFullYear()}-${String(spShifted.getUTCMonth() + 1).padStart(2, "0")}`;
@@ -228,10 +261,17 @@ export class ReceivableService {
    *  mês consultado (uma parcela vencida em maio some no resumo de agosto). */
   async summary(organizationId: string, month?: string): Promise<ReceivableSummary> {
     const resolvedMonth = month ?? currentMonthInTimeZone();
-    const { from, to } = monthRangeSp(resolvedMonth);
+    // dueDate (toReceive) é date-only -- corte UTC. paidAt (received) é
+    // timestamp real -- corte de Brasília. Ver comentário em `monthRangeUtc`.
+    const { from: fromUtc, to: toUtc } = monthRangeUtc(resolvedMonth);
+    const { from: fromSp, to: toSp } = monthRangeSp(resolvedMonth);
     const now = new Date();
 
-    const rows = await this.receivables.listForSummary(organizationId, from, to);
+    // fromUtc <= fromSp e toUtc <= toSp sempre (offset fixo positivo) -- a
+    // união das duas janelas ([fromUtc, toSp)) cobre os dois cortes; o repo
+    // só precisa trazer candidatos, a classificação exata por campo
+    // acontece no loop abaixo.
+    const rows = await this.receivables.listForSummary(organizationId, fromUtc, toSp);
 
     let toReceive = 0;
     let received = 0;
@@ -240,7 +280,7 @@ export class ReceivableService {
 
     for (const row of rows) {
       if (row.paidAt) {
-        if (row.paidAt >= from && row.paidAt < to) {
+        if (row.paidAt >= fromSp && row.paidAt < toSp) {
           received += Number(row.amount);
         }
         continue;
@@ -252,7 +292,7 @@ export class ReceivableService {
         continue;
       }
 
-      if (row.dueDate >= from && row.dueDate < to) {
+      if (row.dueDate >= fromUtc && row.dueDate < toUtc) {
         toReceive += Number(row.amount);
       }
     }
@@ -271,18 +311,32 @@ export class ReceivableService {
   async series(organizationId: string, months = 12): Promise<ReceivableSeries> {
     const currentMonth = currentMonthInTimeZone();
     const keys = monthKeysAsc(currentMonth, months);
-    const { from } = monthRangeSp(keys[0]!);
-    const { to } = monthRangeSp(currentMonth);
+
+    // expected (dueDate, date-only) -- corte UTC. Só o `from` do primeiro mês
+    // importa pra janela de busca (o `to` do mês corrente nunca é o extremo
+    // mais tardio -- ver comentário abaixo).
+    const { from: fromUtc } = monthRangeUtc(keys[0]!);
+    // received (paidAt, timestamp real) -- corte de Brasília. Só o `to` do
+    // mês corrente importa (mesmo raciocínio, extremo oposto).
+    const { to: toSp } = monthRangeSp(currentMonth);
 
     const currentYear = Number(currentMonth.split("-")[0]);
-    const yearFrom = new Date(Date.UTC(currentYear, 0, 1, SP_UTC_OFFSET_HOURS, 0, 0));
-    const yearTo = new Date(Date.UTC(currentYear + 1, 0, 1, SP_UTC_OFFSET_HOURS, 0, 0));
+    const yearFromUtc = new Date(Date.UTC(currentYear, 0, 1));
+    const yearToUtc = new Date(Date.UTC(currentYear + 1, 0, 1));
+    const yearFromSp = new Date(Date.UTC(currentYear, 0, 1, SP_UTC_OFFSET_HOURS, 0, 0));
+    const yearToSp = new Date(Date.UTC(currentYear + 1, 0, 1, SP_UTC_OFFSET_HOURS, 0, 0));
 
-    // A janela de busca precisa cobrir tanto os N meses da série quanto o
-    // ano corrente inteiro -- quando months < 12 (ou o ano corrente
-    // extrapola pro passado dos N meses), um intervalo não contém o outro.
-    const queryFrom = from < yearFrom ? from : yearFrom;
-    const queryTo = to > yearTo ? to : yearTo;
+    // A janela de busca precisa cobrir os N meses da série E o ano corrente
+    // inteiro (quando months < 12 um intervalo não contém o outro) E os dois
+    // cortes (UTC pra dueDate, Brasília pra paidAt). UTC é sempre <= Brasília
+    // (offset fixo positivo), então o mínimo global sempre vem de um `*Utc`
+    // e o máximo global sempre vem de um `*Sp` -- daí só precisar de
+    // `fromUtc`/`toSp` aqui (o `toUtc` da janela de meses nunca supera
+    // `toSp` do mesmo mês, e o `fromSp` nunca é menor que `fromUtc`). O repo
+    // só precisa trazer candidatos; a classificação exata por campo
+    // acontece no loop abaixo.
+    const queryFrom = fromUtc < yearFromUtc ? fromUtc : yearFromUtc;
+    const queryTo = toSp > yearToSp ? toSp : yearToSp;
 
     const rows = await this.receivables.listForSeries(organizationId, queryFrom, queryTo);
 
@@ -298,12 +352,12 @@ export class ReceivableService {
       if (row.paidAt) {
         const bucket = buckets.get(monthKeySp(row.paidAt));
         if (bucket) bucket.received += amount;
-        if (row.paidAt >= yearFrom && row.paidAt < yearTo) yearReceived += amount;
+        if (row.paidAt >= yearFromSp && row.paidAt < yearToSp) yearReceived += amount;
       }
 
-      const dueBucket = buckets.get(monthKeySp(row.dueDate));
+      const dueBucket = buckets.get(monthKeyUtc(row.dueDate));
       if (dueBucket) dueBucket.expected += amount;
-      if (row.dueDate >= yearFrom && row.dueDate < yearTo) yearExpected += amount;
+      if (row.dueDate >= yearFromUtc && row.dueDate < yearToUtc) yearExpected += amount;
     }
 
     return {

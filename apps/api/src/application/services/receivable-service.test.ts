@@ -342,11 +342,42 @@ describe("ReceivableService.summary", () => {
     expect(result.overdue).toBe("150.00");
     expect(result.overdueItems).toEqual([overdueOld]);
     expect(result.received).toBe("400.00");
+    // Repo recebe a UNIÃO das duas janelas: fromUtc (dueDate, date-only) até
+    // toSp (paidAt, timestamp real) -- ver comentário em `monthRangeUtc` no
+    // service. A classificação exata por campo acontece em memória.
     expect(receivables.listForSummary).toHaveBeenCalledWith(
       ORG,
-      new Date(Date.UTC(2026, 7, 1, 3, 0, 0)),
+      new Date(Date.UTC(2026, 7, 1)),
       new Date(Date.UTC(2026, 8, 1, 3, 0, 0)),
     );
+
+    vi.useRealTimers();
+  });
+
+  it("parcela vencendo no dia 1 (dueDate date-only, sempre meia-noite UTC) conta em 'toReceive' do mês do dia 1, não do mês anterior", async () => {
+    // now ANTES do vencimento -- não é vencida, então testa o bucket de
+    // toReceive (e não o de overdue, que não olha pra mês nenhum).
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-15T12:00:00Z"));
+
+    // Valor REAL que o front manda pra uma parcela vencendo dia 1/09
+    // (<input type="date"> -> z.coerce.date() -> sempre T00:00:00Z). Com o
+    // corte de Brasília isso seria 21h de 31/08 e cairia errado em agosto --
+    // dueDate usa corte UTC justamente pra evitar essa regressão.
+    const dueFirstOfMonth = fakeReceivable({
+      id: "rec-due-day-one",
+      amount: "999.00",
+      dueDate: new Date("2026-09-01T00:00:00Z"),
+      paidAt: null,
+    });
+
+    const { service } = fakeRepos({
+      receivables: { listForSummary: vi.fn().mockResolvedValue([dueFirstOfMonth]) },
+    });
+
+    const result = await service.summary(ORG, "2026-09");
+
+    expect(result.toReceive).toBe("999.00");
 
     vi.useRealTimers();
   });
@@ -425,7 +456,7 @@ describe("ReceivableService.summary", () => {
     expect(result.month).toBe("2026-08");
     expect(receivables.listForSummary).toHaveBeenCalledWith(
       ORG,
-      new Date(Date.UTC(2026, 7, 1, 3, 0, 0)),
+      new Date(Date.UTC(2026, 7, 1)),
       new Date(Date.UTC(2026, 8, 1, 3, 0, 0)),
     );
 
@@ -493,50 +524,47 @@ describe("ReceivableService.series", () => {
 
     await service.series(ORG, 3);
 
-    // from = início de jan/2026 (o ano corrente é mais antigo que a janela
-    // de 3 meses, que começaria em jun/2026 -- prevalece o mais antigo).
-    // to = início de jan/2027 (yearTo do ano corrente é mais distante que o
-    // corte da janela de 3 meses, que seria set/2026 -- prevalece o mais tarde).
+    // from = início de jan/2026 em UTC (yearFromUtc é mais antigo que
+    // fromUtc da janela de 3 meses, que começaria em jun/2026).
+    // to = início de jan/2027 em meia-noite de Brasília (yearToSp é mais
+    // tarde que toUtc da janela de 3 meses, que seria set/2026) -- Sp
+    // sempre vence no `to` porque paidAt usa o corte de Brasília.
     expect(receivables.listForSeries).toHaveBeenCalledWith(
       ORG,
-      new Date(Date.UTC(2026, 0, 1, 3, 0, 0)),
+      new Date(Date.UTC(2026, 0, 1)),
       new Date(Date.UTC(2027, 0, 1, 3, 0, 0)),
     );
 
     vi.useRealTimers();
   });
 
-  it("corte de mês em meia-noite de Brasília, não meia-noite UTC: dueDate 01:00Z (22h de SP da véspera) cai no mês anterior, 03:00Z (meia-noite SP) cai no mês novo", async () => {
+  it("dueDate e paidAt têm cortes diferentes na MESMA parcela: dueDate (date-only, sempre T00:00:00Z) usa meia-noite UTC -- dia 1 cai no mês do dia 1; paidAt (timestamp real) usa meia-noite de Brasília", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-09-15T12:00:00Z"));
 
-    // 2026-09-01T01:00:00Z = 2026-08-31T22:00:00 em America/Sao_Paulo --
-    // ainda é agosto lá, então entra no bucket 'expected' de agosto.
-    const dueLastHourOfAugustSp = fakeReceivable({
-      id: "rec-due-edge-aug",
-      amount: "111.00",
-      dueDate: new Date("2026-09-01T01:00:00Z"),
-      paidAt: null,
-    });
-    // 2026-09-01T03:00:00Z = meia-noite em America/Sao_Paulo -- já é
-    // setembro lá, então entra no bucket 'expected' de setembro.
-    const dueMidnightSp = fakeReceivable({
-      id: "rec-due-edge-sep",
-      amount: "222.00",
-      dueDate: new Date("2026-09-01T03:00:00Z"),
-      paidAt: null,
+    // dueDate "dia 1 de setembro" é o valor REAL que o front manda pra uma
+    // parcela vencendo dia 1/09 -- precisa continuar caindo em setembro
+    // (corte UTC, não SP -- essa foi a regressão do Critical: aplicar corte
+    // de Brasília aqui empurraria todo vencimento dia 1 pro mês anterior).
+    // paidAt "2026-09-01T01:00:00Z" é 22h de 31/08 em Brasília -- timestamp
+    // real, precisa cair em agosto (corte SP).
+    const straddlingCut = fakeReceivable({
+      id: "rec-straddle-cuts",
+      amount: "500.00",
+      dueDate: new Date("2026-09-01T00:00:00Z"),
+      paidAt: new Date("2026-09-01T01:00:00Z"),
     });
 
     const { service } = fakeRepos({
-      receivables: { listForSeries: vi.fn().mockResolvedValue([dueLastHourOfAugustSp, dueMidnightSp]) },
+      receivables: { listForSeries: vi.fn().mockResolvedValue([straddlingCut]) },
     });
 
     const result = await service.series(ORG, 12);
 
-    const august = result.months.find((m) => m.month === "2026-08");
-    const september = result.months.find((m) => m.month === "2026-09");
-    expect(august?.expected).toBe("111.00");
-    expect(september?.expected).toBe("222.00");
+    const august = result.months.find((m) => m.month === "2026-08")!;
+    const september = result.months.find((m) => m.month === "2026-09")!;
+    expect(september.expected).toBe("500.00"); // dueDate: corte UTC, dia 1 = setembro
+    expect(august.received).toBe("500.00"); // paidAt: corte SP, 01:00Z = 22h de 31/08
 
     vi.useRealTimers();
   });
@@ -546,13 +574,11 @@ describe("ReceivableService.series", () => {
     vi.setSystemTime(new Date("2026-02-10T12:00:00Z"));
 
     // Fora do ano corrente (2025) -- deve aparecer no bucket mensal mas NÃO em yearTotals.
-    // Timestamps a meio-dia (não meia-noite UTC) pra não cair na virada de
-    // mês/fuso -- o objetivo aqui é testar o corte de ANO, não o de mês.
     const lastYear = fakeReceivable({
       id: "rec-last-year",
       amount: "100.00",
-      dueDate: new Date("2025-12-01T12:00:00Z"),
-      paidAt: new Date("2025-12-05T12:00:00Z"),
+      dueDate: new Date("2025-12-01"),
+      paidAt: new Date("2025-12-05"),
     });
     // Aberta em jan/2026, dentro do ano corrente.
     const openThisYear = fakeReceivable({

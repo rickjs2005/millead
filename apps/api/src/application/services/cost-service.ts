@@ -211,20 +211,24 @@ export function currentMonthInTimeZone(now: Date = new Date(), timeZone = "Ameri
   return `${year}-${month}`;
 }
 
-/** Brasil aboliu horário de verão em 2019; America/Sao_Paulo é UTC-3 fixo o
- *  ano inteiro. Meia-noite de Brasília = 03:00 UTC. Se o DST voltar, este é
- *  o único lugar a ajustar (nesta cópia). */
-const SP_UTC_OFFSET_HOURS = 3;
-
-/** Intervalo [from, to) em UTC pra filtrar `usedAt` de um mês "YYYY-MM",
- *  cortado em meia-noite de Brasília (não meia-noite UTC). */
-function monthRangeSp(month: string): { from: Date; to: Date } {
+/**
+ * `usedAt` é DATE-ONLY: vem de `<input type="date">` no front
+ * (credit-usage-section.tsx) e é coagido por `z.coerce.date()` (ver
+ * cost.dto.ts) pra SEMPRE `YYYY-MM-DDT00:00:00Z` -- não existe "hora de
+ * Brasília" pra essa data, é só um dia do calendário. Por isso o corte de
+ * mês aqui fica em meia-noite UTC pura, de propósito -- NÃO é um lugar
+ * esquecido do fix de fuso (esse fix mexeu em `receivable-service.ts`
+ * `paidAt`/`contract-kpis-range.ts` `assinadoEm`, que são timestamps reais).
+ * Aplicar corte de Brasília aqui empurraria todo lançamento do dia 1
+ * (`usedAt` = meia-noite UTC do dia 1) pro mês anterior.
+ */
+function monthRangeUtc(month: string): { from: Date; to: Date } {
   const [yearStr, monthStr] = month.split("-");
   const year = Number(yearStr);
   const monthIndex = Number(monthStr) - 1;
   return {
-    from: new Date(Date.UTC(year, monthIndex, 1, SP_UTC_OFFSET_HOURS, 0, 0)),
-    to: new Date(Date.UTC(year, monthIndex + 1, 1, SP_UTC_OFFSET_HOURS, 0, 0)),
+    from: new Date(Date.UTC(year, monthIndex, 1)),
+    to: new Date(Date.UTC(year, monthIndex + 1, 1)),
   };
 }
 
@@ -247,13 +251,10 @@ function monthKeysAsc(endMonth: string, count: number): string[] {
   return keys.reverse();
 }
 
-/** Chave "YYYY-MM" de uma data, bucketizada em America/Sao_Paulo -- desloca
- * o timestamp -3h (mesmo corte de `monthRangeSp`) antes de extrair ano/mês
- * em UTC, senão um lançamento das 21h-23h59 de Brasília cairia no mês UTC
- * seguinte. */
-function monthKeySp(date: Date): string {
-  const spShifted = new Date(date.getTime() - SP_UTC_OFFSET_HOURS * 60 * 60 * 1000);
-  return `${spShifted.getUTCFullYear()}-${String(spShifted.getUTCMonth() + 1).padStart(2, "0")}`;
+/** Chave "YYYY-MM" de `usedAt` em UTC puro -- mesmo critério de
+ *  `monthRangeUtc` (date-only, sem fuso -- ver comentário acima). */
+function monthKeyUtc(date: Date): string {
+  return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`;
 }
 
 /** Ponto da série mensal de consumo -- custo em BRL já resolvido (snapshot
@@ -348,7 +349,7 @@ export class CostService {
   }
 
   async listUsage(organizationId: string, month?: string): Promise<CostUsageEntry[]> {
-    const { from, to } = monthRangeSp(month ?? currentMonthInTimeZone());
+    const { from, to } = monthRangeUtc(month ?? currentMonthInTimeZone());
     return this.repository.listUsage(organizationId, { from, to });
   }
 
@@ -382,7 +383,7 @@ export class CostService {
 
   async getUsageSummary(organizationId: string, month?: string): Promise<UsageSummary> {
     const resolvedMonth = month ?? currentMonthInTimeZone();
-    const { from, to } = monthRangeSp(resolvedMonth);
+    const { from, to } = monthRangeUtc(resolvedMonth);
     const [entries, subscriptions, settings] = await Promise.all([
       this.repository.listUsage(organizationId, { from, to }),
       this.repository.listSubscriptions(organizationId),
@@ -400,12 +401,12 @@ export class CostService {
   async getUsageSeries(organizationId: string, months = 12): Promise<CostUsageSeries> {
     const currentMonth = currentMonthInTimeZone();
     const keys = monthKeysAsc(currentMonth, months);
-    const { from } = monthRangeSp(keys[0]!);
-    const { to } = monthRangeSp(currentMonth);
+    const { from } = monthRangeUtc(keys[0]!);
+    const { to } = monthRangeUtc(currentMonth);
 
     const currentYear = Number(currentMonth.split("-")[0]);
-    const yearFrom = new Date(Date.UTC(currentYear, 0, 1, SP_UTC_OFFSET_HOURS, 0, 0));
-    const yearTo = new Date(Date.UTC(currentYear + 1, 0, 1, SP_UTC_OFFSET_HOURS, 0, 0));
+    const yearFrom = new Date(Date.UTC(currentYear, 0, 1));
+    const yearTo = new Date(Date.UTC(currentYear + 1, 0, 1));
 
     // A janela de busca precisa cobrir tanto os N meses da série quanto o
     // ano corrente inteiro -- quando months < 12 (ou o ano corrente
@@ -432,7 +433,7 @@ export class CostService {
     for (const entry of entries) {
       const cost = entryCostBrl(entry, subsById.get(entry.subscriptionId), usdRate);
 
-      const bucketKey = monthKeySp(entry.usedAt);
+      const bucketKey = monthKeyUtc(entry.usedAt);
       const bucket = buckets.get(bucketKey);
       if (bucket !== undefined) buckets.set(bucketKey, bucket + cost);
 
