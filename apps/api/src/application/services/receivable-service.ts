@@ -258,6 +258,7 @@ export class ReceivableService {
 
     const updated = await this.receivables.update(organizationId, id, {
       amount: patch.amount != null ? patch.amount.toFixed(2) : undefined,
+      description: patch.description,
       dueDate: patch.dueDate,
     });
     if (!updated) throw new ConflictError("Parcela paga não pode ser alterada.");

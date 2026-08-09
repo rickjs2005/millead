@@ -468,6 +468,59 @@ describe("ReceivableService.update/remove", () => {
     await service.remove(ORG, "rec-avulsa");
     expect(receivables.delete).toHaveBeenCalledWith(ORG, "rec-avulsa");
   });
+
+  it("update de description numa avulsa aberta corrige o texto que identifica o lançamento", async () => {
+    const avulsaAberta = fakeReceivable({
+      id: "rec-avulsa",
+      contractId: null,
+      kind: "AVULSA",
+      installmentIndex: 0,
+      description: "Consultoria avulsa (com erro de digitação)",
+    });
+    const { service, receivables } = fakeRepos({
+      receivables: {
+        findById: vi.fn().mockResolvedValue(avulsaAberta),
+        update: vi.fn().mockResolvedValue({ ...avulsaAberta, description: "Consultoria avulsa pro Rick" }),
+      },
+    });
+    const result = await service.update(ORG, "rec-avulsa", { description: "Consultoria avulsa pro Rick" });
+    expect(receivables.update).toHaveBeenCalledWith(
+      ORG,
+      "rec-avulsa",
+      expect.objectContaining({ description: "Consultoria avulsa pro Rick" }),
+    );
+    expect(result.description).toBe("Consultoria avulsa pro Rick");
+  });
+
+  it("update de description numa PARCELA de contrato também funciona -- o campo existe pra ambas as origens, não só avulsa", async () => {
+    const parcelaAberta = fakeReceivable({
+      id: "rec-1",
+      contractId: CONTRACT_ID,
+      kind: "PARCELA",
+      installmentIndex: 1,
+      description: null,
+    });
+    const { service, receivables } = fakeRepos({
+      receivables: {
+        findById: vi.fn().mockResolvedValue(parcelaAberta),
+        update: vi.fn().mockResolvedValue({ ...parcelaAberta, description: "Nota da parcela" }),
+      },
+    });
+    const result = await service.update(ORG, "rec-1", { description: "Nota da parcela" });
+    expect(receivables.update).toHaveBeenCalledWith(
+      ORG,
+      "rec-1",
+      expect.objectContaining({ description: "Nota da parcela" }),
+    );
+    expect(result.description).toBe("Nota da parcela");
+  });
+
+  it("update sem description no patch não manda description undefined que sobrescreveria com null", async () => {
+    const { service, receivables } = fakeRepos();
+    await service.update(ORG, "rec-1", { amount: 250 });
+    const patch = vi.mocked(receivables.update).mock.calls[0]![2] as { description?: string };
+    expect(patch.description).toBeUndefined();
+  });
 });
 
 describe("ReceivableService.summary", () => {

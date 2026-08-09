@@ -157,6 +157,18 @@ describe("updateReceivableSchema", () => {
     expect(updateReceivableSchema.safeParse({ amount: 500 }).success).toBe(true);
   });
 
+  it("aceita patch só com description (existe pra qualquer kind, não só avulsa)", () => {
+    expect(updateReceivableSchema.safeParse({ description: "Descrição corrigida" }).success).toBe(true);
+  });
+
+  it("rejeita description vazia", () => {
+    expect(updateReceivableSchema.safeParse({ description: "" }).success).toBe(false);
+  });
+
+  it("rejeita description acima de 200 chars", () => {
+    expect(updateReceivableSchema.safeParse({ description: "a".repeat(201) }).success).toBe(false);
+  });
+
   it("rejeita amount <= 0", () => {
     expect(updateReceivableSchema.safeParse({ amount: 0 }).success).toBe(false);
   });

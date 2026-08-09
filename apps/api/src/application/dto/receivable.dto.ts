@@ -61,8 +61,13 @@ export const paySchema = z.object({
 });
 export type PayInput = z.infer<typeof paySchema>;
 
+// `description` existe pras DUAS origens (avulsa e parcela de contrato) --
+// parcela de contrato não usa o campo pra nada hoje (fica null), mas nada
+// aqui restringe por `kind`, então editar description numa parcela é
+// aceito e simplesmente persiste um valor que os fluxos atuais ignoram.
 export const updateReceivableSchema = z.object({
   amount: money.positive().optional(),
+  description: z.string().min(1).max(200).optional(),
   dueDate: dueDate.optional(),
 });
 export type UpdateReceivableInput = z.infer<typeof updateReceivableSchema>;

@@ -29,8 +29,14 @@ export interface ReceivableRepository {
   markPaid(organizationId: string, id: string, paidAt: Date, paidNote: string | null): Promise<Receivable | null>;
   /** CAS inverso: desfaz baixa so se paidAt nao-null. */
   markUnpaid(organizationId: string, id: string): Promise<Receivable | null>;
-  /** So parcela em aberto. Retorna null se paga/inexistente. */
-  update(organizationId: string, id: string, patch: { amount?: string; dueDate?: Date }): Promise<Receivable | null>;
+  /** So parcela em aberto. Retorna null se paga/inexistente. `description`
+   *  vale pra qualquer kind (avulsa usa pra corrigir o texto; parcela de
+   *  contrato aceita mas não é lida por nenhum fluxo hoje). */
+  update(
+    organizationId: string,
+    id: string,
+    patch: { amount?: string; description?: string; dueDate?: Date },
+  ): Promise<Receivable | null>;
   /** So parcela em aberto. False se paga/inexistente. */
   delete(organizationId: string, id: string): Promise<boolean>;
   hasPaid(organizationId: string, contractId: string): Promise<boolean>;

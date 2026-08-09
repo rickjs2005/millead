@@ -79,7 +79,7 @@ export class PrismaReceivableRepository implements ReceivableRepository {
 
   async listStandalone(organizationId: string): Promise<Receivable[]> {
     const rows = await prisma.receivable.findMany({
-      where: { organizationId, kind: "AVULSA" },
+      where: { organizationId, kind: "AVULSA", contractId: null },
       select: receivableSelect,
       orderBy: { dueDate: "desc" },
     });
@@ -137,7 +137,7 @@ export class PrismaReceivableRepository implements ReceivableRepository {
   async update(
     organizationId: string,
     id: string,
-    patch: { amount?: string; dueDate?: Date },
+    patch: { amount?: string; description?: string; dueDate?: Date },
   ): Promise<Receivable | null> {
     const { count } = await prisma.receivable.updateMany({
       where: { id, organizationId, paidAt: null },
