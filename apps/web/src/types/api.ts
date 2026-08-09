@@ -725,6 +725,11 @@ export interface FinanceSettings {
   id: string;
   organizationId: string;
   usdToBrlRate: string;
+  /** true = cotação atualizada automaticamente (lazy, na leitura de settings)
+   * via API externa; editar `usdToBrlRate` manualmente desliga isso no backend. */
+  usdRateAuto: boolean;
+  /** Instante da última atualização automática; null se nunca atualizou (ou modo manual). */
+  usdRateUpdatedAt: string | null;
   defaultHourlyRate: string;
   supportReservePct: string;
   defaultMarginPct: string;
@@ -769,6 +774,9 @@ export interface CostSubscriptionPayload {
 
 export interface FinanceSettingsPayload {
   usdToBrlRate?: number;
+  /** Envie `true` pra religar a atualização automática; enviar `usdToBrlRate`
+   * sem isso desliga o auto no backend (edição manual = quer manual). */
+  usdRateAuto?: boolean;
   defaultHourlyRate?: number;
   supportReservePct?: number;
   defaultMarginPct?: number;
@@ -817,16 +825,27 @@ export interface UsageSummary {
 export interface CostUsageSeriesPoint {
   month: string; // "YYYY-MM"
   usageCostBrl: number;
+  /** Soma das assinaturas ativas cuja `createdAt` <= fim do mês -- aproximação
+   * documentada (sem histórico de cancelamento, ver `CostUsageSeries`). */
+  recurringCostBrl: number;
+  /** `usageCostBrl + recurringCostBrl` deste mês. */
+  totalCostBrl: number;
 }
 
 /** Série mensal de consumo + totais (`GET /costs/usage/series?months=N`).
  * `months` vem em ordem ascendente, sempre com N entradas (zero-fill).
- * `recurringMonthlyBrl` é o custo fixo ATUAL (mesma conta de `CostSummary.totalMonthlyBrl`) --
- * não há histórico de assinaturas, então é o mesmo valor em todos os meses da série. */
+ * `recurringMonthlyBrl` é o custo fixo ATUAL (mesma conta de `CostSummary.totalMonthlyBrl`,
+ * mantido por compatibilidade) -- `recurringCostBrl` por mês em `months[]` é a
+ * aproximação real (assinatura ativa conta a partir da sua `createdAt`;
+ * inativa não conta em mês nenhum -- sem data de cancelamento conhecida). */
 export interface CostUsageSeries {
   months: CostUsageSeriesPoint[];
   yearTotal: number;
   recurringMonthlyBrl: number;
+  /** Soma de `recurringCostBrl` de todos os meses da série. */
+  yearRecurringTotal: number;
+  /** `yearTotal + yearRecurringTotal` -- custo total do ano (consumo + assinaturas). */
+  yearGrandTotal: number;
 }
 
 export interface CreateUsageEntryPayload {
@@ -1039,19 +1058,22 @@ export interface SocialAnalysis {
 
 // ---------- Contas a receber (Fase 10) ----------
 
-export type ReceivableKind = "ENTRADA" | "PARCELA";
+export type ReceivableKind = "ENTRADA" | "PARCELA" | "AVULSA";
 
 export interface Receivable {
   id: string;
   organizationId: string;
-  contractId: string;
+  /** null quando `kind === "AVULSA"` -- receita sem contrato vinculado. */
+  contractId: string | null;
   kind: ReceivableKind;
-  /** 0 = entrada, 1..N = parcelas. */
+  /** 0 = entrada ou avulsa, 1..N = parcelas. */
   installmentIndex: number;
   amount: string; // Decimal do Prisma serializa como string
   dueDate: string; // date-only na prática -- exibir com timeZone UTC
   paidAt: string | null; // instante -- exibir no fuso America/Sao_Paulo
   paidNote: string | null;
+  /** Só populado em receitas avulsas (`kind === "AVULSA"`); null nas parcelas de contrato. */
+  description: string | null;
 }
 
 /** Contrato + totais agregados de parcelas (`GET /receivables` sem contractId). */
@@ -1119,4 +1141,15 @@ export interface PayReceivablePayload {
 export interface UpdateReceivablePayload {
   amount?: number;
   dueDate?: string;
+  description?: string;
+}
+
+/** Payload de `POST /receivables/standalone` -- receita sem contrato (ex.: um
+ * repasse avulso). `alreadyPaid` marca `paidAt` como `new Date()` no create;
+ * não existe undo nesse mesmo request -- editar depois usa pay/unpay normais. */
+export interface CreateStandaloneReceivablePayload {
+  amount: number;
+  description: string;
+  dueDate: string;
+  alreadyPaid?: boolean;
 }
