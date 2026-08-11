@@ -45,7 +45,9 @@ export function Breadcrumb() {
           <Fragment key={href}>
             {i > 0 && <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />}
             {isLast || NOT_A_PAGE.has(segment) ? (
-              <span className={isLast ? "font-medium text-foreground" : "text-muted-foreground"}>{label}</span>
+              <span className={isLast ? "font-medium text-foreground" : "text-muted-foreground"}>
+                {label}
+              </span>
             ) : (
               <Link href={href} className="text-muted-foreground hover:text-foreground">
                 {label}

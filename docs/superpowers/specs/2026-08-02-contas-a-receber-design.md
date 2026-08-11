@@ -24,6 +24,7 @@ mostra a receber, vencidas e margem realizada vs projetada.
 ## Modelo (Prisma)
 
 `Receivable` (org-scoped, padrão do schema):
+
 - `id`, `organizationId`, `contractId` + relation
 - `kind` enum `ReceivableKind { ENTRADA, PARCELA }`
 - `installmentIndex Int` — 0 pra entrada, 1..N pras parcelas
@@ -34,7 +35,7 @@ mostra a receber, vencidas e margem realizada vs projetada.
 - `paidNote String?` — observação da baixa ("PIX conta PJ")
 - `createdAt/updatedAt`
 - `@@unique([contractId, installmentIndex])`, index em `organizationId,
-  dueDate`
+dueDate`
 
 "Vencida" é derivado (`paidAt == null && dueDate < hoje`) — sem job, sem
 status materializado.
@@ -56,8 +57,9 @@ status materializado.
 
 `/api/v1/receivables` (autenticado; permissão: reusa `proposals:read/write`
 como custos/contratos — mesmo atalho documentado):
+
 - `POST /plan` — `{ contractId, totalCents, entryCents, installments:
-  [{ amountCents, dueDate }] }` (o front monta a sugestão; o back valida
+[{ amountCents, dueDate }] }` (o front monta a sugestão; o back valida
   soma e cria tudo numa transação; 409 se contrato já tem parcela paga)
 - `GET ?contractId=` — parcelas de um contrato
 - `GET /summary?month=` — agregados: a receber no mês, vencidas (total e

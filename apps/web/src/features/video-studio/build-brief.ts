@@ -34,7 +34,10 @@ export function scaleDurations(scenes: FormScene[], targetTotalSec: number): For
 
   const escaladas = scenes.map((scene) =>
     scene.enabled
-      ? { ...scene, durationSec: Math.max(1, Math.round((scene.durationSec / atual) * targetTotalSec)) }
+      ? {
+          ...scene,
+          durationSec: Math.max(1, Math.round((scene.durationSec / atual) * targetTotalSec)),
+        }
       : { ...scene },
   );
 
@@ -143,8 +146,7 @@ export function buildBrief(
     narration: {
       mode: form.narrationMode,
       text: form.narrationMode === "manual" ? form.narrationText.trim() : null,
-      customInstructions:
-        form.narrationMode === "custom" ? form.customInstructions.trim() : null,
+      customInstructions: form.narrationMode === "custom" ? form.customInstructions.trim() : null,
     },
   };
 

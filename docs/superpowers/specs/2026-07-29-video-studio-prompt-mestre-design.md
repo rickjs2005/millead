@@ -47,13 +47,13 @@ aquela arquitetura.
 
 ## Decisões
 
-| Questão                                  | Decisão                                                                                     |
-| ---------------------------------------- | --------------------------------------------------------------------------------------------- |
-| Onde vivem os 5 templates                | **Constante no código** (`templates.ts`), como o catálogo do `creative-director`               |
-| Quem decide a timeline                   | **O formulário.** O Claude só escreve as palavras — e critica a timeline antes                 |
-| Artefato de saída                        | **`VideoBrief`** (novo), não um `VideoProject` — não há Snapshot ainda, logo não há `nodeId`   |
-| Controle de duração da narração          | **Orçamento de palavras** (~2,5 palavras/s em PT-BR), nunca instrução de tempo no prompt        |
-| Infra                                    | Nenhuma. Client-side puro: sem rota de API, sem migração, sem env nova                          |
+| Questão                         | Decisão                                                                                      |
+| ------------------------------- | -------------------------------------------------------------------------------------------- |
+| Onde vivem os 5 templates       | **Constante no código** (`templates.ts`), como o catálogo do `creative-director`             |
+| Quem decide a timeline          | **O formulário.** O Claude só escreve as palavras — e critica a timeline antes               |
+| Artefato de saída               | **`VideoBrief`** (novo), não um `VideoProject` — não há Snapshot ainda, logo não há `nodeId` |
+| Controle de duração da narração | **Orçamento de palavras** (~2,5 palavras/s em PT-BR), nunca instrução de tempo no prompt     |
+| Infra                           | Nenhuma. Client-side puro: sem rota de API, sem migração, sem env nova                       |
 
 ### Por que um `VideoBrief` e não um `VideoProject`
 
@@ -169,7 +169,7 @@ SiteSlot = "hero" | "sobre" | "servicos" | "produtos" | "depoimentos"
          | "faq" | "formulario" | "rodape"
 ```
 
-Isso corrige de graça um *minor* registrado na revisão da Task 2: lá o `props` da
+Isso corrige de graça um _minor_ registrado na revisão da Task 2: lá o `props` da
 cena de estúdio ficou `z.record(z.unknown())`, aceitando qualquer coisa. Aqui o
 zod recusa uma cena `google` sem `query`.
 
@@ -189,13 +189,13 @@ PromptTemplate {
 }
 ```
 
-| Template            | Sequência (segundos)                                                          | Total |
-| ------------------- | ------------------------------------------------------------------------------ | ----- |
-| Institucional       | notebook 3 · google 5 · hero 6 · sobre 5 · serviços 6 · formulário 3 · whatsapp 2 | 30s   |
-| Lançamento de Site  | notebook 3 · google 6 · hero 8 · produtos 6 · whatsapp 4 · logo 3                | 30s   |
-| Portfólio           | hero 6 · serviços 8 · produtos 15 · depoimentos 8 · formulário 5 · logo 3        | 45s   |
-| Loja Virtual        | google 5 · hero 6 · produtos 18 · formulário 6 · whatsapp 6 · logo 4             | 45s   |
-| Captação de Leads   | hero 6 · serviços 6 · formulário 10 · whatsapp 5 · logo 3                        | 30s   |
+| Template           | Sequência (segundos)                                                              | Total |
+| ------------------ | --------------------------------------------------------------------------------- | ----- |
+| Institucional      | notebook 3 · google 5 · hero 6 · sobre 5 · serviços 6 · formulário 3 · whatsapp 2 | 30s   |
+| Lançamento de Site | notebook 3 · google 6 · hero 8 · produtos 6 · whatsapp 4 · logo 3                 | 30s   |
+| Portfólio          | hero 6 · serviços 8 · produtos 15 · depoimentos 8 · formulário 5 · logo 3         | 45s   |
+| Loja Virtual       | google 5 · hero 6 · produtos 18 · formulário 6 · whatsapp 6 · logo 4              | 45s   |
+| Captação de Leads  | hero 6 · serviços 6 · formulário 10 · whatsapp 5 · logo 3                         | 30s   |
 
 Trocar o preset de duração (15/30/45/60) **escala proporcionalmente** e devolve a
 sobra do arredondamento à cena mais longa. Sem essa regra, 45s vira 44s ou 46s e
@@ -252,7 +252,7 @@ O corpo acima é o do modo **automática**. Os outros dois não geram um prompt
 diferente do zero — trocam um bloco:
 
 - **`manual`** — o texto que você escreveu entra no prompt e o pedido vira
-  *ajuste*: "abaixo está a narração já escrita; encaixe-a nos orçamentos de
+  _ajuste_: "abaixo está a narração já escrita; encaixe-a nos orçamentos de
   palavras por cena, preservando o sentido e o tom. Não reescreva o que já cabe."
   O bloco de crítica continua.
 - **`custom`** — as suas `customInstructions` são **acrescentadas** ao bloco de
@@ -296,12 +296,12 @@ Duas regras de comportamento que evitam surpresa:
 
 Poucos, porque é tudo client-side e sem rede.
 
-| Situação                            | Comportamento                                                                          |
-| ----------------------------------- | ---------------------------------------------------------------------------------------- |
-| URL inválida                        | Aviso inline; o prompt segue gerável (é texto), mas o download do brief bloqueia com a mensagem do zod |
-| Nenhuma cena marcada                | Os dois botões desabilitados, com o motivo escrito ao lado                               |
-| Narração manual acima do orçamento  | Aviso âmbar com a contagem real. **Não bloqueia** — estourar é escolha do usuário        |
-| Sobrou `{{variável}}` no prompt     | Lança erro. É bug de template, não erro de usuário: tem que aparecer no teste, não no cliente |
+| Situação                           | Comportamento                                                                                          |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| URL inválida                       | Aviso inline; o prompt segue gerável (é texto), mas o download do brief bloqueia com a mensagem do zod |
+| Nenhuma cena marcada               | Os dois botões desabilitados, com o motivo escrito ao lado                                             |
+| Narração manual acima do orçamento | Aviso âmbar com a contagem real. **Não bloqueia** — estourar é escolha do usuário                      |
+| Sobrou `{{variável}}` no prompt    | Lança erro. É bug de template, não erro de usuário: tem que aparecer no teste, não no cliente          |
 
 ## Testes
 
@@ -330,12 +330,12 @@ Vitest, colocados junto do código, como o `build-dossier.test.ts` já faz.
 
 ## Fora de escopo
 
-| Item                                      | Motivo                                                                     |
-| ----------------------------------------- | ---------------------------------------------------------------------------- |
-| Compilador `VideoBrief + Snapshot → VideoProject` | Depende do crawler existir; é a fatia seguinte                       |
-| Crawler (Tasks 3-10 da fatia anterior)    | Vem depois desta; o plano já está escrito                                   |
-| Render no Remotion, narração no Higgsfield | Acontecem no Claude Code, por cliente — fora do MilLead por decisão de custo |
-| Templates editáveis pela tela / no banco   | Migração + endpoints + seed manual em produção, para um usuário só          |
-| Colar o JSON do Claude de volta no MilLead | O `videobrief.json` já sai completo; a narração é consumida no Claude Code   |
-| Preview do vídeo                           | Sem Snapshot não há imagem para prever                                      |
-| Salvar/duplicar/versionar brief            | É o passo que justifica banco; enquanto isso, o download resolve             |
+| Item                                              | Motivo                                                                       |
+| ------------------------------------------------- | ---------------------------------------------------------------------------- |
+| Compilador `VideoBrief + Snapshot → VideoProject` | Depende do crawler existir; é a fatia seguinte                               |
+| Crawler (Tasks 3-10 da fatia anterior)            | Vem depois desta; o plano já está escrito                                    |
+| Render no Remotion, narração no Higgsfield        | Acontecem no Claude Code, por cliente — fora do MilLead por decisão de custo |
+| Templates editáveis pela tela / no banco          | Migração + endpoints + seed manual em produção, para um usuário só           |
+| Colar o JSON do Claude de volta no MilLead        | O `videobrief.json` já sai completo; a narração é consumida no Claude Code   |
+| Preview do vídeo                                  | Sem Snapshot não há imagem para prever                                       |
+| Salvar/duplicar/versionar brief                   | É o passo que justifica banco; enquanto isso, o download resolve             |

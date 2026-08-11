@@ -55,12 +55,8 @@ export function CostSummaryTiles() {
                 <Skeleton className="h-8 w-16" />
               ) : isError ? (
                 <>
-                  <p className="text-2xl font-semibold tracking-tight text-muted-foreground">
-                    —
-                  </p>
-                  <p className="text-[11px] text-muted-foreground/70">
-                    não foi possível calcular
-                  </p>
+                  <p className="text-2xl font-semibold tracking-tight text-muted-foreground">—</p>
+                  <p className="text-[11px] text-muted-foreground/70">não foi possível calcular</p>
                 </>
               ) : (
                 <>

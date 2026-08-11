@@ -36,8 +36,12 @@ describe("ownerOrSyncKey", () => {
   });
 
   it("sem header X-Sync-Key cai no caminho authenticate + requireOwner", () => {
-    const authenticate = vi.fn((_req: Request, _res: Response, cb: NextFunction) => cb()) as unknown as RequestHandler;
-    const requireOwner = vi.fn((_req: Request, _res: Response, cb: NextFunction) => cb()) as unknown as RequestHandler;
+    const authenticate = vi.fn((_req: Request, _res: Response, cb: NextFunction) =>
+      cb(),
+    ) as unknown as RequestHandler;
+    const requireOwner = vi.fn((_req: Request, _res: Response, cb: NextFunction) =>
+      cb(),
+    ) as unknown as RequestHandler;
     const mw = ownerOrSyncKey("chave-secreta-do-cron", authenticate, requireOwner);
     const next = vi.fn();
 
@@ -50,7 +54,9 @@ describe("ownerOrSyncKey", () => {
 
   it("erro do authenticate propaga pro next sem chamar requireOwner", () => {
     const authError = new Error("token invalido");
-    const authenticate = vi.fn((_req: Request, _res: Response, cb: NextFunction) => cb(authError)) as unknown as RequestHandler;
+    const authenticate = vi.fn((_req: Request, _res: Response, cb: NextFunction) =>
+      cb(authError),
+    ) as unknown as RequestHandler;
     const requireOwner = vi.fn() as unknown as RequestHandler;
     const mw = ownerOrSyncKey("chave-secreta-do-cron", authenticate, requireOwner);
     const next = vi.fn();

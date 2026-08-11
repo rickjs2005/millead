@@ -14,7 +14,8 @@ import type {
 
 export const costsService = {
   list: () => api.get<CostSubscription[]>("/api/v1/costs"),
-  create: (payload: CostSubscriptionPayload) => api.post<CostSubscription>("/api/v1/costs", payload),
+  create: (payload: CostSubscriptionPayload) =>
+    api.post<CostSubscription>("/api/v1/costs", payload),
   update: (id: string, payload: Partial<CostSubscriptionPayload>) =>
     api.patch<CostSubscription>(`/api/v1/costs/${id}`, payload),
   remove: (id: string) => api.delete<void>(`/api/v1/costs/${id}`),

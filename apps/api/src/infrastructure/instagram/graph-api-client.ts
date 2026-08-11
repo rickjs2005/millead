@@ -1,5 +1,8 @@
 import type {
-  InstagramClient, InstagramInsights, InstagramMedia, InstagramMediaPage,
+  InstagramClient,
+  InstagramInsights,
+  InstagramMedia,
+  InstagramMediaPage,
 } from "../../domain/services/instagram-client.js";
 import { AppError } from "../../domain/errors/app-error.js";
 
@@ -11,7 +14,11 @@ const REEL_METRICS =
 const STATIC_METRICS = "reach,views,likes,comments,saved,shares,profile_visits,profile_activity";
 const SAFE_METRICS = "reach,likes,comments,saved,shares";
 
-interface InsightValue { name: string; values?: Array<{ value: number }>; total_value?: { value: number } }
+interface InsightValue {
+  name: string;
+  values?: Array<{ value: number }>;
+  total_value?: { value: number };
+}
 
 /**
  * Erro tipado da Graph API, com deteccao por codigo. Estende AppError pra
@@ -24,7 +31,10 @@ class GraphApiError extends AppError {
   readonly statusCode = 502;
   readonly code = "INSTAGRAM_API_ERROR";
 
-  constructor(message: string, public readonly graphCode: number | null) {
+  constructor(
+    message: string,
+    public readonly graphCode: number | null,
+  ) {
     super(message);
   }
 }
@@ -32,12 +42,23 @@ class GraphApiError extends AppError {
 export class GraphApiInstagramClient implements InstagramClient {
   async fetchMediaPage(token: string, after?: string): Promise<InstagramMediaPage> {
     const url = new URL(`${BASE}/me/media`);
-    url.searchParams.set("fields", "id,caption,media_type,permalink,thumbnail_url,media_url,timestamp");
+    url.searchParams.set(
+      "fields",
+      "id,caption,media_type,permalink,thumbnail_url,media_url,timestamp",
+    );
     url.searchParams.set("limit", "25");
     url.searchParams.set("access_token", token);
     if (after) url.searchParams.set("after", after);
     const data = await this.request<{
-      data: Array<{ id: string; caption?: string; media_type: string; permalink: string; thumbnail_url?: string; media_url?: string; timestamp: string }>;
+      data: Array<{
+        id: string;
+        caption?: string;
+        media_type: string;
+        permalink: string;
+        thumbnail_url?: string;
+        media_url?: string;
+        timestamp: string;
+      }>;
       paging?: { cursors?: { after?: string }; next?: string };
     }>(url);
     const media: InstagramMedia[] = data.data.map((m) => ({
@@ -65,7 +86,11 @@ export class GraphApiInstagramClient implements InstagramClient {
     return { media, nextCursor };
   }
 
-  async fetchInsights(token: string, igMediaId: string, mediaType: string): Promise<InstagramInsights> {
+  async fetchInsights(
+    token: string,
+    igMediaId: string,
+    mediaType: string,
+  ): Promise<InstagramInsights> {
     const isReel = mediaType === "REELS" || mediaType === "VIDEO";
     const metrics = isReel ? REEL_METRICS : STATIC_METRICS;
     let rows: InsightValue[];
@@ -79,13 +104,15 @@ export class GraphApiInstagramClient implements InstagramClient {
         const metricList = metrics.split(",");
         let removedAny = false;
         // Procurar cada metrica da lista atual dentro da mensagem de erro
-        const updatedMetrics = metricList.filter((m) => {
-          if (errMsg.includes(m)) {
-            removedAny = true;
-            return false;
-          }
-          return true;
-        }).join(",");
+        const updatedMetrics = metricList
+          .filter((m) => {
+            if (errMsg.includes(m)) {
+              removedAny = true;
+              return false;
+            }
+            return true;
+          })
+          .join(",");
 
         if (removedAny && updatedMetrics) {
           // Retirou algo e ainda sobrou metrica -- retry com lista reduzida
@@ -129,7 +156,11 @@ export class GraphApiInstagramClient implements InstagramClient {
     };
   }
 
-  private async fetchInsightRows(token: string, igMediaId: string, metrics: string): Promise<InsightValue[]> {
+  private async fetchInsightRows(
+    token: string,
+    igMediaId: string,
+    metrics: string,
+  ): Promise<InsightValue[]> {
     const url = new URL(`${BASE}/${igMediaId}/insights`);
     url.searchParams.set("metric", metrics);
     url.searchParams.set("access_token", token);
@@ -153,10 +184,7 @@ export class GraphApiInstagramClient implements InstagramClient {
       body = JSON.parse(text) as T & { error?: { message?: string; code?: number } };
     } catch {
       // Resposta nao e JSON (ex: 502/503 HTML de proxy)
-      throw new GraphApiError(
-        `Instagram Graph API: HTTP ${res.status} (resposta não-JSON)`,
-        null,
-      );
+      throw new GraphApiError(`Instagram Graph API: HTTP ${res.status} (resposta não-JSON)`, null);
     }
 
     if (!res.ok || body.error) {

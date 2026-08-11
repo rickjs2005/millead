@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 import type { CompanyRepository } from "../../domain/repositories/company-repository.js";
-import type { ContractKpis, ContractRepository } from "../../domain/repositories/contract-repository.js";
+import type {
+  ContractKpis,
+  ContractRepository,
+} from "../../domain/repositories/contract-repository.js";
 import type { OrganizationRepository } from "../../domain/repositories/organization-repository.js";
 import type { ContractNotifier } from "../../domain/services/contract-notifier.js";
 import type { ContractQueue } from "../../domain/services/contract-queue.js";

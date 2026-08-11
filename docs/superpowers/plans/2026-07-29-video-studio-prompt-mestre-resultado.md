@@ -9,25 +9,25 @@ produzida na prática.
 
 ## Critério de aceite da spec
 
-| # | Critério | Status | Evidência |
-| - | -------- | ------ | --------- |
-| 1 | Prompt do Institucional gerado para a Kavita | ✅ | 7 cenas, 30s, 77 palavras de orçamento total |
-| 2 | Narração voltou dentro do orçamento de palavras | ✅ | **0 de 7 cenas estouraram**; 68 palavras escritas contra 77 de teto |
-| 3 | `videobrief.json` valida no zod sem ajuste manual | ✅ | `VideoBriefSchema.parse` passou no arquivo baixado, sem edição |
-| 4 | `next build` do web passa com o `transpilePackages` | ✅ | rota `/videos` sai com 15 kB / 216 kB de First Load; middleware 34,3 kB |
+| #   | Critério                                            | Status | Evidência                                                               |
+| --- | --------------------------------------------------- | ------ | ----------------------------------------------------------------------- |
+| 1   | Prompt do Institucional gerado para a Kavita        | ✅     | 7 cenas, 30s, 77 palavras de orçamento total                            |
+| 2   | Narração voltou dentro do orçamento de palavras     | ✅     | **0 de 7 cenas estouraram**; 68 palavras escritas contra 77 de teto     |
+| 3   | `videobrief.json` valida no zod sem ajuste manual   | ✅     | `VideoBriefSchema.parse` passou no arquivo baixado, sem edição          |
+| 4   | `next build` do web passa com o `transpilePackages` | ✅     | rota `/videos` sai com 15 kB / 216 kB de First Load; middleware 34,3 kB |
 
 ### Orçamento cena a cena
 
-| cena | tipo | duração | orçamento | escrito |
-| ---- | ---- | ------- | --------- | ------- |
-| sc1 | notebook | 3s | 8 | 7 |
-| sc2 | google | 5s | 13 | 11 |
-| sc3 | hero | 6s | 15 | 14 |
-| sc4 | sobre | 5s | 13 | 13 |
-| sc5 | servicos | 6s | 15 | 13 |
-| sc6 | formulario | 3s | 8 | 5 |
-| sc7 | whatsapp | 2s | 5 | 5 |
-| **total** | | **30s** | **77** | **68** |
+| cena      | tipo       | duração | orçamento | escrito |
+| --------- | ---------- | ------- | --------- | ------- |
+| sc1       | notebook   | 3s      | 8         | 7       |
+| sc2       | google     | 5s      | 13        | 11      |
+| sc3       | hero       | 6s      | 15        | 14      |
+| sc4       | sobre      | 5s      | 13        | 13      |
+| sc5       | servicos   | 6s      | 15        | 13      |
+| sc6       | formulario | 3s      | 8         | 5       |
+| sc7       | whatsapp   | 2s      | 5         | 5       |
+| **total** |            | **30s** | **77**    | **68**  |
 
 O orçamento de palavras funcionou como controle: o modelo ficou abaixo do teto em
 todas as cenas, sem nenhuma instrução de tempo no prompt. Era exatamente a hipótese —
@@ -62,10 +62,19 @@ e o teste que a trava.
 {
   "narracao": [
     { "sceneId": "sc1", "texto": "A Kavita Drones agora tem site novo." },
-    { "sceneId": "sc2", "texto": "Pesquise Kavita Drones no Google ou digite kavita.com.br direto no navegador." },
-    { "sceneId": "sc3", "texto": "Logo na entrada você vê o que a Kavita faz: drones para o agronegócio." },
+    {
+      "sceneId": "sc2",
+      "texto": "Pesquise Kavita Drones no Google ou digite kavita.com.br direto no navegador."
+    },
+    {
+      "sceneId": "sc3",
+      "texto": "Logo na entrada você vê o que a Kavita faz: drones para o agronegócio."
+    },
     { "sceneId": "sc4", "texto": "Na seção Sobre, quem é a empresa e como ela trabalha no campo." },
-    { "sceneId": "sc5", "texto": "Em Serviços estão os equipamentos e o suporte disponíveis, organizados para comparar rápido." },
+    {
+      "sceneId": "sc5",
+      "texto": "Em Serviços estão os equipamentos e o suporte disponíveis, organizados para comparar rápido."
+    },
     { "sceneId": "sc6", "texto": "Preencha o formulário e envie." },
     { "sceneId": "sc7", "texto": "Acesse kavita.com.br e fale conosco." }
   ]

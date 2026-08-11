@@ -19,10 +19,12 @@
 ### Task 1: API — capacidade no `GET /costs/summary` + testes
 
 **Files:**
+
 - Modify: `apps/api/src/application/services/cost-service.ts` + `cost-service.test.ts`
 - Modify: `apps/api/src/domain/entities/cost.ts` (estender `CostSummary`)
 
 **Interfaces:**
+
 - `CostSummary` ganha:
 
 ```ts
@@ -50,12 +52,13 @@ maxCapacityPct: number | null;  // null quando capacity vazia
 ### Task 2: Web — seção Capacidade no /costs
 
 **Files:**
+
 - Create: `apps/web/src/features/finance/components/capacity-section.tsx`
 - Modify: `apps/web/src/app/(app)/costs/page.tsx` (inserir a seção entre os cards e a tabela)
 
 **Interfaces:** consome `useCostSummary()` (campo `capacity` novo). `Progress` de `components/ui/progress` (conferir a API real do componente — value 0-100).
 
-- [ ] **Step 1:** `capacity-section.tsx` — `Card` "Capacidade da infraestrutura": para cada `CapacityEntry`: linha com nome, `{used}/{limit} projetos`, `Progress` (value = min(pct,100)) com cor por faixa (padrão: primária <80, âmbar 80-99, destructive ≥100 — conferir como Progress aceita cor: className no indicator ou wrapper; seguir o que o componente real permite), e badge "Atenção"/"Estourado" nas faixas de alerta. Estado vazio: texto "Defina limite e uso nas assinaturas para acompanhar a capacidade." Skeleton no loading. Dica no rodapé: "Edite os números na própria assinatura." 
+- [ ] **Step 1:** `capacity-section.tsx` — `Card` "Capacidade da infraestrutura": para cada `CapacityEntry`: linha com nome, `{used}/{limit} projetos`, `Progress` (value = min(pct,100)) com cor por faixa (padrão: primária <80, âmbar 80-99, destructive ≥100 — conferir como Progress aceita cor: className no indicator ou wrapper; seguir o que o componente real permite), e badge "Atenção"/"Estourado" nas faixas de alerta. Estado vazio: texto "Defina limite e uso nas assinaturas para acompanhar a capacidade." Skeleton no loading. Dica no rodapé: "Edite os números na própria assinatura."
 - [ ] **Step 2:** montar na página `/costs`. `pnpm turbo lint type-check --filter=@millead/web`.
 - [ ] **Step 3:** Commit `feat(web): barras de capacidade da infraestrutura no Centro de Custos`.
 
@@ -64,6 +67,7 @@ maxCapacityPct: number | null;  // null quando capacity vazia
 ### Task 3: Web — Dashboard (cards + alerta) + suíte
 
 **Files:**
+
 - Create: `apps/web/src/features/dashboard/components/cost-summary-tiles.tsx`
 - Modify: `apps/web/src/app/(app)/dashboard/page.tsx` (ou o componente que monta os cards — conferir onde `FinanceCards` é renderizado e inserir junto)
 

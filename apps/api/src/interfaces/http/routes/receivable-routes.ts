@@ -44,15 +44,20 @@ export function createReceivableRoutes(
     validateQuery(receivableSeriesQuerySchema),
     asyncHandler(controller.series),
   );
-  router.get("/summary", read, validateQuery(receivableQuerySchema), asyncHandler(controller.summary));
-  router.get("/margin", read, validateQuery(receivableQuerySchema), asyncHandler(controller.margin));
-
-  router.patch(
-    "/:id/pay",
-    write,
-    validateBody(paySchema),
-    asyncHandler(controller.pay),
+  router.get(
+    "/summary",
+    read,
+    validateQuery(receivableQuerySchema),
+    asyncHandler(controller.summary),
   );
+  router.get(
+    "/margin",
+    read,
+    validateQuery(receivableQuerySchema),
+    asyncHandler(controller.margin),
+  );
+
+  router.patch("/:id/pay", write, validateBody(paySchema), asyncHandler(controller.pay));
   router.patch("/:id/unpay", write, asyncHandler(controller.unpay));
   router.patch(
     "/:id",

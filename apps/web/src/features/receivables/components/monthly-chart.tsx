@@ -1,7 +1,16 @@
 "use client";
 
 import { BarChart3 } from "lucide-react";
-import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Legend,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 import { EmptyState } from "@/components/empty-state";
 import { ErrorState } from "@/components/error-state";
 import { Button } from "@/components/ui/button";
@@ -13,7 +22,18 @@ import { formatCurrency } from "@/utils/format";
 import type { ReceivableSeriesPoint } from "@/types/api";
 
 const MONTH_ABBR = [
-  "jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez",
+  "jan",
+  "fev",
+  "mar",
+  "abr",
+  "mai",
+  "jun",
+  "jul",
+  "ago",
+  "set",
+  "out",
+  "nov",
+  "dez",
 ];
 
 /** "2025-08" -> "ago/25". `new Date("YYYY-MM")` ancora em UTC meia-noite --
@@ -78,10 +98,22 @@ export function MonthlyChart() {
                 }}
               />
               <Legend
-                formatter={(value) => <span className="text-xs text-muted-foreground">{value}</span>}
+                formatter={(value) => (
+                  <span className="text-xs text-muted-foreground">{value}</span>
+                )}
               />
-              <Bar dataKey="received" name="Recebido" fill="hsl(var(--chart-3))" radius={[4, 4, 0, 0]} />
-              <Bar dataKey="expected" name="Previsto" fill="hsl(var(--chart-1))" radius={[4, 4, 0, 0]} />
+              <Bar
+                dataKey="received"
+                name="Recebido"
+                fill="hsl(var(--chart-3))"
+                radius={[4, 4, 0, 0]}
+              />
+              <Bar
+                dataKey="expected"
+                name="Previsto"
+                fill="hsl(var(--chart-1))"
+                radius={[4, 4, 0, 0]}
+              />
             </BarChart>
           </ResponsiveContainer>
         )}

@@ -41,7 +41,7 @@ A conta agora aparecerá como profissional e todos os reels terão métricas dis
 
 **Nota:** Tokens long-lived do Instagram valem 60 dias. O MilSocial renova automaticamente e persiste o novo token no banco (`SocialConfig`), então não é necessário atualizar manualmente — **desde que o sync esteja rodando**.
 
-**Como a renovação funciona de verdade** (importa se o cron parar): o refresh só acontece *dentro* de um sync, e só quando faltam menos de 10 dias pra expirar. Ou seja, é preciso pelo menos um sync bem-sucedido dentro dos últimos 10 dias de vida do token. Se essa janela passar em branco, a Meta não aceita mais renovar — o token morre em definitivo e você refaz a seção 2 inteira. Por isso o cron agendado não é conveniência: é o que mantém o token vivo.
+**Como a renovação funciona de verdade** (importa se o cron parar): o refresh só acontece _dentro_ de um sync, e só quando faltam menos de 10 dias pra expirar. Ou seja, é preciso pelo menos um sync bem-sucedido dentro dos últimos 10 dias de vida do token. Se essa janela passar em branco, a Meta não aceita mais renovar — o token morre em definitivo e você refaz a seção 2 inteira. Por isso o cron agendado não é conveniência: é o que mantém o token vivo.
 
 Pra conferir a validade atual, olhe `SocialConfig.tokenExpiresAt` no banco (`pnpm --filter @millead/database studio`).
 
@@ -175,10 +175,10 @@ A partir daí, o workflow dispara sozinho todo dia às 05:00 (horário de Brasí
 
 São **dois 401 diferentes**, e a mensagem no corpo da resposta diz qual é. O workflow imprime esse corpo (`--fail-with-body`) justamente pra você não precisar adivinhar:
 
-| Mensagem no corpo | Significado | Solução |
-|---|---|---|
-| `"Chave de sincronização inválida."` | O header chegou, mas o valor não bate com `MILSOCIAL_SYNC_KEY` do Render | Cole no GitHub o valor **exato** que está no Render |
-| `"Token de acesso ausente."` | O header **não chegou** — o secret está vazio, e o curl descarta header sem valor | Crie o secret (seção 5.1); o primeiro passo do workflow já detecta isso antes |
+| Mensagem no corpo                    | Significado                                                                       | Solução                                                                       |
+| ------------------------------------ | --------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| `"Chave de sincronização inválida."` | O header chegou, mas o valor não bate com `MILSOCIAL_SYNC_KEY` do Render          | Cole no GitHub o valor **exato** que está no Render                           |
+| `"Token de acesso ausente."`         | O header **não chegou** — o secret está vazio, e o curl descarta header sem valor | Crie o secret (seção 5.1); o primeiro passo do workflow já detecta isso antes |
 
 Esse segundo caso é traiçoeiro: parece erro de sessão de usuário, mas é o secret faltando. Foi o que manteve o sync quebrado por dias enquanto o painel funcionava normalmente — o botão "Sincronizar agora" usa sessão do dono, um caminho de auth totalmente diferente do cron.
 
@@ -198,7 +198,8 @@ Esse segundo caso é traiçoeiro: parece erro de sessão de usuário, mas é o s
 ### Painel avisa "Token expirado"
 
 **Causa:** Token long-lived chegou ao fim de sua validade de 60 dias ou foi revogado manualmente.  
-**Solução:**  
+**Solução:**
+
 1. Repita a seção 2 (Criar o App na Meta e Gerar Token) — o processo é idêntico
 2. Copie o novo token
 3. Atualize `INSTAGRAM_ACCESS_TOKEN` no Render e redeploy
@@ -218,10 +219,10 @@ Este comando pode ser rodado várias vezes sem risco — Prisma mantém controle
 
 ## Referências Rápidas
 
-| O quê | Onde |
-|-------|------|
-| Dashboard Meta Developers | https://developers.facebook.com |
-| Painel MilSocial | https://millead.milweb.com.br/admin/milsocial |
-| Render (API) | https://dashboard.render.com |
-| Vercel (Web) | https://vercel.com/dashboard |
+| O quê                             | Onde                                          |
+| --------------------------------- | --------------------------------------------- |
+| Dashboard Meta Developers         | https://developers.facebook.com               |
+| Painel MilSocial                  | https://millead.milweb.com.br/admin/milsocial |
+| Render (API)                      | https://dashboard.render.com                  |
+| Vercel (Web)                      | https://vercel.com/dashboard                  |
 | Workflow do sync (GitHub Actions) | https://github.com/rickjs2005/millead/actions |

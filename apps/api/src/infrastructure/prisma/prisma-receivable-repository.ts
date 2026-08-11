@@ -196,10 +196,7 @@ export class PrismaReceivableRepository implements ReceivableRepository {
     const rows = await prisma.receivable.findMany({
       where: {
         organizationId,
-        OR: [
-          { dueDate: { gte: from, lt: to } },
-          { paidAt: { gte: from, lt: to } },
-        ],
+        OR: [{ dueDate: { gte: from, lt: to } }, { paidAt: { gte: from, lt: to } }],
       },
       select: receivableSelect,
       orderBy: { dueDate: "asc" },

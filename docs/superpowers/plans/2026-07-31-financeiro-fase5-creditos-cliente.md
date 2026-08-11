@@ -22,6 +22,7 @@
 ### Task 1: DB — creditsIncluded, isOneTime, CostUsageEntry + seed
 
 **Files:**
+
 - Modify: `packages/database/prisma/schema.prisma`
 - Create: migration `add_credit_usage` (RLS na tabela nova)
 - Modify: `packages/database/prisma/seed-data/finance.ts`
@@ -50,6 +51,7 @@ model CostUsageEntry {
 ```
 
 (+ relações inversas em Organization/CostSubscription/Company.)
+
 - [ ] **Step 2:** migration `--create-only` → conferir aditiva → append `ALTER TABLE "cost_usage_entries" ENABLE ROW LEVEL SECURITY;` → `pnpm db:migrate` + `db:generate`. Drift/reset → BLOCKED.
 - [ ] **Step 3: Seed** — `higgsfield-starter` do catálogo ganha nota de créditos em `billingNotes` e o bootstrap `RICK_SUBSCRIPTIONS` ganha `creditsIncluded: 1000` no item Higgsfield. **Rodar `pnpm db:seed` NÃO atualiza a assinatura já existente do Rick** (bootstrap só roda em org sem assinaturas) — em vez disso, atualizar a assinatura real em produção com um script one-off via Prisma (update WHERE serviceKey='higgsfield-starter' AND credits_included IS NULL SET credits_included=1000), rodado e descartado; registrar o output no relatório.
 - [ ] **Step 4:** type-check + commit `feat(db): créditos por assinatura, custo one-time e lançamentos de consumo`.
@@ -59,6 +61,7 @@ model CostUsageEntry {
 ### Task 2: API — usage CRUD + summary de consumo + cálculo one-time
 
 **Files:**
+
 - Modify: `apps/api/src/application/dto/cost.dto.ts` (subscription ± `creditsIncluded`; novos `createUsageEntrySchema {subscriptionId min1, companyId opcional nullable, credits int 1..1_000_000, usedAt coerce.date, note max 200 opcional}` e `usageQuerySchema {month "YYYY-MM" opcional}`)
 - Modify: `apps/api/src/domain/entities/cost.ts` (`CostUsageEntry` com `companyName: string | null` denormalizado na leitura; `UsageSummary`)
 - Modify: `apps/api/src/domain/repositories/cost-repository.ts` + prisma impl (`listUsage(orgId, {from,to})` com include company {name}, `createUsage`, `deleteUsage` org-scoped)
@@ -73,9 +76,16 @@ model CostUsageEntry {
 ```ts
 export interface UsageSummary {
   month: string; // "2026-07"
-  unitPriceBrl: number | null;    // por assinatura com creditsIncluded (ver bySubscription)
+  unitPriceBrl: number | null; // por assinatura com creditsIncluded (ver bySubscription)
   totalCredits: number;
-  bySubscription: { subscriptionId: string; name: string; credits: number; creditsIncluded: number | null; unitPriceBrl: number | null; costBrl: number }[];
+  bySubscription: {
+    subscriptionId: string;
+    name: string;
+    credits: number;
+    creditsIncluded: number | null;
+    unitPriceBrl: number | null;
+    costBrl: number;
+  }[];
   byClient: { companyId: string | null; companyName: string; credits: number; costBrl: number }[]; // companyId null => "Sem cliente"
 }
 ```
@@ -91,6 +101,7 @@ export interface UsageSummary {
 ### Task 3: Web — tipos/hooks + UI de consumo + calculadora
 
 **Files:**
+
 - Modify: `apps/web/src/types/api.ts`, `services/costs.ts`, `lib/query-keys.ts` (`costs.usage(month)`, `costs.usageSummary(month)`), `features/finance/hooks.ts` (useUsage, useUsageSummary, useCreateUsage, useDeleteUsage; invalidação namespace costs)
 - Modify: `features/finance/components/cost-subscription-dialog.tsx` (campo "Créditos inclusos/mês" opcional int; mostrar "≈ R$ X por crédito" quando amount+credits presentes)
 - Create: `features/finance/components/credit-usage-section.tsx` — no `/costs` (abaixo da capacidade): resumo do mês (total usado / incluído com Progress e o mesmo esquema de cores da capacidade ≥80/≥100), tabela por cliente (nome, créditos, custo R$), lista de lançamentos (data, assinatura, cliente, créditos, nota, excluir com ConfirmDialog), dialog "Lançar consumo" (assinatura [só com creditsIncluded], CompanyCombobox opcional — conferir o combobox de empresa existente usado no prompt-builder —, créditos, data default hoje, nota), navegação de mês (◀ mês ▶)

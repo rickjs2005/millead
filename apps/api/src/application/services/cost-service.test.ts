@@ -1,7 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 import type { CompanyRepository } from "../../domain/repositories/company-repository.js";
 import type { CostRepository } from "../../domain/repositories/cost-repository.js";
-import type { CostSubscription, CostUsageEntry, FinanceSettings } from "../../domain/entities/cost.js";
+import type {
+  CostSubscription,
+  CostUsageEntry,
+  FinanceSettings,
+} from "../../domain/entities/cost.js";
 import { ConflictError, NotFoundError, ValidationError } from "../../domain/errors/app-error.js";
 import {
   CostService,
@@ -133,8 +137,22 @@ describe("computeCapacity", () => {
 
   it("sem capacityUsed ou capacityLimit fica fora da lista", () => {
     const { capacity, maxCapacityPct } = computeCapacity([
-      { ...base, id: "s1", name: "Sem used", isActive: true, capacityUsed: null, capacityLimit: 15 },
-      { ...base, id: "s2", name: "Sem limit", isActive: true, capacityUsed: 5, capacityLimit: null },
+      {
+        ...base,
+        id: "s1",
+        name: "Sem used",
+        isActive: true,
+        capacityUsed: null,
+        capacityLimit: 15,
+      },
+      {
+        ...base,
+        id: "s2",
+        name: "Sem limit",
+        isActive: true,
+        capacityUsed: 5,
+        capacityLimit: null,
+      },
     ]);
     expect(capacity).toEqual([]);
     expect(maxCapacityPct).toBeNull();
@@ -296,7 +314,15 @@ describe("computeUsageSummary", () => {
 
   it("unitário derivado = monthlyAmountBrl(sub) / creditsIncluded", () => {
     const s = computeUsageSummary(
-      [{ subscriptionId: "sub-hf", companyId: null, companyName: null, credits: 400, unitPriceBrl: null }],
+      [
+        {
+          subscriptionId: "sub-hf",
+          companyId: null,
+          companyName: null,
+          credits: 400,
+          unitPriceBrl: null,
+        },
+      ],
       [higgsfield],
       5,
     );
@@ -317,9 +343,27 @@ describe("computeUsageSummary", () => {
   it("agrega por cliente -- companyId null vira 'Sem cliente'", () => {
     const s = computeUsageSummary(
       [
-        { subscriptionId: "sub-hf", companyId: "company-1", companyName: "Cliente A", credits: 300, unitPriceBrl: null },
-        { subscriptionId: "sub-hf", companyId: "company-1", companyName: "Cliente A", credits: 100, unitPriceBrl: null },
-        { subscriptionId: "sub-hf", companyId: null, companyName: null, credits: 50, unitPriceBrl: null },
+        {
+          subscriptionId: "sub-hf",
+          companyId: "company-1",
+          companyName: "Cliente A",
+          credits: 300,
+          unitPriceBrl: null,
+        },
+        {
+          subscriptionId: "sub-hf",
+          companyId: "company-1",
+          companyName: "Cliente A",
+          credits: 100,
+          unitPriceBrl: null,
+        },
+        {
+          subscriptionId: "sub-hf",
+          companyId: null,
+          companyName: null,
+          credits: 50,
+          unitPriceBrl: null,
+        },
       ],
       [higgsfield],
       5,
@@ -333,7 +377,15 @@ describe("computeUsageSummary", () => {
 
   it("assinatura sem creditsIncluded -> unitPrice null e costBrl 0", () => {
     const s = computeUsageSummary(
-      [{ subscriptionId: "sub-nc", companyId: null, companyName: null, credits: 20, unitPriceBrl: null }],
+      [
+        {
+          subscriptionId: "sub-nc",
+          companyId: null,
+          companyName: null,
+          credits: 20,
+          unitPriceBrl: null,
+        },
+      ],
       [semCreditos],
       5,
     );
@@ -348,7 +400,9 @@ describe("computeUsageSummary", () => {
       },
     ]);
     expect(s.unitPriceBrl).toBeNull();
-    expect(s.byClient).toEqual([{ companyId: null, companyName: "Sem cliente", credits: 20, costBrl: 0 }]);
+    expect(s.byClient).toEqual([
+      { companyId: null, companyName: "Sem cliente", credits: 20, costBrl: 0 },
+    ]);
   });
 
   it("mês vazio -- sem lançamentos dá resumo zerado", () => {
@@ -359,10 +413,25 @@ describe("computeUsageSummary", () => {
   it("mais de uma assinatura com creditsIncluded no período -> unitPriceBrl de topo fica null (ambíguo)", () => {
     const s = computeUsageSummary(
       [
-        { subscriptionId: "sub-hf", companyId: null, companyName: null, credits: 100, unitPriceBrl: null },
-        { subscriptionId: "sub-2", companyId: null, companyName: null, credits: 50, unitPriceBrl: null },
+        {
+          subscriptionId: "sub-hf",
+          companyId: null,
+          companyName: null,
+          credits: 100,
+          unitPriceBrl: null,
+        },
+        {
+          subscriptionId: "sub-2",
+          companyId: null,
+          companyName: null,
+          credits: 50,
+          unitPriceBrl: null,
+        },
       ],
-      [higgsfield, { ...higgsfield, id: "sub-2", name: "Higgsfield 2", amount: 478, creditsIncluded: 2000 }],
+      [
+        higgsfield,
+        { ...higgsfield, id: "sub-2", name: "Higgsfield 2", amount: 478, creditsIncluded: 2000 },
+      ],
       5,
     );
     expect(s.unitPriceBrl).toBeNull();
@@ -374,7 +443,15 @@ describe("computeUsageSummary", () => {
     // lançamento foi gravado (239 -> unitPriceBrl 0.239 no snapshot).
     const higgsfieldMaisCaro = { ...higgsfield, amount: 478 };
     const s = computeUsageSummary(
-      [{ subscriptionId: "sub-hf", companyId: null, companyName: null, credits: 400, unitPriceBrl: 0.239 }],
+      [
+        {
+          subscriptionId: "sub-hf",
+          companyId: null,
+          companyName: null,
+          credits: 400,
+          unitPriceBrl: 0.239,
+        },
+      ],
       [higgsfieldMaisCaro],
       5,
     );
@@ -434,7 +511,10 @@ describe("CostService", () => {
       isActive: true,
     });
     expect(companies.findByIdForOrg).not.toHaveBeenCalled();
-    expect(costs.createSubscription).toHaveBeenCalledWith(ORG, expect.objectContaining({ name: "Claude Max 5x" }));
+    expect(costs.createSubscription).toHaveBeenCalledWith(
+      ORG,
+      expect.objectContaining({ name: "Claude Max 5x" }),
+    );
   });
 
   it("updateSubscription com companyId null (desvincular) não valida company e atualiza", async () => {
@@ -452,10 +532,18 @@ describe("CostService", () => {
     const { service } = fakeRepos({
       listSubscriptions: vi.fn().mockResolvedValue([
         fakeSubscription({ amount: "550", scope: "AGENCY", capacityUsed: 12, capacityLimit: 15 }),
-        fakeSubscription({ id: "sub-2", name: "Vercel Pro", amount: "20", currency: "USD", scope: "CLIENT" }),
+        fakeSubscription({
+          id: "sub-2",
+          name: "Vercel Pro",
+          amount: "20",
+          currency: "USD",
+          scope: "CLIENT",
+        }),
         fakeSubscription({ id: "sub-3", name: "Inativa", amount: "999", isActive: false }),
       ]),
-      getSettings: vi.fn().mockResolvedValue(fakeSettings({ usdToBrlRate: "5.00", activeClientsCount: 2 })),
+      getSettings: vi
+        .fn()
+        .mockResolvedValue(fakeSettings({ usdToBrlRate: "5.00", activeClientsCount: 2 })),
       countWonLeads: vi.fn().mockResolvedValue(3),
     });
     const s = await service.getSummary(ORG);
@@ -465,7 +553,9 @@ describe("CostService", () => {
     expect(s.perClientShareBrl).toBeCloseTo(275, 2);
     expect(s.wonLeadsCount).toBe(3);
     expect(s.activeSubscriptions).toBe(2);
-    expect(s.capacity).toEqual([{ id: "sub-1", name: "Claude Max 5x", used: 12, limit: 15, pct: 80 }]);
+    expect(s.capacity).toEqual([
+      { id: "sub-1", name: "Claude Max 5x", used: 12, limit: 15, pct: 80 },
+    ]);
     expect(s.maxCapacityPct).toBe(80);
   });
 
@@ -495,7 +585,9 @@ describe("CostService", () => {
     });
 
     it("createUsage rejeita subscriptionId de outra org sem gravar", async () => {
-      const { service, costs } = fakeRepos({ findSubscriptionById: vi.fn().mockResolvedValue(null) });
+      const { service, costs } = fakeRepos({
+        findSubscriptionById: vi.fn().mockResolvedValue(null),
+      });
       await expect(
         service.createUsage(ORG, {
           subscriptionId: "sub-x",
@@ -509,7 +601,9 @@ describe("CostService", () => {
 
     it("createUsage rejeita companyId de outra org sem gravar", async () => {
       const { service, costs, companies } = fakeRepos({
-        findSubscriptionById: vi.fn().mockResolvedValue(fakeSubscription({ creditsIncluded: 1000 })),
+        findSubscriptionById: vi
+          .fn()
+          .mockResolvedValue(fakeSubscription({ creditsIncluded: 1000 })),
       });
       await expect(
         service.createUsage(ORG, {
@@ -525,7 +619,9 @@ describe("CostService", () => {
 
     it("createUsage sem companyId não consulta companies e grava", async () => {
       const { service, costs, companies } = fakeRepos({
-        findSubscriptionById: vi.fn().mockResolvedValue(fakeSubscription({ creditsIncluded: 1000 })),
+        findSubscriptionById: vi
+          .fn()
+          .mockResolvedValue(fakeSubscription({ creditsIncluded: 1000 })),
       });
       await service.createUsage(ORG, {
         subscriptionId: "sub-1",
@@ -541,7 +637,9 @@ describe("CostService", () => {
 
     it("createUsage rejeita lançamento contra assinatura sem creditsIncluded, sem gravar", async () => {
       const { service, costs } = fakeRepos({
-        findSubscriptionById: vi.fn().mockResolvedValue(fakeSubscription({ creditsIncluded: null })),
+        findSubscriptionById: vi
+          .fn()
+          .mockResolvedValue(fakeSubscription({ creditsIncluded: null })),
       });
       await expect(
         service.createUsage(ORG, {
@@ -556,7 +654,12 @@ describe("CostService", () => {
     it("createUsage grava o unitPriceBrl calculado NA HORA (snapshot), não confia em recálculo futuro", async () => {
       const { service, costs } = fakeRepos({
         findSubscriptionById: vi.fn().mockResolvedValue(
-          fakeSubscription({ amount: "239", currency: "BRL", billingCycle: "MONTHLY", creditsIncluded: 1000 }),
+          fakeSubscription({
+            amount: "239",
+            currency: "BRL",
+            billingCycle: "MONTHLY",
+            creditsIncluded: 1000,
+          }),
         ),
         getSettings: vi.fn().mockResolvedValue(fakeSettings({ usdToBrlRate: "5.00" })),
       });
@@ -578,11 +681,16 @@ describe("CostService", () => {
 
     it("getUsageSummary monta o resumo a partir de listUsage/listSubscriptions/getSettings", async () => {
       const { service } = fakeRepos({
-        listUsage: vi.fn().mockResolvedValue([
-          fakeUsageEntry({ subscriptionId: "sub-1", credits: 400 }),
-        ]),
+        listUsage: vi
+          .fn()
+          .mockResolvedValue([fakeUsageEntry({ subscriptionId: "sub-1", credits: 400 })]),
         listSubscriptions: vi.fn().mockResolvedValue([
-          fakeSubscription({ id: "sub-1", name: "Higgsfield", amount: "239", creditsIncluded: 1000 }),
+          fakeSubscription({
+            id: "sub-1",
+            name: "Higgsfield",
+            amount: "239",
+            creditsIncluded: 1000,
+          }),
         ]),
         getSettings: vi.fn().mockResolvedValue(fakeSettings({ usdToBrlRate: "5.00" })),
       });
@@ -621,11 +729,21 @@ describe("CostService.getUsageSeries", () => {
 
     const { service } = fakeRepos({
       listUsage: vi.fn().mockResolvedValue([
-        fakeUsageEntry({ subscriptionId: "sub-hf", credits: 100, usedAt: new Date("2026-05-10"), unitPriceBrl: null }),
+        fakeUsageEntry({
+          subscriptionId: "sub-hf",
+          credits: 100,
+          usedAt: new Date("2026-05-10"),
+          unitPriceBrl: null,
+        }),
         // Dia 1 à meia-noite UTC -- valor REAL que o front manda pra um
         // lançamento do dia 1/07 (usedAt é date-only, sempre T00:00:00Z);
         // precisa continuar caindo em julho (corte UTC, não SP).
-        fakeUsageEntry({ subscriptionId: "sub-hf", credits: 10, usedAt: new Date("2026-07-01"), unitPriceBrl: null }),
+        fakeUsageEntry({
+          subscriptionId: "sub-hf",
+          credits: 10,
+          usedAt: new Date("2026-07-01"),
+          unitPriceBrl: null,
+        }),
       ]),
       listSubscriptions: vi.fn().mockResolvedValue([higgsfield]),
       getSettings: vi.fn().mockResolvedValue(fakeSettings({ usdToBrlRate: "5.00" })),
@@ -678,9 +796,19 @@ describe("CostService.getUsageSeries", () => {
     const { service } = fakeRepos({
       listUsage: vi.fn().mockResolvedValue([
         // Com snapshot: usa 0.239, IGNORA o preço atual (0.478).
-        fakeUsageEntry({ subscriptionId: "sub-hf", credits: 400, usedAt: new Date("2026-07-05"), unitPriceBrl: 0.239 }),
+        fakeUsageEntry({
+          subscriptionId: "sub-hf",
+          credits: 400,
+          usedAt: new Date("2026-07-05"),
+          unitPriceBrl: 0.239,
+        }),
         // Sem snapshot: deriva do preço atual da assinatura (478/1000=0.478).
-        fakeUsageEntry({ subscriptionId: "sub-hf", credits: 100, usedAt: new Date("2026-07-10"), unitPriceBrl: null }),
+        fakeUsageEntry({
+          subscriptionId: "sub-hf",
+          credits: 100,
+          usedAt: new Date("2026-07-10"),
+          unitPriceBrl: null,
+        }),
       ]),
       listSubscriptions: vi.fn().mockResolvedValue([higgsfieldMaisCaro]),
       getSettings: vi.fn().mockResolvedValue(fakeSettings({ usdToBrlRate: "5.00" })),
@@ -704,9 +832,19 @@ describe("CostService.getUsageSeries", () => {
     const { service } = fakeRepos({
       listUsage: vi.fn().mockResolvedValue([
         // Fora do ano corrente (2025) -- aparece no bucket mensal, não em yearTotal.
-        fakeUsageEntry({ subscriptionId: "sub-hf", credits: 100, usedAt: new Date("2025-12-01"), unitPriceBrl: null }),
+        fakeUsageEntry({
+          subscriptionId: "sub-hf",
+          credits: 100,
+          usedAt: new Date("2025-12-01"),
+          unitPriceBrl: null,
+        }),
         // Dentro do ano corrente.
-        fakeUsageEntry({ subscriptionId: "sub-hf", credits: 50, usedAt: new Date("2026-02-05"), unitPriceBrl: null }),
+        fakeUsageEntry({
+          subscriptionId: "sub-hf",
+          credits: 50,
+          usedAt: new Date("2026-02-05"),
+          unitPriceBrl: null,
+        }),
       ]),
       listSubscriptions: vi.fn().mockResolvedValue([higgsfield]),
       getSettings: vi.fn().mockResolvedValue(fakeSettings({ usdToBrlRate: "5.00" })),
@@ -746,7 +884,12 @@ describe("CostService.getUsageSeries", () => {
     const { service } = fakeRepos({
       listUsage: vi.fn().mockResolvedValue([
         // Valor REAL que o front manda pra um lançamento do dia 1/09.
-        fakeUsageEntry({ subscriptionId: "sub-hf", credits: 10, usedAt: new Date("2026-09-01"), unitPriceBrl: null }),
+        fakeUsageEntry({
+          subscriptionId: "sub-hf",
+          credits: 10,
+          usedAt: new Date("2026-09-01"),
+          unitPriceBrl: null,
+        }),
       ]),
       listSubscriptions: vi.fn().mockResolvedValue([higgsfield]),
       getSettings: vi.fn().mockResolvedValue(fakeSettings({ usdToBrlRate: "5.00" })),
@@ -768,11 +911,13 @@ describe("CostService.getUsageSeries", () => {
 
     const { service } = fakeRepos({
       listUsage: vi.fn().mockResolvedValue([]),
-      listSubscriptions: vi.fn().mockResolvedValue([
-        fakeSubscription({ id: "sub-1", scope: "AGENCY", amount: "550", isActive: true }),
-        fakeSubscription({ id: "sub-2", scope: "CLIENT", amount: "100", isActive: true }),
-        fakeSubscription({ id: "sub-3", scope: "AGENCY", amount: "999", isActive: false }),
-      ]),
+      listSubscriptions: vi
+        .fn()
+        .mockResolvedValue([
+          fakeSubscription({ id: "sub-1", scope: "AGENCY", amount: "550", isActive: true }),
+          fakeSubscription({ id: "sub-2", scope: "CLIENT", amount: "100", isActive: true }),
+          fakeSubscription({ id: "sub-3", scope: "AGENCY", amount: "999", isActive: false }),
+        ]),
       getSettings: vi.fn().mockResolvedValue(fakeSettings({ usdToBrlRate: "5.00" })),
     });
 
@@ -897,7 +1042,12 @@ describe("CostService.getUsageSeries -- custos recorrentes na série (aditivo)",
       });
       const { service } = fakeRepos({
         listUsage: vi.fn().mockResolvedValue([
-          fakeUsageEntry({ subscriptionId: "sub-hf", credits: 100, usedAt: new Date("2026-07-05"), unitPriceBrl: null }),
+          fakeUsageEntry({
+            subscriptionId: "sub-hf",
+            credits: 100,
+            usedAt: new Date("2026-07-05"),
+            unitPriceBrl: null,
+          }),
         ]),
         listSubscriptions: vi.fn().mockResolvedValue([higgsfield]),
         getSettings: vi.fn().mockResolvedValue(fakeSettings({ usdToBrlRate: "5.00" })),
@@ -959,7 +1109,12 @@ describe("CostService.getUsageSeries -- custos recorrentes na série (aditivo)",
       });
       const { service } = fakeRepos({
         listUsage: vi.fn().mockResolvedValue([
-          fakeUsageEntry({ subscriptionId: "sub-hf", credits: 50, usedAt: new Date("2026-02-05"), unitPriceBrl: null }),
+          fakeUsageEntry({
+            subscriptionId: "sub-hf",
+            credits: 50,
+            usedAt: new Date("2026-02-05"),
+            unitPriceBrl: null,
+          }),
         ]),
         listSubscriptions: vi.fn().mockResolvedValue([higgsfield]),
         getSettings: vi.fn().mockResolvedValue(fakeSettings({ usdToBrlRate: "5.00" })),
@@ -1042,7 +1197,9 @@ describe("needsUsdRateRefresh", () => {
 
   it("usdRateAuto true + updatedAt há 23h -> NÃO precisa", () => {
     const updatedAt = new Date(NOW.getTime() - 23 * 60 * 60 * 1000);
-    expect(needsUsdRateRefresh({ usdRateAuto: true, usdRateUpdatedAt: updatedAt }, NOW)).toBe(false);
+    expect(needsUsdRateRefresh({ usdRateAuto: true, usdRateUpdatedAt: updatedAt }, NOW)).toBe(
+      false,
+    );
   });
 
   it("usdRateAuto true + updatedAt há 25h -> precisa", () => {
@@ -1076,7 +1233,10 @@ describe("CostService -- cotação USD-BRL automática (refresh lazy no read)", 
       expect(rateFetcher).toHaveBeenCalledTimes(1);
       expect(costs.updateSettings).toHaveBeenCalledWith(
         ORG,
-        expect.objectContaining({ usdToBrlRate: 5.42, usdRateUpdatedAt: new Date("2026-08-09T12:00:00Z") }),
+        expect.objectContaining({
+          usdToBrlRate: 5.42,
+          usdRateUpdatedAt: new Date("2026-08-09T12:00:00Z"),
+        }),
       );
       expect(result).toBe(refreshed);
     } finally {
@@ -1134,7 +1294,10 @@ describe("CostService -- cotação USD-BRL automática (refresh lazy no read)", 
   it("usdRateAuto false -> NÃO chama o fetcher independente de updatedAt", async () => {
     const rateFetcher = vi.fn();
     const settings = fakeSettings({ usdRateAuto: false, usdRateUpdatedAt: null });
-    const { service, costs } = fakeRepos({ getSettings: vi.fn().mockResolvedValue(settings) }, rateFetcher);
+    const { service, costs } = fakeRepos(
+      { getSettings: vi.fn().mockResolvedValue(settings) },
+      rateFetcher,
+    );
 
     const result = await service.getSettings(ORG);
 
@@ -1182,15 +1345,24 @@ describe("CostService -- cotação USD-BRL automática (refresh lazy no read)", 
   it("duas leituras concorrentes podem disparar 2 fetches -- aceitável; nenhuma delas lança", async () => {
     const rateFetcher = vi.fn().mockResolvedValue(5.6);
     const settings = fakeSettings({ usdRateAuto: true, usdRateUpdatedAt: null });
-    const { service } = fakeRepos({ getSettings: vi.fn().mockResolvedValue(settings) }, rateFetcher);
+    const { service } = fakeRepos(
+      { getSettings: vi.fn().mockResolvedValue(settings) },
+      rateFetcher,
+    );
 
-    await expect(Promise.all([service.getSettings(ORG), service.getSettings(ORG)])).resolves.toBeDefined();
+    await expect(
+      Promise.all([service.getSettings(ORG), service.getSettings(ORG)]),
+    ).resolves.toBeDefined();
     expect(rateFetcher).toHaveBeenCalledTimes(2);
   });
 
   it("getSummary passa pelo mesmo ponto único de leitura de settings (refresh lazy também acontece aqui)", async () => {
     const rateFetcher = vi.fn().mockResolvedValue(5.75);
-    const settings = fakeSettings({ usdRateAuto: true, usdRateUpdatedAt: null, activeClientsCount: 1 });
+    const settings = fakeSettings({
+      usdRateAuto: true,
+      usdRateUpdatedAt: null,
+      activeClientsCount: 1,
+    });
     const refreshed = fakeSettings({
       usdToBrlRate: "5.75",
       usdRateAuto: true,
@@ -1247,14 +1419,20 @@ describe("CostService -- cotação USD-BRL automática (refresh lazy no read)", 
     const settings = fakeSettings({ usdRateAuto: true, usdRateUpdatedAt: null });
     const { service } = fakeRepos(
       {
-        findSubscriptionById: vi.fn().mockResolvedValue(fakeSubscription({ creditsIncluded: 1000 })),
+        findSubscriptionById: vi
+          .fn()
+          .mockResolvedValue(fakeSubscription({ creditsIncluded: 1000 })),
         getSettings: vi.fn().mockResolvedValue(settings),
         updateSettings: vi.fn().mockResolvedValue(fakeSettings({ usdToBrlRate: "5.75" })),
       },
       rateFetcher,
     );
 
-    await service.createUsage(ORG, { subscriptionId: "sub-1", credits: 10, usedAt: new Date("2026-07-15") });
+    await service.createUsage(ORG, {
+      subscriptionId: "sub-1",
+      credits: 10,
+      usedAt: new Date("2026-07-15"),
+    });
 
     expect(rateFetcher).toHaveBeenCalledTimes(1);
   });

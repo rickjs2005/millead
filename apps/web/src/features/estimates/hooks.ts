@@ -37,7 +37,8 @@ export function useCreateEstimate() {
       invalidateAll(queryClient);
       toast.success("Orçamento criado.");
     },
-    onError: (err) => toast.error(err instanceof ApiError ? err.message : "Erro ao criar orçamento."),
+    onError: (err) =>
+      toast.error(err instanceof ApiError ? err.message : "Erro ao criar orçamento."),
   });
 }
 
@@ -63,7 +64,8 @@ export function useDeleteEstimate() {
       invalidateAll(queryClient);
       toast.success("Orçamento removido.");
     },
-    onError: (err) => toast.error(err instanceof ApiError ? err.message : "Erro ao remover orçamento."),
+    onError: (err) =>
+      toast.error(err instanceof ApiError ? err.message : "Erro ao remover orçamento."),
   });
 }
 

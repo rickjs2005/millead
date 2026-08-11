@@ -59,11 +59,13 @@ function fakeReceivable(overrides: Partial<Receivable> = {}): Receivable {
   };
 }
 
-function fakeRepos(overrides: {
-  receivables?: Partial<ReceivableRepository>;
-  contracts?: Partial<ContractRepository>;
-  estimateService?: Partial<EstimateService>;
-} = {}) {
+function fakeRepos(
+  overrides: {
+    receivables?: Partial<ReceivableRepository>;
+    contracts?: Partial<ContractRepository>;
+    estimateService?: Partial<EstimateService>;
+  } = {},
+) {
   const receivables = {
     createPlan: vi.fn().mockResolvedValue([fakeReceivable()]),
     createStandalone: vi.fn().mockResolvedValue(
@@ -133,7 +135,9 @@ describe("ReceivableService.createPlan", () => {
         expect.objectContaining({ kind: "PARCELA", installmentIndex: 3, amount: "200.00" }),
       ]),
     );
-    const items = vi.mocked(receivables.createPlan).mock.calls[0]![2] as Array<{ installmentIndex: number }>;
+    const items = vi.mocked(receivables.createPlan).mock.calls[0]![2] as Array<{
+      installmentIndex: number;
+    }>;
     expect(items).toHaveLength(4);
   });
 
@@ -317,9 +321,11 @@ describe("ReceivableService.listStandalone", () => {
   it("delega ao repositório passando a org", async () => {
     const { service, receivables } = fakeRepos({
       receivables: {
-        listStandalone: vi.fn().mockResolvedValue([
-          fakeReceivable({ id: "rec-a", contractId: null, kind: "AVULSA", description: "A" }),
-        ]),
+        listStandalone: vi
+          .fn()
+          .mockResolvedValue([
+            fakeReceivable({ id: "rec-a", contractId: null, kind: "AVULSA", description: "A" }),
+          ]),
       },
     });
     const result = await service.listStandalone(ORG);
@@ -354,7 +360,9 @@ describe("ReceivableService.pay/unpay", () => {
 
   it("unpay desfaz baixa com sucesso", async () => {
     const { service, receivables } = fakeRepos({
-      receivables: { findById: vi.fn().mockResolvedValue(fakeReceivable({ paidAt: new Date("2026-07-01") })) },
+      receivables: {
+        findById: vi.fn().mockResolvedValue(fakeReceivable({ paidAt: new Date("2026-07-01") })),
+      },
     });
     const result = await service.unpay(ORG, "rec-1");
     expect(result.paidAt).toBeNull();
@@ -362,7 +370,9 @@ describe("ReceivableService.pay/unpay", () => {
   });
 
   it("unpay em parcela não paga -> ConflictError", async () => {
-    const { service } = fakeRepos({ receivables: { findById: vi.fn().mockResolvedValue(fakeReceivable({ paidAt: null })) } });
+    const { service } = fakeRepos({
+      receivables: { findById: vi.fn().mockResolvedValue(fakeReceivable({ paidAt: null })) },
+    });
     await expect(service.unpay(ORG, "rec-1")).rejects.toThrow(ConflictError);
   });
 
@@ -426,7 +436,11 @@ describe("ReceivableService.update/remove", () => {
   it("update em parcela aberta que MANTÉM a soma do contrato (idempotente: mesmo valor) funciona", async () => {
     const { service, receivables } = singleInstallmentContractRepos();
     await service.update(ORG, "rec-1", { amount: 200 });
-    expect(receivables.update).toHaveBeenCalledWith(ORG, "rec-1", expect.objectContaining({ amount: "200.00" }));
+    expect(receivables.update).toHaveBeenCalledWith(
+      ORG,
+      "rec-1",
+      expect.objectContaining({ amount: "200.00" }),
+    );
   });
 
   it("update de amount que QUEBRA a soma do contrato -> ValidationError citando os dois valores", async () => {
@@ -448,17 +462,29 @@ describe("ReceivableService.update/remove", () => {
     // + parcela aberta rec-2 de 300 (não editada, entra como está) + rec-1
     // (parcela editada). Soma hipotética válida: 400 + 300 + 300 = 1000.
     const { service, receivables } = fakeRepos({
-      contracts: { findByIdForOrg: vi.fn().mockResolvedValue(fakeContract({ valorTotal: "1000.00" })) },
+      contracts: {
+        findByIdForOrg: vi.fn().mockResolvedValue(fakeContract({ valorTotal: "1000.00" })),
+      },
       receivables: {
         listByContract: vi.fn().mockResolvedValue([
-          fakeReceivable({ id: "rec-entrada", kind: "ENTRADA", installmentIndex: 0, amount: "400.00", paidAt: new Date("2026-07-01") }),
+          fakeReceivable({
+            id: "rec-entrada",
+            kind: "ENTRADA",
+            installmentIndex: 0,
+            amount: "400.00",
+            paidAt: new Date("2026-07-01"),
+          }),
           fakeReceivable({ id: "rec-2", installmentIndex: 2, amount: "300.00" }),
           fakeReceivable({ id: "rec-1", installmentIndex: 1, amount: "200.00" }),
         ]),
       },
     });
     await service.update(ORG, "rec-1", { amount: 300 });
-    expect(receivables.update).toHaveBeenCalledWith(ORG, "rec-1", expect.objectContaining({ amount: "300.00" }));
+    expect(receivables.update).toHaveBeenCalledWith(
+      ORG,
+      "rec-1",
+      expect.objectContaining({ amount: "300.00" }),
+    );
   });
 
   it("update de amount numa AVULSA (contractId null) NUNCA bloqueia por divergência de total -- não há contrato pra bater", async () => {
@@ -488,7 +514,9 @@ describe("ReceivableService.update/remove", () => {
 
   it("update em parcela paga -> ConflictError (regressão: bloqueio pré-existente continua valendo, não é a checagem de soma nova)", async () => {
     const { service, receivables } = fakeRepos({
-      receivables: { findById: vi.fn().mockResolvedValue(fakeReceivable({ paidAt: new Date("2026-07-01") })) },
+      receivables: {
+        findById: vi.fn().mockResolvedValue(fakeReceivable({ paidAt: new Date("2026-07-01") })),
+      },
     });
     await expect(service.update(ORG, "rec-1", { amount: 250 })).rejects.toThrow(ConflictError);
     expect(receivables.update).not.toHaveBeenCalled();
@@ -534,7 +562,9 @@ describe("ReceivableService.update/remove", () => {
 
   it("remove em parcela paga -> ConflictError (regressão: bloqueio pré-existente continua valendo, checado antes da soma)", async () => {
     const { service, receivables } = fakeRepos({
-      receivables: { findById: vi.fn().mockResolvedValue(fakeReceivable({ paidAt: new Date("2026-07-01") })) },
+      receivables: {
+        findById: vi.fn().mockResolvedValue(fakeReceivable({ paidAt: new Date("2026-07-01") })),
+      },
     });
     await expect(service.remove(ORG, "rec-1")).rejects.toThrow(ConflictError);
     expect(receivables.delete).not.toHaveBeenCalled();
@@ -586,10 +616,14 @@ describe("ReceivableService.update/remove", () => {
     const { service, receivables } = fakeRepos({
       receivables: {
         findById: vi.fn().mockResolvedValue(avulsaAberta),
-        update: vi.fn().mockResolvedValue({ ...avulsaAberta, description: "Consultoria avulsa pro Rick" }),
+        update: vi
+          .fn()
+          .mockResolvedValue({ ...avulsaAberta, description: "Consultoria avulsa pro Rick" }),
       },
     });
-    const result = await service.update(ORG, "rec-avulsa", { description: "Consultoria avulsa pro Rick" });
+    const result = await service.update(ORG, "rec-avulsa", {
+      description: "Consultoria avulsa pro Rick",
+    });
     expect(receivables.update).toHaveBeenCalledWith(
       ORG,
       "rec-avulsa",
@@ -623,7 +657,9 @@ describe("ReceivableService.update/remove", () => {
 
   it("update sem description no patch não manda description undefined que sobrescreveria com null", async () => {
     const { service, receivables } = fakeRepos({
-      contracts: { findByIdForOrg: vi.fn().mockResolvedValue(fakeContract({ valorTotal: "250.00" })) },
+      contracts: {
+        findByIdForOrg: vi.fn().mockResolvedValue(fakeContract({ valorTotal: "250.00" })),
+      },
     });
     await service.update(ORG, "rec-1", { amount: 250 });
     const patch = vi.mocked(receivables.update).mock.calls[0]![2] as { description?: string };
@@ -1041,7 +1077,9 @@ describe("ReceivableService.margin", () => {
   it("com orçamento vinculado: projectedCost e realizedMargin calculados", async () => {
     const { service, contracts, estimateService } = fakeRepos({
       contracts: {
-        findByIdForOrg: vi.fn().mockResolvedValue(fakeContract({ proposalId: "proposal-1", valorTotal: "1000.00" })),
+        findByIdForOrg: vi
+          .fn()
+          .mockResolvedValue(fakeContract({ proposalId: "proposal-1", valorTotal: "1000.00" })),
       },
       receivables: { sumPaidByContract: vi.fn().mockResolvedValue("600.00") },
       estimateService: { projectedCostByProposalId: vi.fn().mockResolvedValue(400) },
@@ -1074,7 +1112,9 @@ describe("ReceivableService.margin", () => {
   });
 
   it("contrato de outra org -> NotFoundError", async () => {
-    const { service } = fakeRepos({ contracts: { findByIdForOrg: vi.fn().mockResolvedValue(null) } });
+    const { service } = fakeRepos({
+      contracts: { findByIdForOrg: vi.fn().mockResolvedValue(null) },
+    });
     await expect(service.margin(ORG, CONTRACT_ID)).rejects.toThrow(NotFoundError);
   });
 });

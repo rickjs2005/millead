@@ -62,10 +62,7 @@ export function useContractMargin(contractId: string | undefined, options?: { en
  * contractId é conhecido, o detalhe do contrato (a "Recebimento" mostrada
  * lá reage a qualquer mutação de parcela). `null`/`undefined` (receita
  * avulsa, sem contrato) só invalida o prefixo. */
-function invalidateAll(
-  queryClient: ReturnType<typeof useQueryClient>,
-  contractId?: string | null,
-) {
+function invalidateAll(queryClient: ReturnType<typeof useQueryClient>, contractId?: string | null) {
   queryClient.invalidateQueries({ queryKey: queryKeys.receivables.all() });
   if (contractId) {
     queryClient.invalidateQueries({ queryKey: queryKeys.contracts.detail(contractId) });
@@ -94,7 +91,8 @@ export function useCreateStandalone() {
       invalidateAll(queryClient);
       toast.success("Receita lançada.");
     },
-    onError: (err) => toast.error(err instanceof ApiError ? err.message : "Erro ao lançar receita."),
+    onError: (err) =>
+      toast.error(err instanceof ApiError ? err.message : "Erro ao lançar receita."),
   });
 }
 
@@ -107,7 +105,8 @@ export function usePayReceivable() {
       invalidateAll(queryClient, data.contractId);
       toast.success("Parcela baixada.");
     },
-    onError: (err) => toast.error(err instanceof ApiError ? err.message : "Erro ao baixar parcela."),
+    onError: (err) =>
+      toast.error(err instanceof ApiError ? err.message : "Erro ao baixar parcela."),
   });
 }
 
@@ -119,7 +118,8 @@ export function useUnpayReceivable() {
       invalidateAll(queryClient, data.contractId);
       toast.success("Baixa desfeita.");
     },
-    onError: (err) => toast.error(err instanceof ApiError ? err.message : "Erro ao desfazer baixa."),
+    onError: (err) =>
+      toast.error(err instanceof ApiError ? err.message : "Erro ao desfazer baixa."),
   });
 }
 
@@ -132,18 +132,21 @@ export function useUpdateReceivable() {
       invalidateAll(queryClient, data.contractId);
       toast.success("Parcela atualizada.");
     },
-    onError: (err) => toast.error(err instanceof ApiError ? err.message : "Erro ao atualizar parcela."),
+    onError: (err) =>
+      toast.error(err instanceof ApiError ? err.message : "Erro ao atualizar parcela."),
   });
 }
 
 export function useDeleteReceivable() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ id }: { id: string; contractId: string | null }) => receivablesService.remove(id),
+    mutationFn: ({ id }: { id: string; contractId: string | null }) =>
+      receivablesService.remove(id),
     onSuccess: (_data, variables) => {
       invalidateAll(queryClient, variables.contractId);
       toast.success("Parcela excluída.");
     },
-    onError: (err) => toast.error(err instanceof ApiError ? err.message : "Erro ao excluir parcela."),
+    onError: (err) =>
+      toast.error(err instanceof ApiError ? err.message : "Erro ao excluir parcela."),
   });
 }

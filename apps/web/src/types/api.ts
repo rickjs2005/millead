@@ -680,13 +680,7 @@ export type CostScope = "AGENCY" | "CLIENT";
 export type CostCurrency = "BRL" | "USD";
 export type CostBillingCycle = "MONTHLY" | "YEARLY";
 export type CostCategory =
-  | "HOSTING"
-  | "DATABASE"
-  | "AI"
-  | "DOMAIN"
-  | "EMAIL"
-  | "SIGNATURE"
-  | "OTHER";
+  "HOSTING" | "DATABASE" | "AI" | "DOMAIN" | "EMAIL" | "SIGNATURE" | "OTHER";
 
 export interface CostSubscription {
   id: string;
@@ -1001,8 +995,14 @@ export interface ApiErrorBody {
 // ===== MilSocial (ferramenta interna do dono) =====
 
 export type SocialPostFormat =
-  | "UNCLASSIFIED" | "REDESIGN" | "BEFORE_AFTER" | "TIMELAPSE"
-  | "REVIEW" | "ANIMATION" | "CODE_SETUP" | "OTHER";
+  | "UNCLASSIFIED"
+  | "REDESIGN"
+  | "BEFORE_AFTER"
+  | "TIMELAPSE"
+  | "REVIEW"
+  | "ANIMATION"
+  | "CODE_SETUP"
+  | "OTHER";
 
 export interface SocialMetricSnapshot {
   id: string;

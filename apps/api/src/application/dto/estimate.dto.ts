@@ -76,7 +76,11 @@ export const updateEstimateSchema = baseEstimateSchema.partial().refine(
       return false;
     }
     // Se está setando domainYearPriceBrl como null, precisa também settar domainYears como null
-    if ("domainYearPriceBrl" in data && data.domainYearPriceBrl == null && data.domainYears !== null) {
+    if (
+      "domainYearPriceBrl" in data &&
+      data.domainYearPriceBrl == null &&
+      data.domainYears !== null
+    ) {
       return false;
     }
     return true;

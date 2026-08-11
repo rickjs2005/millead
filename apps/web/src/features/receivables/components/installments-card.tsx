@@ -102,7 +102,10 @@ function PayDialog({ receivable, trigger }: { receivable: Receivable; trigger: R
   });
 
   async function onSubmit(values: PayNoteValues) {
-    await pay.mutateAsync({ id: receivable.id, payload: { paidNote: values.paidNote || undefined } });
+    await pay.mutateAsync({
+      id: receivable.id,
+      payload: { paidNote: values.paidNote || undefined },
+    });
     reset({ paidNote: "" });
     setOpen(false);
   }
@@ -173,7 +176,9 @@ function EditDialog({ receivable, trigger }: { receivable: Receivable; trigger: 
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="edit-due-date">Vencimento</Label>
               <Input id="edit-due-date" type="date" {...register("dueDate")} />
-              {errors.dueDate && <p className="text-xs text-destructive">{errors.dueDate.message}</p>}
+              {errors.dueDate && (
+                <p className="text-xs text-destructive">{errors.dueDate.message}</p>
+              )}
             </div>
           </div>
           <DialogFooter>

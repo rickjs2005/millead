@@ -31,15 +31,11 @@ describe("fingerprint", () => {
   });
 
   it("muda quando o texto muda de verdade", () => {
-    expect(fingerprint({ ...base, text: "DJI Agras T100" })).not.toBe(
-      fingerprint(base)
-    );
+    expect(fingerprint({ ...base, text: "DJI Agras T100" })).not.toBe(fingerprint(base));
   });
 
   it("muda quando a posição entre irmãos muda", () => {
-    expect(fingerprint({ ...base, siblingIndex: 3 })).not.toBe(
-      fingerprint(base)
-    );
+    expect(fingerprint({ ...base, siblingIndex: 3 })).not.toBe(fingerprint(base));
   });
 
   it("funciona sem id, sem texto e sem imagem", () => {

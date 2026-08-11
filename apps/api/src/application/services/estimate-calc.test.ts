@@ -23,7 +23,11 @@ const BASE = {
 
 describe("computeEstimate", () => {
   it("caso da spec: horas, infra snapshotada, rateio, reserva e margem", () => {
-    const r = computeEstimate({ ...BASE, hoursBreakdown: [...BASE.hoursBreakdown], costItems: [...BASE.costItems] });
+    const r = computeEstimate({
+      ...BASE,
+      hoursBreakdown: [...BASE.hoursBreakdown],
+      costItems: [...BASE.costItems],
+    });
     expect(r.totalHours).toBe(42);
     expect(r.devCost).toBe(42 * 120); // 5040
     expect(r.infraMonthlyBrl).toBeCloseTo(100 + 40 / 12, 2); // 103.33
@@ -38,7 +42,14 @@ describe("computeEstimate", () => {
   });
 
   it("orçamento vazio não explode", () => {
-    const r = computeEstimate({ ...BASE, hoursBreakdown: [], costItems: [], agencyShareMonthly: 0, supportReservePct: 0, marginPct: 0 });
+    const r = computeEstimate({
+      ...BASE,
+      hoursBreakdown: [],
+      costItems: [],
+      agencyShareMonthly: 0,
+      supportReservePct: 0,
+      marginPct: 0,
+    });
     expect(r.devCost).toBe(0);
     expect(r.oneTimeCost).toBe(0);
     expect(r.totalCost).toBe(0);
@@ -46,7 +57,12 @@ describe("computeEstimate", () => {
   });
 
   it("infraMonths zero anula infra (projeto sem hospedagem contratada)", () => {
-    const r = computeEstimate({ ...BASE, hoursBreakdown: [...BASE.hoursBreakdown], costItems: [...BASE.costItems], infraMonths: 0 });
+    const r = computeEstimate({
+      ...BASE,
+      hoursBreakdown: [...BASE.hoursBreakdown],
+      costItems: [...BASE.costItems],
+      infraMonths: 0,
+    });
     expect(r.infraCost).toBe(0);
     expect(r.totalCost).toBeCloseTo(5040 + 504, 1);
   });

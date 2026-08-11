@@ -1,6 +1,10 @@
 import type { ContractStatus } from "@millead/database";
 import { env } from "../../config/env.js";
-import type { Contract, ContractedSnapshot, ContractorSnapshot } from "../../domain/entities/contract.js";
+import type {
+  Contract,
+  ContractedSnapshot,
+  ContractorSnapshot,
+} from "../../domain/entities/contract.js";
 import type { Proposal } from "../../domain/entities/proposal.js";
 import {
   NotFoundError,

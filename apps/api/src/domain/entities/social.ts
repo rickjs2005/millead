@@ -1,6 +1,12 @@
 export type SocialPostFormat =
-  | "UNCLASSIFIED" | "REDESIGN" | "BEFORE_AFTER" | "TIMELAPSE"
-  | "REVIEW" | "ANIMATION" | "CODE_SETUP" | "OTHER";
+  | "UNCLASSIFIED"
+  | "REDESIGN"
+  | "BEFORE_AFTER"
+  | "TIMELAPSE"
+  | "REVIEW"
+  | "ANIMATION"
+  | "CODE_SETUP"
+  | "OTHER";
 export type SocialFormatSource = "NONE" | "AI" | "MANUAL";
 
 export interface SocialPost {

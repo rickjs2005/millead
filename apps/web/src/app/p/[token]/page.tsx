@@ -143,7 +143,8 @@ export default function PublicProposalPage() {
   }
 
   if (query.isError || !query.data) {
-    const isNotFound = query.error instanceof PublicProposalError && query.error.code === "NOT_FOUND";
+    const isNotFound =
+      query.error instanceof PublicProposalError && query.error.code === "NOT_FOUND";
 
     if (isNotFound) {
       return (

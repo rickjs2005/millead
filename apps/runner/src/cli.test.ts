@@ -45,7 +45,9 @@ describe("runCapture", () => {
 
   it("identifica as seções da fixture", async () => {
     const json = JSON.parse(await readFile(join(finalDir, "snapshot.json"), "utf8"));
-    const ids = json.nodes.filter((n: { isSection: boolean }) => n.isSection).map((n: { id: string }) => n.id);
+    const ids = json.nodes
+      .filter((n: { isSection: boolean }) => n.isSection)
+      .map((n: { id: string }) => n.id);
     expect(ids).toEqual(["hero", "sobre", "produtos", "contato"]);
   });
 
@@ -57,8 +59,16 @@ describe("runCapture", () => {
     });
     const a = JSON.parse(await readFile(join(finalDir, "snapshot.json"), "utf8"));
     const b = JSON.parse(await readFile(join(outro, "snapshot.json"), "utf8"));
-    delete a.id; delete a.capturedAt; delete a.url; delete a.http; delete a.capture.tiles;
-    delete b.id; delete b.capturedAt; delete b.url; delete b.http; delete b.capture.tiles;
+    delete a.id;
+    delete a.capturedAt;
+    delete a.url;
+    delete a.http;
+    delete a.capture.tiles;
+    delete b.id;
+    delete b.capturedAt;
+    delete b.url;
+    delete b.http;
+    delete b.capture.tiles;
     expect(b).toEqual(a);
   });
 

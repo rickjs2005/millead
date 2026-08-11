@@ -61,9 +61,11 @@ apps/web/src/
 ### Task 1: Schema — campos públicos na Proposal + vínculo no Contract
 
 **Files:**
+
 - Modify: `packages/database/prisma/schema.prisma` (models Proposal ~linha 624 e Contract ~linha 854)
 
 **Interfaces:**
+
 - Produces: campos `Proposal.publicToken/viewedAt/decidedAt/decisionIp/rejectReason`; `Contract.proposalId String? @unique` + relations dos dois lados.
 
 - [ ] **Step 1: Editar o model Proposal** — adicionar após `respondedAt`:
@@ -108,6 +110,7 @@ git commit -m "feat(db): campos de aceite publico na proposta e vinculo proposta
 ### Task 2: Gerador de token compartilhado + token no SENT + e-mail com link
 
 **Files:**
+
 - Create: `apps/api/src/application/services/public-token.ts`
 - Modify: `apps/api/src/application/services/briefing-service.ts:19-35` (importar em vez da cópia local)
 - Modify: `apps/api/src/domain/entities/proposal.ts`, `apps/api/src/domain/repositories/proposal-repository.ts`, `apps/api/src/infrastructure/prisma/prisma-proposal-repository.ts` (campos novos + `UpdateProposalInput.publicToken`)
@@ -115,6 +118,7 @@ git commit -m "feat(db): campos de aceite publico na proposta e vinculo proposta
 - Modify: `apps/api/src/domain/services/proposal-notifier.ts` + `apps/api/src/infrastructure/proposals/proposal-notifier.ts` (e-mail de envio ganha `publicUrl`)
 
 **Interfaces:**
+
 - Consumes: `generatePublicToken` extraído de `briefing-service.ts:19-35` (código idêntico, alfabeto `ABCDEFGHJKLMNPQRSTUVWXYZ23456789`, length 20, `randomInt` de `node:crypto`).
 - Produces: `generatePublicToken(length = 20): string` exportado de `public-token.ts`; entidade `Proposal` com `publicToken/viewedAt/decidedAt/decisionIp/rejectReason` (todos `| null`); `ProposalNotifier.propostaEnviada` ganha campo `publicUrl: string | null` no input.
 
@@ -153,12 +157,14 @@ git add -A apps/api/src packages 2>/dev/null; git commit -m "feat(api): token pu
 ### Task 3: Herança proposta → contrato (createDraftFromProposal)
 
 **Files:**
+
 - Modify: `apps/api/src/application/services/contract-service.ts`
 - Modify: `apps/api/src/domain/repositories/contract-repository.ts` (`CreateContractInput.proposalId?: string`; `findByProposalId(proposalId): Promise<Contract | null>`)
 - Modify: `apps/api/src/infrastructure/prisma/prisma-contract-repository.ts`
 - Test: `apps/api/src/application/services/contract-draft.test.ts`
 
 **Interfaces:**
+
 - Consumes: `Proposal` (entidade com campos novos), `proposal.pricingEstimate` — ATENÇÃO: a entidade Proposal pode não expor o estimate; o método recebe os dados já resolvidos (ver assinatura) pra não acoplar repositórios.
 - Produces (Task 4 chama):
 
@@ -252,6 +258,7 @@ async createDraftFromProposal(input: DraftFromProposalInput): Promise<Contract> 
 ### Task 4: ProposalPublicService (get/accept/reject) + transições atômicas + notificações
 
 **Files:**
+
 - Create: `apps/api/src/application/services/proposal-public-service.ts`
 - Test: `apps/api/src/application/services/proposal-public-service.test.ts`
 - Modify: `apps/api/src/domain/repositories/proposal-repository.ts` + `infrastructure/prisma/prisma-proposal-repository.ts` (métodos atômicos + findByPublicToken)
@@ -259,21 +266,24 @@ async createDraftFromProposal(input: DraftFromProposalInput): Promise<Contract> 
 - Modify: `apps/api/src/domain/services/proposal-notifier.ts` + impl (`propostaDecidida`)
 
 **Interfaces:**
+
 - Consumes: `ContractService.createDraftFromProposal` (Task 3), `PushSender.sendToOrg` (existente), `ActivityLogger.log` (existente; tipo `"OTHER"` com `payload.kind` — precedente estimate_converted), repositórios de lead (contato/empresa) e estimate (por proposalId).
 - Produces (Task 5 usa):
 
 ```ts
 export interface PublicProposalView {
-  title: string; value: string; currency: string;
-  validUntil: string | null;                 // ISO
+  title: string;
+  value: string;
+  currency: string;
+  validUntil: string | null; // ISO
   organizationName: string;
   pdfUrl: string | null;
-  scopeItems: string[];                      // do estimate, [] se nao houver
+  scopeItems: string[]; // do estimate, [] se nao houver
   status: "SENT" | "VIEWED" | "ACCEPTED" | "REJECTED" | "EXPIRED";
 }
 
 class ProposalPublicService {
-  getByToken(token: string): Promise<PublicProposalView>;      // marca VIEWED na 1a vez
+  getByToken(token: string): Promise<PublicProposalView>; // marca VIEWED na 1a vez
   accept(token: string, ip: string | null): Promise<{ status: string }>;
   reject(token: string, ip: string | null, reason?: string): Promise<{ status: string }>;
 }
@@ -308,6 +318,7 @@ propostaDecidida(input: {
 ```
 
 Push (no service, best-effort): aceite → title `"✅ Proposta aceita!"`, body com título e valor, url `/proposals` (ou detalhe se a rota existir — conferir na web); recusa → `"❌ Proposta recusada"` com motivo curto. `void this.push.sendToOrg(...).catch(() => null)`.
+
 - [ ] **Step 4: Ver passar + suite + typecheck.**
 - [ ] **Step 5: Commit** — `feat(api): servico publico de aceite de proposta com transicoes atomicas`
 
@@ -316,11 +327,13 @@ Push (no service, best-effort): aceite → title `"✅ Proposta aceita!"`, body 
 ### Task 5: Rotas públicas + controller + wiring
 
 **Files:**
+
 - Modify: `apps/api/src/interfaces/http/controllers/proposal-controller.ts` (handlers `getPublic/acceptPublic/rejectPublic`)
 - Modify: `apps/api/src/interfaces/http/routes/proposal-routes.ts` (nova `createPublicProposalRoutes`)
 - Modify: `apps/api/src/main/app.ts` (mount em `/api/v1/public`), `apps/api/src/main/container.ts` (wiring do ProposalPublicService com deps)
 
 **Interfaces:**
+
 - Consumes: `ProposalPublicService` (Task 4); padrão de router público com `rateLimit` local (copiar de `createPublicBriefingRoutes` em briefing-routes.ts:58 — readLimiter 30/min, writeLimiter mais apertado 10/min pras decisões) + `publicRateLimit` global no mount (app.ts:92).
 - Produces: `GET /api/v1/public/proposals/:token`, `POST .../accept`, `POST .../reject` (Task 6 consome).
 
@@ -335,11 +348,13 @@ Push (no service, best-effort): aceite → title `"✅ Proposta aceita!"`, body 
 ### Task 6: Web — página pública `/p/[token]`
 
 **Files:**
+
 - Create: `apps/web/src/services/proposals-public.ts`
 - Create: `apps/web/src/app/p/[token]/page.tsx`
 - Modify: `apps/web/src/types/api.ts` (tipo `PublicProposal` espelhando `PublicProposalView`)
 
 **Interfaces:**
+
 - Consumes: padrão de `briefings-public.ts:3-33` (fetch direto na API via `NEXT_PUBLIC_API_URL`, sem BFF, classe de erro com code); padrão visual de `/fechamento/[slug]/page.tsx` e `/b/[token]/page.tsx` (`min-h-dvh bg-background`, `max-w-2xl`, `<Logo />`, `Card`); botões h-11 (44px) no público (comentário em b/[token]/page.tsx:221).
 - Produces: página pública standalone. `/p` já passa livre no middleware (não está em APP_PREFIXES; `/proposals` não colide — conferido).
 
@@ -358,11 +373,13 @@ Push (no service, best-effort): aceite → title `"✅ Proposta aceita!"`, body 
 ### Task 7: Web — telas internas (link público, rastreio, contrato vinculado)
 
 **Files:**
+
 - Create: `apps/web/src/features/proposals/public-link-card.tsx`
 - Modify: tela de detalhe/lista de propostas existente (localizar: `apps/web/src/app/(app)/proposals/` e `apps/web/src/features/proposals/` — seguir a estrutura que encontrar)
 - Modify: `apps/web/src/types/api.ts` (Proposal ganha `publicToken/viewedAt/decidedAt/rejectReason` — conferir se a API já devolve; se o serializer da entidade já expõe, só tipar)
 
 **Interfaces:**
+
 - Consumes: campos novos vindos do GET autenticado de proposta (Task 2 os adicionou à entidade — conferir que o controller devolve a entidade inteira).
 
 - [ ] **Step 1: `public-link-card.tsx`** — recebe a proposta; se `publicToken` null → texto "O link é gerado quando a proposta é enviada."; senão: URL montada `${window.location.origin.replace(...)}` — NÃO: usar `NEXT_PUBLIC_WEB_URL`? O padrão do repo: link é do próprio app web → `${window.location.origin}/p/${token}` funciona porque a página pública é o mesmo deploy. Botão copiar (navigator.clipboard + toast), status: "Aberta pelo cliente em dd/mm hh:mm" (viewedAt), decisão ("Aceita em ..." verde / "Recusada em ..." + motivo em bloco).

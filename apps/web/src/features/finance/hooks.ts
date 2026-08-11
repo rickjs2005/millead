@@ -64,7 +64,8 @@ export function useCreateCostSubscription() {
       invalidateAll(queryClient);
       toast.success("Custo cadastrado.");
     },
-    onError: (err) => toast.error(err instanceof ApiError ? err.message : "Erro ao cadastrar custo."),
+    onError: (err) =>
+      toast.error(err instanceof ApiError ? err.message : "Erro ao cadastrar custo."),
   });
 }
 
@@ -77,7 +78,8 @@ export function useUpdateCostSubscription() {
       invalidateAll(queryClient);
       toast.success("Custo atualizado.");
     },
-    onError: (err) => toast.error(err instanceof ApiError ? err.message : "Erro ao atualizar custo."),
+    onError: (err) =>
+      toast.error(err instanceof ApiError ? err.message : "Erro ao atualizar custo."),
   });
 }
 
@@ -101,7 +103,8 @@ export function useCreateUsage() {
       invalidateAll(queryClient);
       toast.success("Consumo lançado.");
     },
-    onError: (err) => toast.error(err instanceof ApiError ? err.message : "Erro ao lançar consumo."),
+    onError: (err) =>
+      toast.error(err instanceof ApiError ? err.message : "Erro ao lançar consumo."),
   });
 }
 
@@ -113,7 +116,8 @@ export function useDeleteUsage() {
       invalidateAll(queryClient);
       toast.success("Lançamento removido.");
     },
-    onError: (err) => toast.error(err instanceof ApiError ? err.message : "Erro ao remover lançamento."),
+    onError: (err) =>
+      toast.error(err instanceof ApiError ? err.message : "Erro ao remover lançamento."),
   });
 }
 

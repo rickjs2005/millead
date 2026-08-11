@@ -12,7 +12,10 @@ export const TIMEZONE = "America/Sao_Paulo";
 function slugPath(pathname: string): string {
   const cleaned = pathname.replace(/^\/+|\/+$/g, "");
   if (cleaned === "") return "home";
-  return cleaned.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+  return cleaned
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
 }
 
 /**
@@ -53,8 +56,7 @@ export async function capturePage(
 
   const meta = await page.evaluate(() => ({
     title: document.title,
-    description:
-      document.querySelector('meta[name="description"]')?.getAttribute("content") ?? "",
+    description: document.querySelector('meta[name="description"]')?.getAttribute("content") ?? "",
     lang: document.documentElement.lang || "",
     pageHeight: document.documentElement.scrollHeight,
   }));

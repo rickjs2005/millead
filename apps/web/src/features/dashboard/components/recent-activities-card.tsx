@@ -36,7 +36,11 @@ export function RecentActivitiesCard() {
         {isLoading ? (
           Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-10 w-full" />)
         ) : items.length === 0 ? (
-          <EmptyState icon={History} title="Nenhuma atividade recente" className="border-none py-8" />
+          <EmptyState
+            icon={History}
+            title="Nenhuma atividade recente"
+            className="border-none py-8"
+          />
         ) : (
           items.map((activity) => {
             const Icon = ACTIVITY_ICON[activity.type];

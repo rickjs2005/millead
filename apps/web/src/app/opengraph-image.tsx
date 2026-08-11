@@ -19,64 +19,69 @@ const CANVAS = "#0b0f1a";
 
 export default function OpengraphImage(): ImageResponse {
   return new ImageResponse(
-    (
-      <div
-        style={{
-          width: "100%",
-          height: "100%",
-          display: "flex",
-          flexDirection: "column",
-          justifyContent: "space-between",
-          padding: "72px",
-          background: CANVAS,
-          backgroundImage: `radial-gradient(ellipse 70% 60% at 15% 0%, ${BRAND}44, transparent)`,
-          color: "#fafafa",
-          fontFamily: "sans-serif",
-        }}
-      >
-        <div style={{ display: "flex", alignItems: "center", gap: "20px" }}>
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              width: "72px",
-              height: "72px",
-              borderRadius: "18px",
-              background: BRAND,
-            }}
+    <div
+      style={{
+        width: "100%",
+        height: "100%",
+        display: "flex",
+        flexDirection: "column",
+        justifyContent: "space-between",
+        padding: "72px",
+        background: CANVAS,
+        backgroundImage: `radial-gradient(ellipse 70% 60% at 15% 0%, ${BRAND}44, transparent)`,
+        color: "#fafafa",
+        fontFamily: "sans-serif",
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", gap: "20px" }}>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            width: "72px",
+            height: "72px",
+            borderRadius: "18px",
+            background: BRAND,
+          }}
+        >
+          <svg
+            width="40"
+            height="40"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke={CANVAS}
+            strokeWidth="2.5"
           >
-            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke={CANVAS} strokeWidth="2.5">
-              <circle cx="12" cy="12" r="10" />
-              <circle cx="12" cy="12" r="6" />
-              <circle cx="12" cy="12" r="2" />
-            </svg>
-          </div>
-          <span style={{ fontSize: "44px", fontWeight: 600, letterSpacing: "-0.02em" }}>MilLead</span>
+            <circle cx="12" cy="12" r="10" />
+            <circle cx="12" cy="12" r="6" />
+            <circle cx="12" cy="12" r="2" />
+          </svg>
         </div>
-
-        <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
-          <div
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              fontSize: "68px",
-              fontWeight: 600,
-              lineHeight: 1.1,
-              letterSpacing: "-0.03em",
-            }}
-          >
-            <span>A operação comercial inteira,</span>
-            <span>num lugar só.</span>
-          </div>
-          <div style={{ fontSize: "30px", color: "#a1a1aa" }}>
-            Pipeline · Propostas · Contratos · Briefings
-          </div>
-        </div>
-
-        <div style={{ display: "flex", fontSize: "24px", color: "#71717a" }}>CRM da MilWeb</div>
+        <span style={{ fontSize: "44px", fontWeight: 600, letterSpacing: "-0.02em" }}>MilLead</span>
       </div>
-    ),
+
+      <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            fontSize: "68px",
+            fontWeight: 600,
+            lineHeight: 1.1,
+            letterSpacing: "-0.03em",
+          }}
+        >
+          <span>A operação comercial inteira,</span>
+          <span>num lugar só.</span>
+        </div>
+        <div style={{ fontSize: "30px", color: "#a1a1aa" }}>
+          Pipeline · Propostas · Contratos · Briefings
+        </div>
+      </div>
+
+      <div style={{ display: "flex", fontSize: "24px", color: "#71717a" }}>CRM da MilWeb</div>
+    </div>,
     size,
   );
 }

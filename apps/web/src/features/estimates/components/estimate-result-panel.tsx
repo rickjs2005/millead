@@ -79,8 +79,14 @@ export function EstimateResultPanel({
           label={`Desenvolvimento (${computed.totalHours}h × ${formatCurrency(hourlyRate)})`}
           value={formatCurrency(computed.devCost)}
         />
-        <Row label="Infra mensal (itens de custo)" value={`${formatCurrency(computed.infraMonthlyBrl)}/mês`} />
-        <Row label={`Rateio da agência (${formatCurrency(agencyShareMonthly)}/mês)`} value={formatCurrency(rateioNoPeriodo)} />
+        <Row
+          label="Infra mensal (itens de custo)"
+          value={`${formatCurrency(computed.infraMonthlyBrl)}/mês`}
+        />
+        <Row
+          label={`Rateio da agência (${formatCurrency(agencyShareMonthly)}/mês)`}
+          value={formatCurrency(rateioNoPeriodo)}
+        />
         {computed.oneTimeCost > 0 && (
           <Row label="Custos únicos (créditos)" value={formatCurrency(computed.oneTimeCost)} />
         )}

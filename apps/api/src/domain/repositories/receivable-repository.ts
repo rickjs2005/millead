@@ -18,7 +18,11 @@ export interface CreateStandaloneItem {
 
 export interface ReceivableRepository {
   /** Cria o plano numa transacao. Retorna null se o contrato ja tem QUALQUER parcela (plano existente). */
-  createPlan(organizationId: string, contractId: string, items: CreatePlanItem[]): Promise<Receivable[] | null>;
+  createPlan(
+    organizationId: string,
+    contractId: string,
+    items: CreatePlanItem[],
+  ): Promise<Receivable[] | null>;
   /** Receita avulsa: kind AVULSA, contractId null, installmentIndex sempre 0. */
   createStandalone(organizationId: string, item: CreateStandaloneItem): Promise<Receivable>;
   /** Avulsas da org (kind AVULSA), dueDate desc. */
@@ -26,7 +30,12 @@ export interface ReceivableRepository {
   listByContract(organizationId: string, contractId: string): Promise<Receivable[]>;
   findById(organizationId: string, id: string): Promise<Receivable | null>;
   /** CAS: marca paga so se paidAt null. Retorna null se ja paga/inexistente. */
-  markPaid(organizationId: string, id: string, paidAt: Date, paidNote: string | null): Promise<Receivable | null>;
+  markPaid(
+    organizationId: string,
+    id: string,
+    paidAt: Date,
+    paidNote: string | null,
+  ): Promise<Receivable | null>;
   /** CAS inverso: desfaz baixa so se paidAt nao-null. */
   markUnpaid(organizationId: string, id: string): Promise<Receivable | null>;
   /** So parcela em aberto. Retorna null se paga/inexistente. `description`

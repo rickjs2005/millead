@@ -220,22 +220,24 @@ function fakeProposal(overrides: Partial<Proposal> = {}): Proposal {
   };
 }
 
-function fakeRepos(overrides: {
-  estimates?: Partial<EstimateRepository>;
-  // Partial<CostService> -- EstimateService depende do SERVICE (não do
-  // repositório cru), pra passar pelo refresh lazy de cotação (ver
-  // EstimateService.costService). O fake abaixo só faz duck-typing das
-  // chamadas que o EstimateService realmente faz (getSettings/listSubscriptions);
-  // testes de integração com o CostService REAL (que exercitam o refresh de
-  // verdade) ficam no describe "cotação USD-BRL" no fim do arquivo.
-  costs?: Partial<CostService>;
-  leads?: Partial<LeadRepository>;
-  companies?: Partial<CompanyRepository>;
-  organizations?: Partial<OrganizationRepository>;
-  proposals?: Partial<ProposalRepository>;
-  blobStorage?: Partial<BlobStorage>;
-  renderPdf?: (data: unknown) => Promise<Uint8Array>;
-} = {}) {
+function fakeRepos(
+  overrides: {
+    estimates?: Partial<EstimateRepository>;
+    // Partial<CostService> -- EstimateService depende do SERVICE (não do
+    // repositório cru), pra passar pelo refresh lazy de cotação (ver
+    // EstimateService.costService). O fake abaixo só faz duck-typing das
+    // chamadas que o EstimateService realmente faz (getSettings/listSubscriptions);
+    // testes de integração com o CostService REAL (que exercitam o refresh de
+    // verdade) ficam no describe "cotação USD-BRL" no fim do arquivo.
+    costs?: Partial<CostService>;
+    leads?: Partial<LeadRepository>;
+    companies?: Partial<CompanyRepository>;
+    organizations?: Partial<OrganizationRepository>;
+    proposals?: Partial<ProposalRepository>;
+    blobStorage?: Partial<BlobStorage>;
+    renderPdf?: (data: unknown) => Promise<Uint8Array>;
+  } = {},
+) {
   const estimates = {
     list: vi.fn().mockResolvedValue({ items: [fakeEstimate()], total: 1 }),
     findById: vi.fn().mockResolvedValue(fakeEstimate()),
@@ -272,7 +274,9 @@ function fakeRepos(overrides: {
     create: vi.fn().mockResolvedValue(fakeProposal()),
     update: vi
       .fn()
-      .mockResolvedValue(fakeProposal({ pdfUrl: `https://blob.test/proposals/${ORG}/${PROPOSAL_ID}.pdf` })),
+      .mockResolvedValue(
+        fakeProposal({ pdfUrl: `https://blob.test/proposals/${ORG}/${PROPOSAL_ID}.pdf` }),
+      ),
     delete: vi.fn().mockResolvedValue(true),
     findByIdForOrg: vi.fn().mockResolvedValue(fakeProposal()),
     list: vi.fn(),
@@ -333,7 +337,13 @@ const CREATE_INPUT = {
     { label: "Testes", hours: 7 },
   ],
   costItems: [
-    { label: "Vercel Pro", amount: 20, currency: "USD" as const, billingCycle: "MONTHLY" as const, isOneTime: false },
+    {
+      label: "Vercel Pro",
+      amount: 20,
+      currency: "USD" as const,
+      billingCycle: "MONTHLY" as const,
+      isOneTime: false,
+    },
   ],
   agencyShareMonthly: 80,
   infraMonths: 12,
@@ -524,12 +534,13 @@ describe("EstimateService", () => {
     });
 
     it("happy path: cria proposal com value=price, gera e sobe o PDF, marca convertido e loga Activity", async () => {
-      const { service, estimates, proposals, blobStorage, renderPdf, activityRepository } = fakeRepos({
-        estimates: { findById: vi.fn().mockResolvedValue(fakeEstimate({ leadId: "lead-1" })) },
-        leads: {
-          findByIdForOrg: vi.fn().mockResolvedValue(fakeLead({ companyId: "company-1" })),
-        },
-      });
+      const { service, estimates, proposals, blobStorage, renderPdf, activityRepository } =
+        fakeRepos({
+          estimates: { findById: vi.fn().mockResolvedValue(fakeEstimate({ leadId: "lead-1" })) },
+          leads: {
+            findByIdForOrg: vi.fn().mockResolvedValue(fakeLead({ companyId: "company-1" })),
+          },
+        });
 
       const result = await service.convert(ORG, USER, "est-1", { price: 5000 });
 
@@ -599,9 +610,7 @@ describe("EstimateService", () => {
     it("convert sem body e sem finalPrice salvo usa o preço recomendado calculado", async () => {
       const { service, proposals, renderPdf } = fakeRepos({
         estimates: {
-          findById: vi
-            .fn()
-            .mockResolvedValue(fakeEstimate({ leadId: "lead-1", finalPrice: null })),
+          findById: vi.fn().mockResolvedValue(fakeEstimate({ leadId: "lead-1", finalPrice: null })),
         },
       });
 
@@ -790,7 +799,9 @@ describe("EstimateService -- cotação USD-BRL passa pelo CostService real (refr
   it("list() com usdRateAuto=true e cotação vencida (updatedAt null) dispara o rateFetcher do CostService real", async () => {
     const rateFetcher: UsdRateFetcher = vi.fn().mockResolvedValue(5.75);
     const costRepository = fakeCostRepository({
-      getSettings: vi.fn().mockResolvedValue(fakeSettings({ usdRateAuto: true, usdRateUpdatedAt: null })),
+      getSettings: vi
+        .fn()
+        .mockResolvedValue(fakeSettings({ usdRateAuto: true, usdRateUpdatedAt: null })),
       updateSettings: vi
         .fn()
         .mockResolvedValue(
@@ -830,7 +841,9 @@ describe("EstimateService -- cotação USD-BRL passa pelo CostService real (refr
   it("get() (withComputed) também dispara o refresh -- não é só o list()", async () => {
     const rateFetcher: UsdRateFetcher = vi.fn().mockResolvedValue(5.5);
     const costRepository = fakeCostRepository({
-      getSettings: vi.fn().mockResolvedValue(fakeSettings({ usdRateAuto: true, usdRateUpdatedAt: null })),
+      getSettings: vi
+        .fn()
+        .mockResolvedValue(fakeSettings({ usdRateAuto: true, usdRateUpdatedAt: null })),
       updateSettings: vi.fn().mockResolvedValue(fakeSettings({ usdToBrlRate: "5.5" })),
     });
     const companies = { findByIdForOrg: vi.fn() } as unknown as CompanyRepository;

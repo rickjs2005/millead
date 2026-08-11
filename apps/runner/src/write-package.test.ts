@@ -35,7 +35,10 @@ describe("buildSnapshotId", () => {
   });
 
   it("transforma o caminho em slug", () => {
-    const id = buildSnapshotId(new URL("https://milweb.com.br/cases/kavita"), "2026-07-29T14:32:00.000Z");
+    const id = buildSnapshotId(
+      new URL("https://milweb.com.br/cases/kavita"),
+      "2026-07-29T14:32:00.000Z",
+    );
     expect(id).toContain("cases-kavita");
   });
 
@@ -75,7 +78,9 @@ describe("writePackage", () => {
     const tmpDir = join(root, `.tmp-${id}`);
     await mkdir(tmpDir, { recursive: true });
 
-    const invalid = { ...snapshotBase(id), version: 99 } as unknown as Parameters<typeof writePackage>[0];
+    const invalid = { ...snapshotBase(id), version: 99 } as unknown as Parameters<
+      typeof writePackage
+    >[0];
 
     await expect(writePackage(invalid, tmpDir, root)).rejects.toThrow(/snapshot inválido/i);
     expect(await readdir(root)).toEqual([]);
@@ -103,7 +108,9 @@ describe("writePackage", () => {
 
     const tmpDir = join(root, `.tmp-${id}`);
     await mkdir(tmpDir, { recursive: true });
-    const invalido = { ...snapshotBase(id), version: 99 } as unknown as Parameters<typeof writePackage>[0];
+    const invalido = { ...snapshotBase(id), version: 99 } as unknown as Parameters<
+      typeof writePackage
+    >[0];
 
     await expect(writePackage(invalido, tmpDir, root)).rejects.toThrow(/snapshot inválido/i);
 

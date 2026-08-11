@@ -70,7 +70,12 @@ export function buildPlan(input: PlanInput): PlanItem[] {
   const items: PlanItem[] = [];
 
   if (entryAmount > 0) {
-    items.push({ kind: "ENTRADA", installmentIndex: 0, amount: entryAmount, dueDate: entryDueDate });
+    items.push({
+      kind: "ENTRADA",
+      installmentIndex: 0,
+      amount: entryAmount,
+      dueDate: entryDueDate,
+    });
   }
 
   if (installmentCount >= 1) {

@@ -131,9 +131,7 @@ describe("buildBrief", () => {
   const createdAt = "2026-07-29T14:32:00.000Z";
 
   it("produz um brief que valida no schema", () => {
-    expect(() =>
-      buildBrief(form(), templateById("lancamento")!, createdAt),
-    ).not.toThrow();
+    expect(() => buildBrief(form(), templateById("lancamento")!, createdAt)).not.toThrow();
   });
 
   it("deixa de fora as cenas desmarcadas", () => {

@@ -35,7 +35,10 @@ describe("renderProposalPdf", () => {
   });
 
   it("escopo longo pagina sem estourar", async () => {
-    const many = Array.from({ length: 30 }, (_, i) => `Item de escopo número ${i + 1} com texto razoavelmente longo pra forçar quebra`);
+    const many = Array.from(
+      { length: 30 },
+      (_, i) => `Item de escopo número ${i + 1} com texto razoavelmente longo pra forçar quebra`,
+    );
     const bytes = await renderProposalPdf({ ...DATA, scopeItems: many });
     const doc = await PDFDocument.load(bytes);
     expect(doc.getPageCount()).toBeGreaterThanOrEqual(1);
@@ -61,7 +64,12 @@ describe("renderProposalPdf", () => {
 
 describe("computeInvestmentLines", () => {
   it("sem infra e sem domínio -- sem breakdown, dev = finalPrice", () => {
-    const r = computeInvestmentLines({ finalPrice: 9500, infraMonthlyBrl: 0, infraMonths: 12, domainCostBrl: 0 });
+    const r = computeInvestmentLines({
+      finalPrice: 9500,
+      infraMonthlyBrl: 0,
+      infraMonths: 12,
+      domainCostBrl: 0,
+    });
     expect(r.infraTotal).toBe(0);
     expect(r.domainTotal).toBe(0);
     expect(r.devPrice).toBe(9500);
@@ -82,7 +90,12 @@ describe("computeInvestmentLines", () => {
   });
 
   it("com domínio (2 anos × 40) -- devPrice desconta domainTotal, breakdown ligado mesmo sem infra", () => {
-    const r = computeInvestmentLines({ finalPrice: 9500, infraMonthlyBrl: 0, infraMonths: 12, domainCostBrl: 80 });
+    const r = computeInvestmentLines({
+      finalPrice: 9500,
+      infraMonthlyBrl: 0,
+      infraMonths: 12,
+      domainCostBrl: 80,
+    });
     expect(r.infraTotal).toBe(0);
     expect(r.domainTotal).toBe(80);
     expect(r.devPrice).toBe(9500 - 80);

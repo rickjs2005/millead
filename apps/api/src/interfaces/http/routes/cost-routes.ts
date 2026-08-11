@@ -36,14 +36,34 @@ export function createCostRoutes(controller: CostController, authenticate: Reque
   // Consumo de créditos (Fase 5) -- registradas antes de `/:id` de assinatura.
   // "/usage/series" vem antes de "/usage/:id"-like (o DELETE abaixo) pra não
   // ser engolida por um path param (mesmo cuidado do receivable-routes).
-  router.get("/usage/summary", read, validateQuery(usageQuerySchema), asyncHandler(controller.usageSummary));
-  router.get("/usage/series", read, validateQuery(usageSeriesQuerySchema), asyncHandler(controller.usageSeries));
+  router.get(
+    "/usage/summary",
+    read,
+    validateQuery(usageQuerySchema),
+    asyncHandler(controller.usageSummary),
+  );
+  router.get(
+    "/usage/series",
+    read,
+    validateQuery(usageSeriesQuerySchema),
+    asyncHandler(controller.usageSeries),
+  );
   router.get("/usage", read, validateQuery(usageQuerySchema), asyncHandler(controller.listUsage));
-  router.post("/usage", write, validateBody(createUsageEntrySchema), asyncHandler(controller.createUsage));
+  router.post(
+    "/usage",
+    write,
+    validateBody(createUsageEntrySchema),
+    asyncHandler(controller.createUsage),
+  );
   router.delete("/usage/:id", write, asyncHandler(controller.removeUsage));
 
   router.get("/", read, asyncHandler(controller.list));
-  router.post("/", write, validateBody(createCostSubscriptionSchema), asyncHandler(controller.create));
+  router.post(
+    "/",
+    write,
+    validateBody(createCostSubscriptionSchema),
+    asyncHandler(controller.create),
+  );
   router.patch(
     "/:id",
     write,

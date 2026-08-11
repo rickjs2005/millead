@@ -10,15 +10,16 @@ const res = {} as Response;
 
 function makeUserRepo(email: string | null) {
   return {
-    findById: vi.fn(async () =>
-      email ? { id: "u1", email, name: "X", isActive: true } : null,
-    ),
+    findById: vi.fn(async () => (email ? { id: "u1", email, name: "X", isActive: true } : null)),
   };
 }
 
 describe("createRequireOwner", () => {
   it("deixa o dono passar (comparacao case-insensitive)", async () => {
-    const mw = createRequireOwner(makeUserRepo("Rick@MilWeb.com.br") as never, "rick@milweb.com.br");
+    const mw = createRequireOwner(
+      makeUserRepo("Rick@MilWeb.com.br") as never,
+      "rick@milweb.com.br",
+    );
     const next = vi.fn();
     await mw(makeReq({ userId: "u1" }), res, next);
     expect(next).toHaveBeenCalledWith();
@@ -39,7 +40,10 @@ describe("createRequireOwner", () => {
   });
 
   it("responde 401 sem req.auth", async () => {
-    const mw = createRequireOwner(makeUserRepo("rick@milweb.com.br") as never, "rick@milweb.com.br");
+    const mw = createRequireOwner(
+      makeUserRepo("rick@milweb.com.br") as never,
+      "rick@milweb.com.br",
+    );
     const next = vi.fn();
     await mw(makeReq(undefined), res, next);
     expect(next.mock.calls[0]![0]).toBeInstanceOf(UnauthorizedError);

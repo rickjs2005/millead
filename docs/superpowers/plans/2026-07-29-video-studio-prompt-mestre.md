@@ -28,11 +28,13 @@
 ### Task 1: Contrato `VideoBrief`
 
 **Files:**
+
 - Create: `packages/video-contracts/src/brief.ts`
 - Modify: `packages/video-contracts/src/index.ts`
 - Test: `packages/video-contracts/src/brief.test.ts`
 
 **Interfaces:**
+
 - Consumes: nada.
 - Produces: `VideoBriefSchema`, `BriefSceneSchema`, `SITE_SLOTS` (tupla de slots), e os tipos `VideoBrief`, `BriefScene`, `SiteSlot`, `StudioComponent`. Tasks 2-6 importam de `@millead/video-contracts`.
 
@@ -58,7 +60,13 @@ function validBrief() {
     totalDurationSec: 17,
     wordBudget: 43,
     scenes: [
-      { id: "sc1", kind: "studio" as const, component: "notebook" as const, durationSec: 3, zoomTargets: [] },
+      {
+        id: "sc1",
+        kind: "studio" as const,
+        component: "notebook" as const,
+        durationSec: 3,
+        zoomTargets: [],
+      },
       {
         id: "sc2",
         kind: "studio" as const,
@@ -319,12 +327,14 @@ git commit -m "feat: contrato VideoBrief"
 ### Task 2: Catálogo de cenas e os 5 templates
 
 **Files:**
+
 - Create: `apps/web/src/features/video-studio/types.ts`
 - Create: `apps/web/src/features/video-studio/scenes.ts`
 - Create: `apps/web/src/features/video-studio/templates.ts`
 - Test: `apps/web/src/features/video-studio/templates.test.ts`
 
 **Interfaces:**
+
 - Consumes: `SiteSlot`, `StudioComponent` de `@millead/video-contracts` (Task 1).
 - Produces:
   - `FormScene`, `VideoStudioForm`, `ZoomTarget`, `TemplateId`, `PromptTemplate` (tipos)
@@ -552,7 +562,12 @@ Expected: FAIL — `Cannot find module './templates'`.
 ```ts
 import type { FormScene, PromptTemplate } from "./types";
 
-function site(id: string, slot: FormScene["slot"], durationSec: number, zoomTargets: string[] = []): FormScene {
+function site(
+  id: string,
+  slot: FormScene["slot"],
+  durationSec: number,
+  zoomTargets: string[] = [],
+): FormScene {
   return { id, kind: "site", slot, enabled: true, durationSec, zoomTargets };
 }
 
@@ -628,7 +643,9 @@ export const TEMPLATES: PromptTemplate[] = [
       studio("sc5", "whatsapp", 4, ["mensagem"]),
       studio("sc6", "logo", 3),
     ],
-    body: body("Você escreve narração para vídeos que anunciam o lançamento do site novo de uma empresa."),
+    body: body(
+      "Você escreve narração para vídeos que anunciam o lançamento do site novo de uma empresa.",
+    ),
   },
   {
     id: "portfolio",
@@ -697,10 +714,12 @@ git commit -m "feat: catálogo de cenas e os cinco templates do Video Studio"
 ### Task 3: `buildBrief` e a escala de durações
 
 **Files:**
+
 - Create: `apps/web/src/features/video-studio/build-brief.ts`
 - Test: `apps/web/src/features/video-studio/build-brief.test.ts`
 
 **Interfaces:**
+
 - Consumes: `FormScene`, `VideoStudioForm`, `PromptTemplate` (Task 2); `zoomTargetsFor` (Task 2); `VideoBriefSchema`, `VideoBrief` (Task 1).
 - Produces:
   - `wordBudgetFor(durationSec: number): number` — `Math.round(durationSec * 2.5)`
@@ -809,9 +828,7 @@ describe("buildBrief", () => {
   const createdAt = "2026-07-29T14:32:00.000Z";
 
   it("produz um brief que valida no schema", () => {
-    expect(() =>
-      buildBrief(form(), templateById("lancamento")!, createdAt),
-    ).not.toThrow();
+    expect(() => buildBrief(form(), templateById("lancamento")!, createdAt)).not.toThrow();
   });
 
   it("deixa de fora as cenas desmarcadas", () => {
@@ -896,7 +913,10 @@ export function scaleDurations(scenes: FormScene[], targetTotalSec: number): For
 
   const escaladas = scenes.map((scene) =>
     scene.enabled
-      ? { ...scene, durationSec: Math.max(1, Math.round((scene.durationSec / atual) * targetTotalSec)) }
+      ? {
+          ...scene,
+          durationSec: Math.max(1, Math.round((scene.durationSec / atual) * targetTotalSec)),
+        }
       : { ...scene },
   );
 
@@ -993,8 +1013,7 @@ export function buildBrief(
     narration: {
       mode: form.narrationMode,
       text: form.narrationMode === "manual" ? form.narrationText.trim() : null,
-      customInstructions:
-        form.narrationMode === "custom" ? form.customInstructions.trim() : null,
+      customInstructions: form.narrationMode === "custom" ? form.customInstructions.trim() : null,
     },
   };
 
@@ -1023,10 +1042,12 @@ git commit -m "feat: buildBrief com escala exata de durações"
 ### Task 4: `buildPrompt`
 
 **Files:**
+
 - Create: `apps/web/src/features/video-studio/build-prompt.ts`
 - Test: `apps/web/src/features/video-studio/build-prompt.test.ts`
 
 **Interfaces:**
+
 - Consumes: `VideoBrief` (Task 1); `PromptTemplate` (Task 2); `sceneLabel`, `zoomTargetsFor`, `SITE_SLOT_INFO`, `STUDIO_COMPONENT_INFO` (Task 2); `wordBudgetFor` (Task 3).
 - Produces:
   - `buildSceneList(brief: VideoBrief): string`
@@ -1158,7 +1179,10 @@ import { wordBudgetFor } from "./build-brief";
 import { SITE_SLOT_INFO, STUDIO_COMPONENT_INFO } from "./scenes";
 import type { PromptTemplate } from "./types";
 
-function infoFor(scene: BriefScene): { label: string; zoomTargets: { id: string; label: string }[] } {
+function infoFor(scene: BriefScene): {
+  label: string;
+  zoomTargets: { id: string; label: string }[];
+} {
   return scene.kind === "site"
     ? SITE_SLOT_INFO[scene.slot]
     : STUDIO_COMPONENT_INFO[scene.component];
@@ -1256,6 +1280,7 @@ git commit -m "feat: buildPrompt com bloco de narração por modo"
 ### Task 5: A tela `/videos` gerando o prompt
 
 **Files:**
+
 - Modify: `apps/web/next.config.ts`
 - Modify: `apps/web/package.json`
 - Modify: `apps/web/src/components/shell/nav-items.ts`
@@ -1263,6 +1288,7 @@ git commit -m "feat: buildPrompt com bloco de narração por modo"
 - Create: `apps/web/src/features/video-studio/components/scene-list.tsx`
 
 **Interfaces:**
+
 - Consumes: tudo das Tasks 2-4 (`TEMPLATES`, `templateById`, `buildBrief`, `buildPrompt`, `scaleDurations`, `totalDuration`, `totalWordBudget`, `sceneLabel`, `zoomTargetsFor`).
 - Produces: a rota `/videos`. A Task 6 acrescenta arrasto, chips de zoom, narração e download nesta mesma tela.
 
@@ -1377,7 +1403,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { buildBrief, scaleDurations, totalDuration, totalWordBudget } from "@/features/video-studio/build-brief";
+import {
+  buildBrief,
+  scaleDurations,
+  totalDuration,
+  totalWordBudget,
+} from "@/features/video-studio/build-brief";
 import { buildPrompt } from "@/features/video-studio/build-prompt";
 import { SceneList } from "@/features/video-studio/components/scene-list";
 import { TEMPLATES, templateById } from "@/features/video-studio/templates";
@@ -1403,7 +1434,12 @@ export default function VideosPage() {
     const novo = templateById(id);
     if (!novo) return;
     setTemplateId(id);
-    setScenes(scaleDurations(novo.defaultScenes.map((s) => ({ ...s })), totalDurationSec));
+    setScenes(
+      scaleDurations(
+        novo.defaultScenes.map((s) => ({ ...s })),
+        totalDurationSec,
+      ),
+    );
   }
 
   function redistribuir(alvo: TotalDuration) {
@@ -1445,11 +1481,20 @@ export default function VideosPage() {
       <section className="space-y-4">
         <div className="space-y-2">
           <Label htmlFor="empresa">Empresa</Label>
-          <Input id="empresa" value={businessName} onChange={(e) => setBusinessName(e.target.value)} />
+          <Input
+            id="empresa"
+            value={businessName}
+            onChange={(e) => setBusinessName(e.target.value)}
+          />
         </div>
         <div className="space-y-2">
           <Label htmlFor="url">URL do site</Label>
-          <Input id="url" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://" />
+          <Input
+            id="url"
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+            placeholder="https://"
+          />
         </div>
         <div className="space-y-2">
           <Label htmlFor="segmento">Segmento (opcional)</Label>
@@ -1460,10 +1505,14 @@ export default function VideosPage() {
           <div className="space-y-2 sm:col-span-3">
             <Label>Template</Label>
             <Select value={templateId} onValueChange={trocarTemplate}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
                 {TEMPLATES.map((t) => (
-                  <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                  <SelectItem key={t.id} value={t.id}>
+                    {t.name}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -1475,10 +1524,14 @@ export default function VideosPage() {
               value={String(totalDurationSec)}
               onValueChange={(v) => redistribuir(Number(v) as TotalDuration)}
             >
-              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
                 {DURACOES.map((d) => (
-                  <SelectItem key={d} value={String(d)}>{d}s</SelectItem>
+                  <SelectItem key={d} value={String(d)}>
+                    {d}s
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -1486,10 +1539,14 @@ export default function VideosPage() {
           <div className="space-y-2">
             <Label>Formato</Label>
             <Select value={format} onValueChange={(v) => setFormat(v as VideoFormat)}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
                 {FORMATOS.map((f) => (
-                  <SelectItem key={f} value={f}>{f}</SelectItem>
+                  <SelectItem key={f} value={f}>
+                    {f}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -1513,10 +1570,14 @@ export default function VideosPage() {
       <section className="space-y-3">
         <div className="flex items-center justify-between">
           <h2 className="font-medium">Prompt</h2>
-          <Button size="sm" onClick={copiar} disabled={!prompt}>Copiar</Button>
+          <Button size="sm" onClick={copiar} disabled={!prompt}>
+            Copiar
+          </Button>
         </div>
         {erro ? (
-          <p className="rounded-md border border-amber-500/50 bg-amber-500/10 p-3 text-sm">{erro}</p>
+          <p className="rounded-md border border-amber-500/50 bg-amber-500/10 p-3 text-sm">
+            {erro}
+          </p>
         ) : (
           <pre className="max-h-[70vh] overflow-auto whitespace-pre-wrap rounded-md border p-3 text-sm">
             {prompt}
@@ -1541,32 +1602,33 @@ import { useCompany } from "@/features/companies/hooks";
 O estado e o efeito, junto dos outros `useState`:
 
 ```tsx
-  const [companyId, setCompanyId] = useState<string | undefined>(undefined);
-  const { data: company } = useCompany(companyId);
+const [companyId, setCompanyId] = useState<string | undefined>(undefined);
+const { data: company } = useCompany(companyId);
 
-  // Só preenche campo ainda vazio -- nunca sobrescreve o que você digitou.
-  // A URL NÃO vem daqui: o tipo `Company` não tem site (os endereços vivem na
-  // relação CompanyWebsite, que o `useCompany` não devolve).
-  useEffect(() => {
-    if (!company) return;
-    setBusinessName((atual) => atual || company.name);
-    setSegment((atual) => atual || company.segment || "");
-  }, [company]);
+// Só preenche campo ainda vazio -- nunca sobrescreve o que você digitou.
+// A URL NÃO vem daqui: o tipo `Company` não tem site (os endereços vivem na
+// relação CompanyWebsite, que o `useCompany` não devolve).
+useEffect(() => {
+  if (!company) return;
+  setBusinessName((atual) => atual || company.name);
+  setSegment((atual) => atual || company.segment || "");
+}, [company]);
 ```
 
 E o combobox no topo do formulário, antes do campo Empresa:
 
 ```tsx
-        <div className="space-y-2">
-          <Label>Puxar de uma empresa cadastrada (opcional)</Label>
-          <CompanyCombobox value={companyId} onChange={(id) => setCompanyId(id)} />
-        </div>
+<div className="space-y-2">
+  <Label>Puxar de uma empresa cadastrada (opcional)</Label>
+  <CompanyCombobox value={companyId} onChange={(id) => setCompanyId(id)} />
+</div>
 ```
 
 - [ ] **Step 8: Verificar na tela**
 
 Run: `pnpm --filter @millead/web dev`
 Abra `http://localhost:3000/videos`, preencha "Kavita Drones" e `https://kavita.com.br`, e confirme:
+
 1. O prompt aparece à direita e muda ao trocar de template.
 2. Trocar a duração para 45s redistribui as cenas e o contador mostra `45s`.
 3. Desmarcar uma cena reduz o total, e as outras cenas **não** mudam de duração.
@@ -1592,11 +1654,13 @@ git commit -m "feat: tela /videos gerando o prompt do Video Studio"
 ### Task 6: Zoom, arrasto, narração e download do brief
 
 **Files:**
+
 - Modify: `apps/web/src/features/video-studio/components/scene-list.tsx`
 - Modify: `apps/web/src/app/(app)/videos/page.tsx`
 - Create: `apps/web/src/features/video-studio/components/narration-fields.tsx`
 
 **Interfaces:**
+
 - Consumes: tudo da Task 5, mais `zoomTargetsFor` (Task 2) e `promptFileName` (Task 4).
 - Produces: a tela completa conforme a spec.
 
@@ -1617,11 +1681,7 @@ import {
   useSensors,
   type DragEndEvent,
 } from "@dnd-kit/core";
-import {
-  SortableContext,
-  useSortable,
-  verticalListSortingStrategy,
-} from "@dnd-kit/sortable";
+import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { GripVertical } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -1766,11 +1826,7 @@ interface NarrationFieldsProps {
   text: string;
   customInstructions: string;
   wordBudget: number;
-  onChange: (patch: {
-    mode?: NarrationMode;
-    text?: string;
-    customInstructions?: string;
-  }) => void;
+  onChange: (patch: { mode?: NarrationMode; text?: string; customInstructions?: string }) => void;
 }
 
 const ROTULOS: Record<NarrationMode, string> = {
@@ -1797,10 +1853,14 @@ export function NarrationFields({
     <div className="space-y-2">
       <Label>Narração</Label>
       <Select value={mode} onValueChange={(v) => onChange({ mode: v as NarrationMode })}>
-        <SelectTrigger><SelectValue /></SelectTrigger>
+        <SelectTrigger>
+          <SelectValue />
+        </SelectTrigger>
         <SelectContent>
           {(Object.keys(ROTULOS) as NarrationMode[]).map((m) => (
-            <SelectItem key={m} value={m}>{ROTULOS[m]}</SelectItem>
+            <SelectItem key={m} value={m}>
+              {ROTULOS[m]}
+            </SelectItem>
           ))}
         </SelectContent>
       </Select>
@@ -1851,70 +1911,70 @@ import type { NarrationMode } from "@/features/video-studio/types";
 2. Acrescente o estado da narração, junto dos outros `useState`:
 
 ```tsx
-  const [narrationMode, setNarrationMode] = useState<NarrationMode>("auto");
-  const [narrationText, setNarrationText] = useState("");
-  const [customInstructions, setCustomInstructions] = useState("");
+const [narrationMode, setNarrationMode] = useState<NarrationMode>("auto");
+const [narrationText, setNarrationText] = useState("");
+const [customInstructions, setCustomInstructions] = useState("");
 ```
 
 3. Troque o `useMemo` inteiro por este, que agora devolve também o brief:
 
 ```tsx
-  const { prompt, brief, erro } = useMemo(() => {
-    try {
-      const gerado = buildBrief(
-        {
-          businessName,
-          url,
-          segment,
-          templateId,
-          totalDurationSec,
-          format,
-          scenes,
-          narrationMode,
-          narrationText,
-          customInstructions,
-        },
-        template,
-        new Date().toISOString(),
-      );
-      return {
-        prompt: buildPrompt(gerado, template),
-        brief: gerado,
-        erro: null as string | null,
-      };
-    } catch (err) {
-      return {
-        prompt: "",
-        brief: null,
-        erro: err instanceof Error ? err.message : String(err),
-      };
-    }
-  }, [
-    businessName,
-    url,
-    segment,
-    templateId,
-    totalDurationSec,
-    format,
-    scenes,
-    template,
-    narrationMode,
-    narrationText,
-    customInstructions,
-  ]);
+const { prompt, brief, erro } = useMemo(() => {
+  try {
+    const gerado = buildBrief(
+      {
+        businessName,
+        url,
+        segment,
+        templateId,
+        totalDurationSec,
+        format,
+        scenes,
+        narrationMode,
+        narrationText,
+        customInstructions,
+      },
+      template,
+      new Date().toISOString(),
+    );
+    return {
+      prompt: buildPrompt(gerado, template),
+      brief: gerado,
+      erro: null as string | null,
+    };
+  } catch (err) {
+    return {
+      prompt: "",
+      brief: null,
+      erro: err instanceof Error ? err.message : String(err),
+    };
+  }
+}, [
+  businessName,
+  url,
+  segment,
+  templateId,
+  totalDurationSec,
+  format,
+  scenes,
+  template,
+  narrationMode,
+  narrationText,
+  customInstructions,
+]);
 ```
 
 4. Acrescente a função de download, ao lado de `copiar()`:
 
 ```tsx
-  function baixar(conteudo: string, nome: string, tipo: string) {
-    const url = URL.createObjectURL(new Blob([conteudo], { type: tipo }));
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = nome;
-    link.click();
-    URL.revokeObjectURL(url);
-  }
+function baixar(conteudo: string, nome: string, tipo: string) {
+  const url = URL.createObjectURL(new Blob([conteudo], { type: tipo }));
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = nome;
+  link.click();
+  URL.revokeObjectURL(url);
+}
 ```
 
 - [ ] **Step 4: Trocar o painel de saída por abas**
@@ -1922,57 +1982,59 @@ import type { NarrationMode } from "@/features/video-studio/types";
 Substitua a `<section>` da direita (a que hoje mostra só o prompt) por:
 
 ```tsx
-      <section className="space-y-3">
-        {erro ? (
-          <p className="rounded-md border border-amber-500/50 bg-amber-500/10 p-3 text-sm">{erro}</p>
-        ) : (
-          <Tabs defaultValue="prompt">
-            <div className="flex items-center justify-between">
-              <TabsList>
-                <TabsTrigger value="prompt">Prompt</TabsTrigger>
-                <TabsTrigger value="brief">Brief</TabsTrigger>
-              </TabsList>
-              <span className="text-sm text-muted-foreground">
-                {brief!.totalDurationSec}s · {brief!.wordBudget} palavras
-              </span>
-            </div>
+<section className="space-y-3">
+  {erro ? (
+    <p className="rounded-md border border-amber-500/50 bg-amber-500/10 p-3 text-sm">{erro}</p>
+  ) : (
+    <Tabs defaultValue="prompt">
+      <div className="flex items-center justify-between">
+        <TabsList>
+          <TabsTrigger value="prompt">Prompt</TabsTrigger>
+          <TabsTrigger value="brief">Brief</TabsTrigger>
+        </TabsList>
+        <span className="text-sm text-muted-foreground">
+          {brief!.totalDurationSec}s · {brief!.wordBudget} palavras
+        </span>
+      </div>
 
-            <TabsContent value="prompt" className="space-y-3">
-              <div className="flex gap-2">
-                <Button size="sm" onClick={copiar}>Copiar</Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => baixar(prompt, promptFileName(brief!), "text/markdown")}
-                >
-                  Baixar .md
-                </Button>
-              </div>
-              <pre className="max-h-[65vh] overflow-auto whitespace-pre-wrap rounded-md border p-3 text-sm">
-                {prompt}
-              </pre>
-            </TabsContent>
+      <TabsContent value="prompt" className="space-y-3">
+        <div className="flex gap-2">
+          <Button size="sm" onClick={copiar}>
+            Copiar
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => baixar(prompt, promptFileName(brief!), "text/markdown")}
+          >
+            Baixar .md
+          </Button>
+        </div>
+        <pre className="max-h-[65vh] overflow-auto whitespace-pre-wrap rounded-md border p-3 text-sm">
+          {prompt}
+        </pre>
+      </TabsContent>
 
-            <TabsContent value="brief" className="space-y-3">
-              <Button
-                size="sm"
-                onClick={() =>
-                  baixar(
-                    `${JSON.stringify(brief, null, 2)}\n`,
-                    `videobrief-${brief!.id}.json`,
-                    "application/json",
-                  )
-                }
-              >
-                Baixar videobrief.json
-              </Button>
-              <pre className="max-h-[65vh] overflow-auto whitespace-pre-wrap rounded-md border p-3 text-sm">
-                {JSON.stringify(brief, null, 2)}
-              </pre>
-            </TabsContent>
-          </Tabs>
-        )}
-      </section>
+      <TabsContent value="brief" className="space-y-3">
+        <Button
+          size="sm"
+          onClick={() =>
+            baixar(
+              `${JSON.stringify(brief, null, 2)}\n`,
+              `videobrief-${brief!.id}.json`,
+              "application/json",
+            )
+          }
+        >
+          Baixar videobrief.json
+        </Button>
+        <pre className="max-h-[65vh] overflow-auto whitespace-pre-wrap rounded-md border p-3 text-sm">
+          {JSON.stringify(brief, null, 2)}
+        </pre>
+      </TabsContent>
+    </Tabs>
+  )}
+</section>
 ```
 
 - [ ] **Step 5: Acrescentar os campos de narração no formulário**
@@ -1980,23 +2042,24 @@ Substitua a `<section>` da direita (a que hoje mostra só o prompt) por:
 No fim da `<section>` da esquerda, depois do botão "Redistribuir":
 
 ```tsx
-        <NarrationFields
-          mode={narrationMode}
-          text={narrationText}
-          customInstructions={customInstructions}
-          wordBudget={totalWordBudget(scenes)}
-          onChange={(patch) => {
-            if (patch.mode !== undefined) setNarrationMode(patch.mode);
-            if (patch.text !== undefined) setNarrationText(patch.text);
-            if (patch.customInstructions !== undefined) setCustomInstructions(patch.customInstructions);
-          }}
-        />
+<NarrationFields
+  mode={narrationMode}
+  text={narrationText}
+  customInstructions={customInstructions}
+  wordBudget={totalWordBudget(scenes)}
+  onChange={(patch) => {
+    if (patch.mode !== undefined) setNarrationMode(patch.mode);
+    if (patch.text !== undefined) setNarrationText(patch.text);
+    if (patch.customInstructions !== undefined) setCustomInstructions(patch.customInstructions);
+  }}
+/>
 ```
 
 - [ ] **Step 6: Verificar na tela**
 
 Run: `pnpm --filter @millead/web dev`
 Em `http://localhost:3000/videos`, confirme:
+
 1. Arrastar uma cena pela alça muda a ordem, e o prompt renumera.
 2. Marcar/desmarcar um chip de zoom muda a linha `zoom:` daquela cena no prompt.
 3. As cenas "Notebook abrindo" e "Logo e CTA" **não** mostram chips.
@@ -2021,9 +2084,11 @@ git commit -m "feat: zoom, arrasto, narração e download do brief"
 ### Task 7: Aceite ponta a ponta com a Kavita
 
 **Files:**
+
 - Create: `docs/superpowers/plans/2026-07-29-video-studio-prompt-mestre-resultado.md`
 
 **Interfaces:**
+
 - Consumes: a tela pronta das Tasks 5 e 6.
 - Produces: a evidência de que os critérios de aceite da spec foram cumpridos.
 
@@ -2068,12 +2133,12 @@ Data: <preencher com a data da execução>
 
 ## Critério de aceite da spec
 
-| # | Critério | Status | Evidência |
-| - | -------- | ------ | --------- |
-| 1 | Prompt do Institucional gerado para a Kavita | | |
-| 2 | Narração voltou dentro do orçamento de palavras | | cenas que estouraram: ... |
-| 3 | videobrief.json valida no zod sem ajuste manual | | |
-| 4 | `next build` do web passa com o transpilePackages | | |
+| #   | Critério                                          | Status | Evidência                 |
+| --- | ------------------------------------------------- | ------ | ------------------------- |
+| 1   | Prompt do Institucional gerado para a Kavita      |        |                           |
+| 2   | Narração voltou dentro do orçamento de palavras   |        | cenas que estouraram: ... |
+| 3   | videobrief.json valida no zod sem ajuste manual   |        |                           |
+| 4   | `next build` do web passa com o transpilePackages |        |                           |
 
 ## O que o prompt ainda erra
 

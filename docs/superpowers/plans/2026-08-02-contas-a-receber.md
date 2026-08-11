@@ -60,9 +60,11 @@ apps/web/src/
 ### Task 1: Schema — Receivable
 
 **Files:**
+
 - Modify: `packages/database/prisma/schema.prisma`
 
 **Interfaces:**
+
 - Produces: model `Receivable`, enum `ReceivableKind { ENTRADA, PARCELA }`, relations `Organization.receivables` e `Contract.receivables`.
 
 - [ ] **Step 1:** Adicionar no schema (junto dos models de contrato):
@@ -114,12 +116,14 @@ git commit -m "feat(db): parcelas de recebimento por contrato (Receivable)"
 ### Task 2: Builder puro do plano + entidades + interface do repositório
 
 **Files:**
+
 - Create: `apps/api/src/domain/entities/receivable.ts`
 - Create: `apps/api/src/application/services/receivable-plan.ts`
 - Test: `apps/api/src/application/services/receivable-plan.test.ts`
 - Create: `apps/api/src/domain/repositories/receivable-repository.ts`
 
 **Interfaces:**
+
 - Produces:
 
 ```ts
@@ -130,8 +134,8 @@ export interface Receivable {
   organizationId: string;
   contractId: string;
   kind: ReceivableKind;
-  installmentIndex: number;   // 0 = entrada, 1..N = parcelas
-  amount: string;             // Decimal serializa como string
+  installmentIndex: number; // 0 = entrada, 1..N = parcelas
+  amount: string; // Decimal serializa como string
   dueDate: Date;
   paidAt: Date | null;
   paidNote: string | null;
@@ -139,13 +143,18 @@ export interface Receivable {
 
 // receivable-plan.ts — funcao PURA, sem I/O
 export interface PlanInput {
-  total: number;              // valor total do contrato (reais)
-  entryAmount: number;        // entrada em reais (0 = sem entrada)
-  installmentCount: number;   // N parcelas alem da entrada (>= 1 se entryAmount < total)
-  firstDueDate: Date;         // vencimento da 1a parcela
-  entryDueDate: Date;         // vencimento da entrada
+  total: number; // valor total do contrato (reais)
+  entryAmount: number; // entrada em reais (0 = sem entrada)
+  installmentCount: number; // N parcelas alem da entrada (>= 1 se entryAmount < total)
+  firstDueDate: Date; // vencimento da 1a parcela
+  entryDueDate: Date; // vencimento da entrada
 }
-export interface PlanItem { kind: ReceivableKind; installmentIndex: number; amount: number; dueDate: Date }
+export interface PlanItem {
+  kind: ReceivableKind;
+  installmentIndex: number;
+  amount: number;
+  dueDate: Date;
+}
 /** Distribui (total - entrada) em N parcelas iguais com 2 casas; o resto
  *  de centavos vai na ULTIMA parcela. Vencimentos mensais a partir de
  *  firstDueDate (mesmo dia; meses curtos usam o ultimo dia do mes).
@@ -154,18 +163,36 @@ export interface PlanItem { kind: ReceivableKind; installmentIndex: number; amou
 export function buildPlan(input: PlanInput): PlanItem[];
 
 // repositories/receivable-repository.ts
-export interface CreatePlanItem { kind: ReceivableKind; installmentIndex: number; amount: string; dueDate: Date }
+export interface CreatePlanItem {
+  kind: ReceivableKind;
+  installmentIndex: number;
+  amount: string;
+  dueDate: Date;
+}
 export interface ReceivableRepository {
   /** Cria o plano numa transacao. Retorna null se o contrato ja tem QUALQUER parcela (plano existente). */
-  createPlan(organizationId: string, contractId: string, items: CreatePlanItem[]): Promise<Receivable[] | null>;
+  createPlan(
+    organizationId: string,
+    contractId: string,
+    items: CreatePlanItem[],
+  ): Promise<Receivable[] | null>;
   listByContract(organizationId: string, contractId: string): Promise<Receivable[]>;
   findById(organizationId: string, id: string): Promise<Receivable | null>;
   /** CAS: marca paga so se paidAt null. Retorna null se ja paga/inexistente. */
-  markPaid(organizationId: string, id: string, paidAt: Date, paidNote: string | null): Promise<Receivable | null>;
+  markPaid(
+    organizationId: string,
+    id: string,
+    paidAt: Date,
+    paidNote: string | null,
+  ): Promise<Receivable | null>;
   /** CAS inverso: desfaz baixa so se paidAt nao-null. */
   markUnpaid(organizationId: string, id: string): Promise<Receivable | null>;
   /** So parcela em aberto. Retorna null se paga/inexistente. */
-  update(organizationId: string, id: string, patch: { amount?: string; dueDate?: Date }): Promise<Receivable | null>;
+  update(
+    organizationId: string,
+    id: string,
+    patch: { amount?: string; dueDate?: Date },
+  ): Promise<Receivable | null>;
   /** So parcela em aberto. False se paga/inexistente. */
   delete(organizationId: string, id: string): Promise<boolean>;
   hasPaid(organizationId: string, contractId: string): Promise<boolean>;
@@ -175,7 +202,17 @@ export interface ReceivableRepository {
   /** Agregado por contrato: soma paga (para margem). */
   sumPaidByContract(organizationId: string, contractId: string): Promise<string>;
   /** Contratos da org que tem parcelas, com totais (pago/total/aberto) — alimenta a listagem. */
-  listContractsWithTotals(organizationId: string): Promise<Array<{ contractId: string; numero: string; companyName: string; total: string; paid: string; openOverdue: string; nextDueDate: Date | null }>>;
+  listContractsWithTotals(organizationId: string): Promise<
+    Array<{
+      contractId: string;
+      numero: string;
+      companyName: string;
+      total: string;
+      paid: string;
+      openOverdue: string;
+      nextDueDate: Date | null;
+    }>
+  >;
 }
 ```
 
@@ -188,11 +225,13 @@ export interface ReceivableRepository {
 ### Task 3: Repositório Prisma + proposalId no Contract
 
 **Files:**
+
 - Create: `apps/api/src/infrastructure/prisma/prisma-receivable-repository.ts`
 - Modify: `apps/api/src/domain/entities/contract.ts` (adicionar `proposalId: string | null`)
 - Modify: `apps/api/src/infrastructure/prisma/prisma-contract-repository.ts` (proposalId no `baseSelect` e no `toDomain`)
 
 **Interfaces:**
+
 - Consumes: interface da Task 2; client Prisma (import padrão do prisma-cost-repository).
 - Produces: `PrismaReceivableRepository`; `Contract.proposalId` disponível pra Task 4.
 
@@ -211,11 +250,13 @@ export interface ReceivableRepository {
 ### Task 4: DTOs + ReceivableService (com testes) + projectedCost no EstimateService
 
 **Files:**
+
 - Create: `apps/api/src/application/dto/receivable.dto.ts` (+ `.test.ts`)
 - Create: `apps/api/src/application/services/receivable-service.ts` (+ `.test.ts`)
 - Modify: `apps/api/src/application/services/estimate-service.ts`
 
 **Interfaces:**
+
 - Consumes: Task 2/3; `EstimateRepository.findByProposalId(proposalId)` (existe); `computeEstimate` + `CostRepository.getSettings` (padrão `withComputed` privado do estimate-service).
 - Produces (Task 5 usa):
 
@@ -279,11 +320,13 @@ async projectedCostByProposalId(organizationId: string, proposalId: string): Pro
 ### Task 5: Controller + rotas + wiring
 
 **Files:**
+
 - Create: `apps/api/src/interfaces/http/controllers/receivable-controller.ts`
 - Create: `apps/api/src/interfaces/http/routes/receivable-routes.ts`
 - Modify: `apps/api/src/main/container.ts`, `apps/api/src/main/app.ts`
 
 **Interfaces:**
+
 - Consumes: `ReceivableService` (Task 4); `requirePermission(PERMISSIONS.PROPOSALS_READ/WRITE)`; `validateBody/validateQuery`; `asyncHandler`; padrão exato do cost-routes.
 - Produces: montado em `/api/v1/receivables`:
   - `POST /plan` (write, validateBody(createPlanSchema))
@@ -302,6 +345,7 @@ async projectedCostByProposalId(organizationId: string, proposalId: string): Pro
 ### Task 6: Web — services, hooks, nav e seção Recebimento no contrato
 
 **Files:**
+
 - Modify: `apps/web/src/types/api.ts` (Receivable, ReceivableSummary, ContractMargin, ContractWithTotals — datas como string, valores como string)
 - Create: `apps/web/src/services/receivables.ts`
 - Modify: `apps/web/src/lib/query-keys.ts` (`queryKeys.receivables.*`)
@@ -312,6 +356,7 @@ async projectedCostByProposalId(organizationId: string, proposalId: string): Pro
 - Modify: `apps/web/src/components/shell/nav-items.ts` + `apps/web/src/middleware.ts`
 
 **Interfaces:**
+
 - Consumes: endpoints da Task 5; padrão de dialog `cost-subscription-dialog.tsx` (react-hook-form + zodResolver, Controller pra Select, toasts nos hooks); `useConfirmDialog` do detalhe do contrato; `formatCurrency` de `@/utils/format`.
 
 - [ ] **Step 1:** Types + service wrapper (`receivablesService = { createPlan, listByContract(contractId), listContracts(), summary(month?), margin(contractId), pay(id, payload), unpay(id), update(id, payload), remove(id) }`) + query-keys + hooks (mutations invalidam `queryKeys.receivables.all` E `queryKeys.contracts.detail(contractId)` quando aplicável; toasts de sucesso/erro no padrão contracts/hooks.ts).
@@ -326,10 +371,12 @@ async projectedCostByProposalId(organizationId: string, proposalId: string): Pro
 ### Task 7: Web — página /receivables + card no dashboard
 
 **Files:**
+
 - Create: `apps/web/src/app/(app)/receivables/page.tsx`
 - Modify: `apps/web/src/features/dashboard/components/finance-cards.tsx`
 
 **Interfaces:**
+
 - Consumes: hooks da Task 6 (`useReceivablesSummary`, `useReceivableContracts`, `useContractMargin` sob demanda); `StatCard` (`features/dashboard/components/stat-card.tsx`).
 
 - [ ] **Step 1:** Página: header com seletor de mês (input month, default atual); 3 StatCards (A receber no mês / Vencidas [accent destructive quando >0] / Recebido no mês); tabela "Vencidas" em destaque quando houver (contrato, parcela, vencimento, valor, botão baixa); tabela "Por contrato" (numero + empresa, progresso pago/total, próxima parcela, link pro detalhe). Estado vazio: "Nenhum plano de recebimento ainda — defina no detalhe de um contrato assinado."

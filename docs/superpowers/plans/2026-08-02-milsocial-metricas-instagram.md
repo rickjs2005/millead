@@ -70,9 +70,11 @@ docs/milsocial-setup.md                           (create — token IG + n8n)
 ### Task 1: Schema Prisma (SocialPost, SocialMetricSnapshot, SocialConfig)
 
 **Files:**
+
 - Modify: `packages/database/prisma/schema.prisma` (fim do arquivo)
 
 **Interfaces:**
+
 - Produces: modelos Prisma `SocialPost`, `SocialMetricSnapshot`, `SocialConfig`; enums `SocialPostFormat`, `SocialFormatSource` — consumidos pela Task 3 via client gerado em `packages/database/src/generated/client`.
 
 - [ ] **Step 1: Adicionar modelos ao schema**
@@ -171,12 +173,14 @@ git commit -m "feat(db): modelos do MilSocial (posts, snapshots e config do Inst
 ### Task 2: Envs novos + SocialNotConfiguredError + middleware requireOwner
 
 **Files:**
+
 - Modify: `apps/api/src/config/env.ts`
 - Modify: `apps/api/src/domain/errors/app-error.ts`
 - Create: `apps/api/src/interfaces/http/middlewares/require-owner.ts`
 - Test: `apps/api/src/interfaces/http/middlewares/require-owner.test.ts`
 
 **Interfaces:**
+
 - Consumes: `AppError` (existente), `UserRepository.findById(id): Promise<User | null>` (existente em `domain/repositories/user-repository.ts`), `req.auth: MembershipContext` (setado pelo `authenticate` existente; tem `userId`, NÃO tem e-mail — por isso o lookup).
 - Produces: `env.INSTAGRAM_ACCESS_TOKEN?: string`, `env.MILSOCIAL_SYNC_KEY?: string`; classe `SocialNotConfiguredError` (503); `createRequireOwner(userRepository: UserRepository, ownerEmail: string | undefined): RequestHandler`.
 
@@ -229,15 +233,16 @@ const res = {} as Response;
 
 function makeUserRepo(email: string | null) {
   return {
-    findById: vi.fn(async () =>
-      email ? { id: "u1", email, name: "X", isActive: true } : null,
-    ),
+    findById: vi.fn(async () => (email ? { id: "u1", email, name: "X", isActive: true } : null)),
   };
 }
 
 describe("createRequireOwner", () => {
   it("deixa o dono passar (comparacao case-insensitive)", async () => {
-    const mw = createRequireOwner(makeUserRepo("Rick@MilWeb.com.br") as never, "rick@milweb.com.br");
+    const mw = createRequireOwner(
+      makeUserRepo("Rick@MilWeb.com.br") as never,
+      "rick@milweb.com.br",
+    );
     const next = vi.fn();
     await mw(makeReq({ userId: "u1" }), res, next);
     expect(next).toHaveBeenCalledWith();
@@ -258,7 +263,10 @@ describe("createRequireOwner", () => {
   });
 
   it("responde 401 sem req.auth", async () => {
-    const mw = createRequireOwner(makeUserRepo("rick@milweb.com.br") as never, "rick@milweb.com.br");
+    const mw = createRequireOwner(
+      makeUserRepo("rick@milweb.com.br") as never,
+      "rick@milweb.com.br",
+    );
     const next = vi.fn();
     await mw(makeReq(undefined), res, next);
     expect(next.mock.calls[0]![0]).toBeInstanceOf(UnauthorizedError);
@@ -328,19 +336,27 @@ git commit -m "feat(api): envs do MilSocial, erro 503 e middleware requireOwner"
 ### Task 3: Entidades, interface do repositório e implementação Prisma
 
 **Files:**
+
 - Create: `apps/api/src/domain/entities/social.ts`
 - Create: `apps/api/src/domain/repositories/social-repository.ts`
 - Create: `apps/api/src/infrastructure/prisma/prisma-social-repository.ts`
 
 **Interfaces:**
+
 - Consumes: client Prisma (mesmo import dos outros repos — copiar o import de `prisma-cost-repository.ts`, que expõe a instância compartilhada).
 - Produces (Tasks 4-7 dependem destes nomes exatos):
 
 ```ts
 // entities/social.ts
 export type SocialPostFormat =
-  | "UNCLASSIFIED" | "REDESIGN" | "BEFORE_AFTER" | "TIMELAPSE"
-  | "REVIEW" | "ANIMATION" | "CODE_SETUP" | "OTHER";
+  | "UNCLASSIFIED"
+  | "REDESIGN"
+  | "BEFORE_AFTER"
+  | "TIMELAPSE"
+  | "REVIEW"
+  | "ANIMATION"
+  | "CODE_SETUP"
+  | "OTHER";
 export type SocialFormatSource = "NONE" | "AI" | "MANUAL";
 
 export interface SocialPost {
@@ -390,8 +406,13 @@ export interface SocialConfig {
 ```ts
 // repositories/social-repository.ts
 import type {
-  SocialConfig, SocialMetrics, SocialMetricSnapshot,
-  SocialPost, SocialPostFormat, SocialFormatSource, SocialPostWithMetrics,
+  SocialConfig,
+  SocialMetrics,
+  SocialMetricSnapshot,
+  SocialPost,
+  SocialPostFormat,
+  SocialFormatSource,
+  SocialPostWithMetrics,
 } from "../entities/social.js";
 
 export interface UpsertSocialPostInput {
@@ -411,7 +432,11 @@ export interface SocialRepository {
   /** Posts publicados depois de `since` (corte de 90 dias do sync). */
   listPostsPublishedSince(since: Date): Promise<SocialPost[]>;
   listUnclassified(): Promise<SocialPost[]>;
-  setFormat(postId: string, format: SocialPostFormat, source: SocialFormatSource): Promise<SocialPost | null>;
+  setFormat(
+    postId: string,
+    format: SocialPostFormat,
+    source: SocialFormatSource,
+  ): Promise<SocialPost | null>;
   /** Idempotente por dia: upsert na chave (postId, collectedAt truncado no dia). */
   addSnapshot(postId: string, collectedAt: Date, metrics: SocialMetrics): Promise<void>;
   getSeries(postId: string): Promise<SocialMetricSnapshot[]>;
@@ -436,9 +461,9 @@ export interface SocialRepository {
 
 // addSnapshot: truncar collectedAt pro inicio do dia (UTC) antes do upsert --
 // e isso que torna o sync re-rodavel no mesmo dia sem duplicar:
-const day = new Date(Date.UTC(
-  collectedAt.getUTCFullYear(), collectedAt.getUTCMonth(), collectedAt.getUTCDate(),
-));
+const day = new Date(
+  Date.UTC(collectedAt.getUTCFullYear(), collectedAt.getUTCMonth(), collectedAt.getUTCDate()),
+);
 await prisma.socialMetricSnapshot.upsert({
   where: { postId_collectedAt: { postId, collectedAt: day } },
   create: { postId, collectedAt: day, ...toDb(metrics) },
@@ -471,10 +496,12 @@ git commit -m "feat(api): entidades e repositorio Prisma do MilSocial"
 ### Task 4: Porta InstagramClient + cliente Graph API
 
 **Files:**
+
 - Create: `apps/api/src/domain/services/instagram-client.ts`
 - Create: `apps/api/src/infrastructure/instagram/graph-api-client.ts`
 
 **Interfaces:**
+
 - Produces (Task 6 mocka a porta; nomes exatos):
 
 ```ts
@@ -521,7 +548,10 @@ export interface InstagramClient {
 
 ```ts
 import type {
-  InstagramClient, InstagramInsights, InstagramMedia, InstagramMediaPage,
+  InstagramClient,
+  InstagramInsights,
+  InstagramMedia,
+  InstagramMediaPage,
 } from "../../domain/services/instagram-client.js";
 
 const BASE = "https://graph.instagram.com/v23.0";
@@ -531,17 +561,32 @@ const REEL_METRICS =
   "reach,views,likes,comments,saved,shares,ig_reels_avg_watch_time,ig_reels_video_view_total_time,profile_visits,profile_activity";
 const STATIC_METRICS = "reach,views,likes,comments,saved,shares,profile_visits,profile_activity";
 
-interface InsightValue { name: string; values?: Array<{ value: number }>; total_value?: { value: number } }
+interface InsightValue {
+  name: string;
+  values?: Array<{ value: number }>;
+  total_value?: { value: number };
+}
 
 export class GraphApiInstagramClient implements InstagramClient {
   async fetchMediaPage(token: string, after?: string): Promise<InstagramMediaPage> {
     const url = new URL(`${BASE}/me/media`);
-    url.searchParams.set("fields", "id,caption,media_type,permalink,thumbnail_url,media_url,timestamp");
+    url.searchParams.set(
+      "fields",
+      "id,caption,media_type,permalink,thumbnail_url,media_url,timestamp",
+    );
     url.searchParams.set("limit", "25");
     url.searchParams.set("access_token", token);
     if (after) url.searchParams.set("after", after);
     const data = await this.request<{
-      data: Array<{ id: string; caption?: string; media_type: string; permalink: string; thumbnail_url?: string; media_url?: string; timestamp: string }>;
+      data: Array<{
+        id: string;
+        caption?: string;
+        media_type: string;
+        permalink: string;
+        thumbnail_url?: string;
+        media_url?: string;
+        timestamp: string;
+      }>;
       paging?: { cursors?: { after?: string }; next?: string };
     }>(url);
     const media: InstagramMedia[] = data.data.map((m) => ({
@@ -556,7 +601,11 @@ export class GraphApiInstagramClient implements InstagramClient {
     return { media, nextCursor: data.paging?.next ? (data.paging.cursors?.after ?? null) : null };
   }
 
-  async fetchInsights(token: string, igMediaId: string, mediaType: string): Promise<InstagramInsights> {
+  async fetchInsights(
+    token: string,
+    igMediaId: string,
+    mediaType: string,
+  ): Promise<InstagramInsights> {
     const isReel = mediaType === "REELS" || mediaType === "VIDEO";
     let metrics = isReel ? REEL_METRICS : STATIC_METRICS;
     let rows: InsightValue[];
@@ -570,7 +619,10 @@ export class GraphApiInstagramClient implements InstagramClient {
       );
       if (!unsupported) throw err;
       const bad = unsupported[1]!.split(",").map((s) => s.trim());
-      metrics = metrics.split(",").filter((m) => !bad.includes(m)).join(",");
+      metrics = metrics
+        .split(",")
+        .filter((m) => !bad.includes(m))
+        .join(",");
       rows = metrics ? await this.fetchInsightRows(token, igMediaId, metrics) : [];
     }
     const get = (name: string): number | null => {
@@ -604,7 +656,11 @@ export class GraphApiInstagramClient implements InstagramClient {
     };
   }
 
-  private async fetchInsightRows(token: string, igMediaId: string, metrics: string): Promise<InsightValue[]> {
+  private async fetchInsightRows(
+    token: string,
+    igMediaId: string,
+    metrics: string,
+  ): Promise<InsightValue[]> {
     const url = new URL(`${BASE}/${igMediaId}/insights`);
     url.searchParams.set("metric", metrics);
     url.searchParams.set("access_token", token);
@@ -648,10 +704,12 @@ git commit -m "feat(api): porta e cliente da Instagram Graph API"
 ### Task 5: Porta SocialAnalyst + implementação Claude
 
 **Files:**
+
 - Create: `apps/api/src/domain/services/social-analyst.ts`
 - Create: `apps/api/src/infrastructure/ai/claude-social-analyst.ts`
 
 **Interfaces:**
+
 - Consumes: padrão do `claude-lead-ai.ts` (mesmo SDK, `output_config` com json_schema, checagem de `refusal`).
 - Produces:
 
@@ -676,8 +734,8 @@ export interface PostSummaryForAnalysis {
 }
 
 export interface SocialAnalysis {
-  report: string;          // markdown pt-BR
-  suggestions: string[];   // proximos conteudos sugeridos
+  report: string; // markdown pt-BR
+  suggestions: string[]; // proximos conteudos sugeridos
 }
 
 export interface SocialAnalyst {
@@ -731,7 +789,8 @@ const ANALYZE_SCHEMA = {
   properties: {
     report: {
       type: "string",
-      description: "Relatorio executivo em Markdown pt-BR: padroes por formato, o que esta funcionando, o que abandonar.",
+      description:
+        "Relatorio executivo em Markdown pt-BR: padroes por formato, o que esta funcionando, o que abandonar.",
     },
     suggestions: {
       type: "array",
@@ -776,12 +835,14 @@ git commit -m "feat(api): analista IA do MilSocial (classificacao e relatorio)"
 ### Task 6: DTOs + SocialService (com testes)
 
 **Files:**
+
 - Create: `apps/api/src/application/dto/social.dto.ts`
 - Test: `apps/api/src/application/dto/social.dto.test.ts`
 - Create: `apps/api/src/application/services/social-service.ts`
 - Test: `apps/api/src/application/services/social-service.test.ts`
 
 **Interfaces:**
+
 - Consumes: `SocialRepository` (Task 3), `InstagramClient` (Task 4), `SocialAnalyst` (Task 5), `SocialNotConfiguredError` (Task 2), `env.INSTAGRAM_ACCESS_TOKEN` — injetado como string, não importar `env` no service.
 - Produces (Task 7 depende):
 
@@ -808,15 +869,15 @@ class SocialService {
   constructor(
     repo: SocialRepository,
     instagram: InstagramClient,
-    analyst: SocialAnalyst | null,      // null quando ANTHROPIC_API_KEY ausente
-    seedToken: string | undefined,       // env.INSTAGRAM_ACCESS_TOKEN
+    analyst: SocialAnalyst | null, // null quando ANTHROPIC_API_KEY ausente
+    seedToken: string | undefined, // env.INSTAGRAM_ACCESS_TOKEN
   );
   sync(): Promise<SyncResult>;
   listPosts(): Promise<SocialPostWithMetrics[]>;
-  getSeries(postId: string): Promise<SocialMetricSnapshot[]>;   // NotFoundError se post nao existe
+  getSeries(postId: string): Promise<SocialMetricSnapshot[]>; // NotFoundError se post nao existe
   setFormat(postId: string, format: SocialPostFormat): Promise<SocialPost>; // grava MANUAL; NotFoundError
   getComparison(): Promise<FormatComparisonRow[]>;
-  generateAnalysis(): Promise<SocialAnalysis>;                  // AiNotConfiguredError se analyst null
+  generateAnalysis(): Promise<SocialAnalysis>; // AiNotConfiguredError se analyst null
 }
 ```
 
@@ -829,8 +890,14 @@ import { z } from "zod";
 
 export const setFormatSchema = z.object({
   format: z.enum([
-    "UNCLASSIFIED", "REDESIGN", "BEFORE_AFTER", "TIMELAPSE",
-    "REVIEW", "ANIMATION", "CODE_SETUP", "OTHER",
+    "UNCLASSIFIED",
+    "REDESIGN",
+    "BEFORE_AFTER",
+    "TIMELAPSE",
+    "REVIEW",
+    "ANIMATION",
+    "CODE_SETUP",
+    "OTHER",
   ]),
 });
 export type SetFormatInput = z.infer<typeof setFormatSchema>;
@@ -983,12 +1050,14 @@ git commit -m "feat(api): SocialService com sync incremental, comparacao e anali
 ### Task 7: Controller, rotas (dono OU X-Sync-Key) e wiring
 
 **Files:**
+
 - Create: `apps/api/src/interfaces/http/controllers/social-controller.ts`
 - Create: `apps/api/src/interfaces/http/routes/social-routes.ts`
 - Modify: `apps/api/src/main/container.ts`
 - Modify: `apps/api/src/main/app.ts`
 
 **Interfaces:**
+
 - Consumes: `SocialService` (Task 6), `createRequireOwner` (Task 2), `authenticate`/`asyncHandler`/`validateBody` existentes.
 - Produces: rotas montadas em `/api/v1/admin/social` (o web da Task 8 chama estes paths).
 
@@ -1032,7 +1101,13 @@ export class SocialController {
 
 ```ts
 import { timingSafeEqual } from "node:crypto";
-import { Router, type NextFunction, type Request, type RequestHandler, type Response } from "express";
+import {
+  Router,
+  type NextFunction,
+  type Request,
+  type RequestHandler,
+  type Response,
+} from "express";
 import { setFormatSchema } from "../../../application/dto/social.dto.js";
 import { UnauthorizedError } from "../../../domain/errors/app-error.js";
 import { asyncHandler } from "../async-handler.js";
@@ -1040,7 +1115,8 @@ import type { SocialController } from "../controllers/social-controller.js";
 import { validateBody } from "../middlewares/validate.js";
 
 function safeEqual(a: string, b: string): boolean {
-  const ba = Buffer.from(a), bb = Buffer.from(b);
+  const ba = Buffer.from(a),
+    bb = Buffer.from(b);
   return ba.length === bb.length && timingSafeEqual(ba, bb);
 }
 
@@ -1057,12 +1133,18 @@ function ownerOrSyncKey(
   return (req: Request, res: Response, next: NextFunction) => {
     const header = req.headers["x-sync-key"];
     if (typeof header === "string") {
-      if (syncKey && safeEqual(header, syncKey)) { next(); return; }
+      if (syncKey && safeEqual(header, syncKey)) {
+        next();
+        return;
+      }
       next(new UnauthorizedError("Chave de sincronização inválida."));
       return;
     }
     authenticate(req, res, (err?: unknown) => {
-      if (err) { next(err); return; }
+      if (err) {
+        next(err);
+        return;
+      }
       requireOwner(req, res, next);
     });
   };
@@ -1076,13 +1158,21 @@ export function createSocialRoutes(
 ): Router {
   const router = Router();
 
-  router.post("/sync", ownerOrSyncKey(syncKey, authenticate, requireOwner), asyncHandler(controller.sync));
+  router.post(
+    "/sync",
+    ownerOrSyncKey(syncKey, authenticate, requireOwner),
+    asyncHandler(controller.sync),
+  );
 
   // Demais rotas: sempre sessao do dono.
   router.use(authenticate, requireOwner);
   router.get("/posts", asyncHandler(controller.listPosts));
   router.get("/posts/:id/series", asyncHandler(controller.series));
-  router.patch("/posts/:id/format", validateBody(setFormatSchema), asyncHandler(controller.setFormat));
+  router.patch(
+    "/posts/:id/format",
+    validateBody(setFormatSchema),
+    asyncHandler(controller.setFormat),
+  );
   router.get("/comparison", asyncHandler(controller.comparison));
   router.post("/analysis", asyncHandler(controller.analysis));
   return router;
@@ -1129,7 +1219,12 @@ Junto dos outros `app.use` (linha ~81):
 ```ts
 app.use(
   "/api/v1/admin/social",
-  createSocialRoutes(container.socialController, container.authenticate, container.requireOwner, env.MILSOCIAL_SYNC_KEY),
+  createSocialRoutes(
+    container.socialController,
+    container.authenticate,
+    container.requireOwner,
+    env.MILSOCIAL_SYNC_KEY,
+  ),
 );
 ```
 
@@ -1154,12 +1249,14 @@ git commit -m "feat(api): rotas /admin/social com gate do dono e X-Sync-Key"
 ### Task 8: Web — tipos, service wrapper, middleware e guard da rota
 
 **Files:**
+
 - Modify: `apps/web/src/types/api.ts` (fim do arquivo)
 - Create: `apps/web/src/services/milsocial.ts`
 - Modify: `apps/web/src/middleware.ts`
 - Create: `apps/web/src/app/admin/milsocial/layout.tsx`
 
 **Interfaces:**
+
 - Consumes: `api` client (`services/api-client.ts`), `useMe` (`features/auth/hooks`), `useAuthStore`. BFF proxy existente já repassa `/api/v1/*` com Bearer.
 - Produces: tipos + `milsocialService` usados pela Task 9. Novo env do web: `NEXT_PUBLIC_OWNER_EMAIL`.
 
@@ -1168,8 +1265,14 @@ git commit -m "feat(api): rotas /admin/social com gate do dono e X-Sync-Key"
 ```ts
 // ===== MilSocial (ferramenta interna do dono) =====
 export type SocialPostFormat =
-  | "UNCLASSIFIED" | "REDESIGN" | "BEFORE_AFTER" | "TIMELAPSE"
-  | "REVIEW" | "ANIMATION" | "CODE_SETUP" | "OTHER";
+  | "UNCLASSIFIED"
+  | "REDESIGN"
+  | "BEFORE_AFTER"
+  | "TIMELAPSE"
+  | "REVIEW"
+  | "ANIMATION"
+  | "CODE_SETUP"
+  | "OTHER";
 
 export interface SocialMetricSnapshot {
   id: string;
@@ -1231,8 +1334,12 @@ export interface SocialAnalysis {
 ```ts
 import { api } from "./api-client";
 import type {
-  FormatComparisonRow, SocialAnalysis, SocialMetricSnapshot,
-  SocialPostFormat, SocialPostWithMetrics, SocialSyncResult,
+  FormatComparisonRow,
+  SocialAnalysis,
+  SocialMetricSnapshot,
+  SocialPostFormat,
+  SocialPostWithMetrics,
+  SocialSyncResult,
 } from "@/types/api";
 
 export const milsocialService = {
@@ -1310,6 +1417,7 @@ git commit -m "feat(web): rota /admin/milsocial com guard do dono e service wrap
 ### Task 9: Web — página e componentes do painel
 
 **Files:**
+
 - Create: `apps/web/src/features/milsocial/labels.ts`
 - Create: `apps/web/src/features/milsocial/hooks.ts`
 - Create: `apps/web/src/features/milsocial/components/comparison-table.tsx`
@@ -1319,6 +1427,7 @@ git commit -m "feat(web): rota /admin/milsocial com guard do dono e service wrap
 - Create: `apps/web/src/app/admin/milsocial/page.tsx`
 
 **Interfaces:**
+
 - Consumes: `milsocialService` e tipos (Task 8); TanStack Query (padrão dos hooks existentes em `features/*/hooks.ts` — copiar o estilo de `features/finance/hooks.ts`); componentes de UI existentes em `components/ui/*` (button, card, dialog, badge, dropdown-menu, table — conferir nomes no diretório antes de importar); `recharts` (já dependência).
 
 - [ ] **Step 1: Labels**
@@ -1349,7 +1458,9 @@ export function fmtWatchTime(ms: number | null): string {
 /** Numero compacto pt-BR ("12,3 mil") ; "—" pra null. */
 export function fmtNum(n: number | null): string {
   if (n == null) return "—";
-  return new Intl.NumberFormat("pt-BR", { notation: "compact", maximumFractionDigits: 1 }).format(n);
+  return new Intl.NumberFormat("pt-BR", { notation: "compact", maximumFractionDigits: 1 }).format(
+    n,
+  );
 }
 ```
 
@@ -1358,12 +1469,12 @@ export function fmtNum(n: number | null): string {
 `hooks.ts` — TanStack Query no estilo de `features/finance/hooks.ts`:
 
 ```ts
-export function useSocialPosts()      // queryKey ["milsocial","posts"], milsocialService.listPosts
-export function useComparison()       // queryKey ["milsocial","comparison"]
-export function useSeries(postId: string | null)  // enabled: !!postId
-export function useSyncMutation()     // onSuccess: invalida ["milsocial"]
-export function useSetFormatMutation() // onSuccess: invalida ["milsocial"]
-export function useAnalysisMutation() // sem invalidacao (nao muda dados)
+export function useSocialPosts(); // queryKey ["milsocial","posts"], milsocialService.listPosts
+export function useComparison(); // queryKey ["milsocial","comparison"]
+export function useSeries(postId: string | null); // enabled: !!postId
+export function useSyncMutation(); // onSuccess: invalida ["milsocial"]
+export function useSetFormatMutation(); // onSuccess: invalida ["milsocial"]
+export function useAnalysisMutation(); // sem invalidacao (nao muda dados)
 ```
 
 - [ ] **Step 3: Componentes**
@@ -1407,6 +1518,7 @@ git commit -m "feat(web): painel MilSocial (comparacao, grafico, posts e analise
 ### Task 10: .env.example + doc de setup (token IG + n8n)
 
 **Files:**
+
 - Modify: `.env.example` (raiz e/ou `apps/api/.env.example` — seguir onde os envs existentes estão documentados)
 - Create: `docs/milsocial-setup.md`
 

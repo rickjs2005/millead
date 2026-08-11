@@ -34,10 +34,12 @@
 ### Task 1: Models `PricingEstimate` + `PricingEstimateCost` + migration RLS
 
 **Files:**
+
 - Modify: `packages/database/prisma/schema.prisma`
 - Create: migration `add_pricing_estimates` (gerada com `--create-only`, editada com RLS, aplicada)
 
 **Interfaces:**
+
 - Produces: `prisma.pricingEstimate`, `prisma.pricingEstimateCost`; enum `EstimateStatus { DRAFT READY CONVERTED }` com `@@map("estimate_status")`.
 
 - [ ] **Step 1: Append ao schema** (relações inversas: `Organization.pricingEstimates`, `Lead.pricingEstimates`, `User.pricingEstimates`, `ProjectProduct.pricingEstimates`, `Proposal.pricingEstimate PricingEstimate?`):
@@ -115,10 +117,12 @@ model PricingEstimateCost {
 ### Task 2: Cálculo puro + testes (TDD) e ProductService
 
 **Files:**
+
 - Create: `apps/api/src/application/services/estimate-calc.ts`
 - Create: `apps/api/src/application/services/estimate-calc.test.ts`
 
 **Interfaces:**
+
 - Consumes: `monthlyAmountBrl` exportado de `./cost-service.js` (Fase 1).
 - Produces (Task 3/4 consomem):
 
@@ -173,7 +177,11 @@ const BASE = {
 
 describe("computeEstimate", () => {
   it("caso da spec: horas, infra snapshotada, rateio, reserva e margem", () => {
-    const r = computeEstimate({ ...BASE, hoursBreakdown: [...BASE.hoursBreakdown], costItems: [...BASE.costItems] });
+    const r = computeEstimate({
+      ...BASE,
+      hoursBreakdown: [...BASE.hoursBreakdown],
+      costItems: [...BASE.costItems],
+    });
     expect(r.totalHours).toBe(42);
     expect(r.devCost).toBe(42 * 120); // 5040
     expect(r.infraMonthlyBrl).toBeCloseTo(100 + 40 / 12, 2); // 103.33
@@ -186,14 +194,26 @@ describe("computeEstimate", () => {
   });
 
   it("orçamento vazio não explode", () => {
-    const r = computeEstimate({ ...BASE, hoursBreakdown: [], costItems: [], agencyShareMonthly: 0, supportReservePct: 0, marginPct: 0 });
+    const r = computeEstimate({
+      ...BASE,
+      hoursBreakdown: [],
+      costItems: [],
+      agencyShareMonthly: 0,
+      supportReservePct: 0,
+      marginPct: 0,
+    });
     expect(r.devCost).toBe(0);
     expect(r.totalCost).toBe(0);
     expect(r.priceRecommended).toBe(0);
   });
 
   it("infraMonths zero anula infra (projeto sem hospedagem contratada)", () => {
-    const r = computeEstimate({ ...BASE, hoursBreakdown: [...BASE.hoursBreakdown], costItems: [...BASE.costItems], infraMonths: 0 });
+    const r = computeEstimate({
+      ...BASE,
+      hoursBreakdown: [...BASE.hoursBreakdown],
+      costItems: [...BASE.costItems],
+      infraMonths: 0,
+    });
     expect(r.infraCost).toBe(0);
     expect(r.totalCost).toBeCloseTo(5040 + 504, 1);
   });
@@ -210,20 +230,33 @@ describe("computeEstimate", () => {
 ### Task 3: API — DTOs, entidades, repositório (estimates + products)
 
 **Files:**
+
 - Create: `apps/api/src/domain/entities/estimate.ts` (interfaces à mão, Decimal como **string**, padrão Fase 1 `cost.ts`; incluir `EstimateCostItem` e `ProjectProduct`)
 - Create: `apps/api/src/domain/repositories/estimate-repository.ts`
 - Create: `apps/api/src/application/dto/estimate.dto.ts`
 - Create: `apps/api/src/infrastructure/prisma/prisma-estimate-repository.ts`
 
 **Interfaces:**
+
 - Produces: `EstimateRepository`:
 
 ```ts
 export interface EstimateRepository {
-  list(organizationId: string, params: { status?: EstimateStatus; page: number; pageSize: number }): Promise<{ items: PricingEstimateWithItems[]; total: number }>;
+  list(
+    organizationId: string,
+    params: { status?: EstimateStatus; page: number; pageSize: number },
+  ): Promise<{ items: PricingEstimateWithItems[]; total: number }>;
   findById(organizationId: string, id: string): Promise<PricingEstimateWithItems | null>;
-  create(organizationId: string, createdById: string, data: CreateEstimateInput): Promise<PricingEstimateWithItems>;
-  update(organizationId: string, id: string, data: UpdateEstimateInput): Promise<PricingEstimateWithItems | null>;
+  create(
+    organizationId: string,
+    createdById: string,
+    data: CreateEstimateInput,
+  ): Promise<PricingEstimateWithItems>;
+  update(
+    organizationId: string,
+    id: string,
+    data: UpdateEstimateInput,
+  ): Promise<PricingEstimateWithItems | null>;
   delete(organizationId: string, id: string): Promise<boolean>;
   listProducts(organizationId: string): Promise<ProjectProduct[]>;
 }
@@ -240,6 +273,7 @@ export interface EstimateRepository {
 ### Task 4: API — EstimateService + controller + rotas + testes
 
 **Files:**
+
 - Create: `apps/api/src/application/services/estimate-service.ts`
 - Create: `apps/api/src/application/services/estimate-service.test.ts`
 - Create: `apps/api/src/interfaces/http/controllers/estimate-controller.ts`
@@ -247,6 +281,7 @@ export interface EstimateRepository {
 - Modify: `apps/api/src/main/container.ts`, `apps/api/src/main/app.ts`
 
 **Interfaces:**
+
 - `EstimateService` (repo + `CostRepository` da Fase 1 + `LeadRepository` — conferir método de ownership de lead usado por `proposal-service.ts` e usar o mesmo):
   - `list(orgId, query)` → `{ items: (Estimate & { computed: EstimateComputed })[], total }`
   - `get(orgId, id)` → com `computed` (404 se não achou)
@@ -265,11 +300,13 @@ export interface EstimateRepository {
 ### Task 5: Web — tipos, service, hooks
 
 **Files:**
+
 - Modify: `apps/web/src/types/api.ts`, `apps/web/src/lib/query-keys.ts`
 - Create: `apps/web/src/services/estimates.ts`
 - Create: `apps/web/src/features/estimates/hooks.ts`, `apps/web/src/features/estimates/estimate-labels.ts`, `apps/web/src/features/estimates/estimate-calc.ts`
 
 **Interfaces:**
+
 - Tipos: `EstimateStatus`, `HoursLine {label; hours}`, `EstimateCostItem` (amount string na leitura), `PricingEstimate` (com `costItems`, `computed: EstimateComputed`), `EstimateComputed` (9 campos number, espelho da API), `ProjectProduct` (priceMin/priceMax string), payloads de escrita com numbers (`EstimatePayload`).
 - `estimatesService`: list (com `params` querystring — conferir helper de querystring dos services existentes, ex. `proposalsService.list`), get, create, update, remove, products.
 - `queryKeys.estimates`: `list(params)`, `detail(id)`, `products()`.
@@ -284,6 +321,7 @@ export interface EstimateRepository {
 ### Task 6: Web — páginas /estimates (lista + editor com preview ao vivo)
 
 **Files:**
+
 - Create: `apps/web/src/app/(app)/estimates/page.tsx`
 - Create: `apps/web/src/app/(app)/estimates/new/page.tsx`
 - Create: `apps/web/src/app/(app)/estimates/[id]/page.tsx`

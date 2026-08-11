@@ -29,6 +29,7 @@
 ### Task 1: Pacote `video-contracts` com o schema do Snapshot
 
 **Files:**
+
 - Create: `packages/video-contracts/package.json`
 - Create: `packages/video-contracts/tsconfig.json`
 - Create: `packages/video-contracts/eslint.config.js`
@@ -38,6 +39,7 @@
 - Test: `packages/video-contracts/src/snapshot.test.ts`
 
 **Interfaces:**
+
 - Consumes: nada.
 - Produces: `SnapshotSchema`, `SnapshotNodeSchema`, `BoxSchema`, `TileSchema` e os tipos `Snapshot`, `SnapshotNode`, `Box`, `Tile`. Todas as tasks seguintes importam de `@millead/video-contracts`.
 
@@ -336,6 +338,7 @@ git commit -m "feat: schema do Snapshot em @millead/video-contracts"
 ### Task 2: Schemas de Annotation, VideoProject e RenderManifest
 
 **Files:**
+
 - Create: `packages/video-contracts/src/annotation.ts`
 - Create: `packages/video-contracts/src/project.ts`
 - Create: `packages/video-contracts/src/manifest.ts`
@@ -343,6 +346,7 @@ git commit -m "feat: schema do Snapshot em @millead/video-contracts"
 - Test: `packages/video-contracts/src/project.test.ts`
 
 **Interfaces:**
+
 - Consumes: nada de Task 1 além do pacote existir.
 - Produces: `AnnotationSchema`/`Annotation`, `VideoProjectSchema`/`VideoProject`, `SceneSchema`/`Scene`, `RenderManifestSchema`/`RenderManifest`. Nenhuma task deste plano consome esses três — eles existem porque a spec define a cadeia inteira e porque as fronteiras (segundos vs frames) precisam estar travadas antes de alguém escrever o compilador.
 
@@ -576,9 +580,7 @@ export const RenderManifestSchema = z.object({
         path: ["endFrame"],
       }),
   ),
-  audio: z.array(
-    z.object({ file: z.string().min(1), startFrame: z.number().int().nonnegative() }),
-  ),
+  audio: z.array(z.object({ file: z.string().min(1), startFrame: z.number().int().nonnegative() })),
 });
 
 export type RenderManifest = z.infer<typeof RenderManifestSchema>;
@@ -612,6 +614,7 @@ git commit -m "feat: schemas de Annotation, VideoProject e RenderManifest"
 ### Task 3: `apps/runner` e a guarda de URL (SSRF)
 
 **Files:**
+
 - Create: `apps/runner/package.json`
 - Create: `apps/runner/tsconfig.json`
 - Create: `apps/runner/eslint.config.js`
@@ -620,6 +623,7 @@ git commit -m "feat: schemas de Annotation, VideoProject e RenderManifest"
 - Test: `apps/runner/src/url-guard.test.ts`
 
 **Interfaces:**
+
 - Consumes: nada.
 - Produces: `assertPublicUrl(raw: string, opts?: { allowPrivate?: boolean }): Promise<URL>` — normaliza (prefixa `https://` se faltar), valida protocolo e recusa alvo interno. Lança `Error` com mensagem em português. Tasks 6 e 9 chamam isso **antes** de qualquer `page.goto`.
 
@@ -705,10 +709,12 @@ export default defineConfig({
 - [ ] **Step 2: Instalar e baixar o Chromium**
 
 Run:
+
 ```bash
 pnpm install
 pnpm --filter @millead/runner exec playwright install chromium
 ```
+
 Expected: instala o workspace e baixa o Chromium.
 **Não** adicionar `playwright` ao `onlyBuiltDependencies` da raiz — o download é sempre um passo manual e explícito.
 
@@ -856,10 +862,12 @@ git commit -m "feat: apps/runner com guarda de URL contra alvo interno"
 ### Task 4: Fingerprint estável
 
 **Files:**
+
 - Create: `apps/runner/src/fingerprint.ts`
 - Test: `apps/runner/src/fingerprint.test.ts`
 
 **Interfaces:**
+
 - Consumes: nada.
 - Produces: `fingerprint(input: FingerprintInput): string` e o tipo `FingerprintInput { tag: string; id?: string; text?: string; imageSrc?: string; siblingIndex: number }`. Task 5 chama isso para cada nó extraído.
 
@@ -981,12 +989,14 @@ git commit -m "feat: fingerprint de nó estável a troca de classe e de CDN"
 ### Task 5: Extração da árvore de nós no browser
 
 **Files:**
+
 - Create: `apps/runner/src/extract.ts`
 - Create: `apps/runner/src/testing/fixture-server.ts`
 - Create: `apps/runner/src/testing/fixtures/home.html`
 - Test: `apps/runner/src/extract.test.ts`
 
 **Interfaces:**
+
 - Consumes: `fingerprint`, `FingerprintInput` de Task 4.
 - Produces:
   - `extractNodes(page: Page): Promise<SnapshotNode[]>` — nós com `fingerprint` já calculado, `box` em espaço de documento, `isSection` marcado. `screenshot` fica indefinido aqui; Task 7 preenche.
@@ -1006,15 +1016,41 @@ git commit -m "feat: fingerprint de nó estável a troca de classe e de CDN"
     <title>Fixture — Home</title>
     <meta name="description" content="Página de teste do crawler" />
     <style>
-      * { margin: 0; padding: 0; box-sizing: border-box; }
-      body { background: #0b0b0f; color: #fff; font-family: sans-serif; }
-      section { padding: 40px; }
-      #hero { height: 900px; background: #0b0b0f; }
-      #sobre { height: 700px; background: #14141c; }
-      #produtos { height: 1200px; background: #0b0b0f; }
-      #contato { height: 800px; background: #14141c; }
-      .escondida { display: none; }
-      .rasa { height: 40px; }
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      body {
+        background: #0b0b0f;
+        color: #fff;
+        font-family: sans-serif;
+      }
+      section {
+        padding: 40px;
+      }
+      #hero {
+        height: 900px;
+        background: #0b0b0f;
+      }
+      #sobre {
+        height: 700px;
+        background: #14141c;
+      }
+      #produtos {
+        height: 1200px;
+        background: #0b0b0f;
+      }
+      #contato {
+        height: 800px;
+        background: #14141c;
+      }
+      .escondida {
+        display: none;
+      }
+      .rasa {
+        height: 40px;
+      }
     </style>
   </head>
   <body>
@@ -1023,7 +1059,10 @@ git commit -m "feat: fingerprint de nó estável a troca de classe e de CDN"
         <h1>Drones para o agronegócio</h1>
         <button id="cta">Falar no WhatsApp</button>
       </section>
-      <section id="sobre"><h2>Sobre</h2><p>Texto institucional.</p></section>
+      <section id="sobre">
+        <h2>Sobre</h2>
+        <p>Texto institucional.</p>
+      </section>
       <section id="produtos">
         <h2>Produtos</h2>
         <article id="produto-a"><h3>DJI Agras T25P</h3></article>
@@ -1328,10 +1367,12 @@ git commit -m "feat: extração da árvore de nós com caixas em espaço de docu
 ### Task 6: Captura de tiles com lazy-load resolvido
 
 **Files:**
+
 - Create: `apps/runner/src/capture-tiles.ts`
 - Test: `apps/runner/src/capture-tiles.test.ts`
 
 **Interfaces:**
+
 - Consumes: `startFixtureServer` de Task 5.
 - Produces: `captureTiles(page: Page, outDir: string): Promise<Tile[]>` — grava `tiles/NNN-y<scrollY>.webp` dentro de `outDir` e devolve os `Tile` na ordem. Exporta `MAX_TILES = 40`. Task 8 consome.
 
@@ -1484,10 +1525,12 @@ git commit -m "feat: captura em tiles com lazy-load resolvido antes"
 ### Task 7: Miniatura por seção
 
 **Files:**
+
 - Create: `apps/runner/src/capture-sections.ts`
 - Test: `apps/runner/src/capture-sections.test.ts`
 
 **Interfaces:**
+
 - Consumes: `SnapshotNode` de Task 1, `extractNodes` de Task 5.
 - Produces: `captureSections(page: Page, nodes: SnapshotNode[], outDir: string): Promise<SnapshotNode[]>` — devolve os nós com `screenshot` preenchido nas seções. Task 8 consome.
 
@@ -1632,11 +1675,13 @@ git commit -m "feat: miniatura por seção tirada do próprio elemento"
 ### Task 8: Montagem e escrita atômica do pacote
 
 **Files:**
+
 - Create: `apps/runner/src/build-snapshot.ts`
 - Create: `apps/runner/src/write-package.ts`
 - Test: `apps/runner/src/write-package.test.ts`
 
 **Interfaces:**
+
 - Consumes: `SnapshotSchema`, `Snapshot`, `SnapshotNode`, `Tile` (Task 1); `captureTiles` (Task 6); `captureSections` (Task 7); `extractNodes` (Task 5).
 - Produces:
   - `buildSnapshotId(url: URL, capturedAt: string): string`
@@ -1687,7 +1732,10 @@ describe("buildSnapshotId", () => {
   });
 
   it("transforma o caminho em slug", () => {
-    const id = buildSnapshotId(new URL("https://milweb.com.br/cases/kavita"), "2026-07-29T14:32:00.000Z");
+    const id = buildSnapshotId(
+      new URL("https://milweb.com.br/cases/kavita"),
+      "2026-07-29T14:32:00.000Z",
+    );
     expect(id).toContain("cases-kavita");
   });
 });
@@ -1715,7 +1763,9 @@ describe("writePackage", () => {
     const tmpDir = join(root, `.tmp-${id}`);
     await mkdir(tmpDir, { recursive: true });
 
-    const invalid = { ...snapshotBase(id), version: 99 } as unknown as Parameters<typeof writePackage>[0];
+    const invalid = { ...snapshotBase(id), version: 99 } as unknown as Parameters<
+      typeof writePackage
+    >[0];
 
     await expect(writePackage(invalid, tmpDir, root)).rejects.toThrow(/snapshot inválido/i);
     expect(await readdir(root)).toEqual([]);
@@ -1755,7 +1805,10 @@ export const TIMEZONE = "America/Sao_Paulo";
 function slugPath(pathname: string): string {
   const cleaned = pathname.replace(/^\/+|\/+$/g, "");
   if (cleaned === "") return "home";
-  return cleaned.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+  return cleaned
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
 }
 
 /** "milweb.com.br-home-desktop-202607291432" — derivado, sem Date.now(). */
@@ -1790,8 +1843,7 @@ export async function capturePage(
 
   const meta = await page.evaluate(() => ({
     title: document.title,
-    description:
-      document.querySelector('meta[name="description"]')?.getAttribute("content") ?? "",
+    description: document.querySelector('meta[name="description"]')?.getAttribute("content") ?? "",
     lang: document.documentElement.lang || "",
     pageHeight: document.documentElement.scrollHeight,
   }));
@@ -1850,7 +1902,11 @@ export async function writePackage(
     throw new Error(`snapshot inválido -- nada foi gravado:\n${detail}`);
   }
 
-  await writeFile(join(tmpDir, "snapshot.json"), `${JSON.stringify(parsed.data, null, 2)}\n`, "utf8");
+  await writeFile(
+    join(tmpDir, "snapshot.json"),
+    `${JSON.stringify(parsed.data, null, 2)}\n`,
+    "utf8",
+  );
 
   const finalDir = join(capturesRoot, parsed.data.id);
   await rm(finalDir, { recursive: true, force: true });
@@ -1876,6 +1932,7 @@ git commit -m "feat: montagem do snapshot e escrita atômica do pacote"
 ### Task 9: CLI, README e integração ponta a ponta
 
 **Files:**
+
 - Create: `apps/runner/src/cli.ts`
 - Create: `apps/runner/README.md`
 - Create: `apps/runner/.gitignore`
@@ -1883,6 +1940,7 @@ git commit -m "feat: montagem do snapshot e escrita atômica do pacote"
 - Modify: `package.json` (raiz) — adicionar o script `capture`
 
 **Interfaces:**
+
 - Consumes: `assertPublicUrl` (Task 3), `capturePage`/`buildSnapshotId`/`USER_AGENT`/`LOCALE`/`TIMEZONE` (Task 8), `writePackage` (Task 8).
 - Escreve também o `dom.html` (body cru da resposta) dentro do pacote — é o único arquivo do pacote que não vem do `capturePage`.
 - Produces: `runCapture(rawUrl: string, opts: { capturedAt: string; capturesRoot: string; allowPrivate?: boolean }): Promise<string>` — o caminho do pacote final. O `main()` do CLI só lê `process.argv`, chama isso e trata o código de saída.
@@ -1938,7 +1996,9 @@ describe("runCapture", () => {
 
   it("identifica as seções da fixture", async () => {
     const json = JSON.parse(await readFile(join(finalDir, "snapshot.json"), "utf8"));
-    const ids = json.nodes.filter((n: { isSection: boolean }) => n.isSection).map((n: { id: string }) => n.id);
+    const ids = json.nodes
+      .filter((n: { isSection: boolean }) => n.isSection)
+      .map((n: { id: string }) => n.id);
     expect(ids).toEqual(["hero", "sobre", "produtos", "contato"]);
   });
 
@@ -1950,8 +2010,16 @@ describe("runCapture", () => {
     });
     const a = JSON.parse(await readFile(join(finalDir, "snapshot.json"), "utf8"));
     const b = JSON.parse(await readFile(join(outro, "snapshot.json"), "utf8"));
-    delete a.id; delete a.capturedAt; delete a.url; delete a.http; delete a.capture.tiles;
-    delete b.id; delete b.capturedAt; delete b.url; delete b.http; delete b.capture.tiles;
+    delete a.id;
+    delete a.capturedAt;
+    delete a.url;
+    delete a.http;
+    delete a.capture.tiles;
+    delete b.id;
+    delete b.capturedAt;
+    delete b.url;
+    delete b.http;
+    delete b.capture.tiles;
     expect(b).toEqual(a);
   });
 
@@ -2170,10 +2238,12 @@ git commit -m "feat: CLI de captura, README e integração ponta a ponta"
 ### Task 10: Fumaça contra milweb.com.br e verificação visual
 
 **Files:**
+
 - Modify: `docs/superpowers/specs/2026-07-29-video-studio-contratos-design.md` (registrar `.jpg` no lugar de `.webp`)
 - Create: `docs/superpowers/plans/2026-07-29-video-studio-contratos-resultado.md`
 
 **Interfaces:**
+
 - Consumes: o CLI de Task 9.
 - Produces: nada de código. Produz a evidência de que o critério de aceite da spec foi cumprido.
 
@@ -2187,9 +2257,11 @@ Expected: `pacote gravado em .../apps/runner/captures/milweb.com.br-home-desktop
 - [ ] **Step 2: Conferir o pacote**
 
 Run:
+
 ```bash
 node -e "const s=require('fs').readFileSync(process.argv[1],'utf8');const j=JSON.parse(s);console.log('seções:',j.nodes.filter(n=>n.isSection).map(n=>n.id||n.tag).join(', '));console.log('tiles:',j.capture.tiles.length);console.log('avisos:',j.warnings)" apps/runner/captures/<id>/snapshot.json
 ```
+
 Expected: lista de seções da home da MilWeb, contagem de tiles coerente com a altura da página, `avisos: []`.
 
 - [ ] **Step 3: Verificação visual — obrigatória**
@@ -2224,12 +2296,12 @@ Data: <preencher com a data da execução>
 
 ## Critério de aceite da spec
 
-| # | Critério | Status | Evidência |
-| - | -------- | ------ | --------- |
-| 1 | Pacote de milweb.com.br valida no zod | | |
-| 2 | Seções da home identificadas | | seções encontradas: ... |
-| 3 | Caixas conferem com os tiles a olho nu | | conferido em: ... |
-| 4 | Duas execuções diferem só em `id` e `capturedAt` | | |
+| #   | Critério                                         | Status | Evidência               |
+| --- | ------------------------------------------------ | ------ | ----------------------- |
+| 1   | Pacote de milweb.com.br valida no zod            |        |                         |
+| 2   | Seções da home identificadas                     |        | seções encontradas: ... |
+| 3   | Caixas conferem com os tiles a olho nu           |        | conferido em: ...       |
+| 4   | Duas execuções diferem só em `id` e `capturedAt` |        |                         |
 
 ## O que o crawler ainda erra em milweb.com.br
 

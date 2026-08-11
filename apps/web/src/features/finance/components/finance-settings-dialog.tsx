@@ -16,7 +16,11 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { useCostSummary, useFinanceSettings, useUpdateFinanceSettings } from "@/features/finance/hooks";
+import {
+  useCostSummary,
+  useFinanceSettings,
+  useUpdateFinanceSettings,
+} from "@/features/finance/hooks";
 
 /** `usdRateUpdatedAt` é um INSTANTE -- exibir no fuso do escritório
  * (America/Sao_Paulo), mesmo critério de `paidAt` em installments-card.tsx. */
@@ -145,7 +149,9 @@ export function FinanceSettingsDialog({ trigger }: { trigger: ReactNode }) {
                   id="settings-usd-rate-auto"
                   checked={settings?.usdRateAuto ?? false}
                   disabled={!settings || updateFinanceSettings.isPending}
-                  onCheckedChange={(checked) => updateFinanceSettings.mutate({ usdRateAuto: checked })}
+                  onCheckedChange={(checked) =>
+                    updateFinanceSettings.mutate({ usdRateAuto: checked })
+                  }
                 />
               </div>
             </div>
@@ -171,7 +177,8 @@ export function FinanceSettingsDialog({ trigger }: { trigger: ReactNode }) {
                   {...register("activeClientsCount")}
                 />
                 <p className="text-xs text-muted-foreground">
-                  Sugestão: {summary?.wonLeadsCount ?? 0} lead{summary?.wonLeadsCount === 1 ? "" : "s"} ganho
+                  Sugestão: {summary?.wonLeadsCount ?? 0} lead
+                  {summary?.wonLeadsCount === 1 ? "" : "s"} ganho
                   {summary?.wonLeadsCount === 1 ? "" : "s"}.
                 </p>
                 {errors.activeClientsCount && (

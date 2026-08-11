@@ -27,7 +27,10 @@ describe("createPlanSchema", () => {
   });
 
   it("não valida a composição (soma != total) no zod -- isso é responsabilidade do service", () => {
-    const result = createPlanSchema.safeParse({ ...BASE, installments: [{ amount: 1, dueDate: "2026-09-05" }] });
+    const result = createPlanSchema.safeParse({
+      ...BASE,
+      installments: [{ amount: 1, dueDate: "2026-09-05" }],
+    });
     expect(result.success).toBe(true);
   });
 
@@ -104,15 +107,21 @@ describe("createStandaloneSchema", () => {
   });
 
   it("rejeita description acima de 200 chars", () => {
-    expect(createStandaloneSchema.safeParse({ ...BASE, description: "a".repeat(201) }).success).toBe(false);
+    expect(
+      createStandaloneSchema.safeParse({ ...BASE, description: "a".repeat(201) }).success,
+    ).toBe(false);
   });
 
   it("aceita description no limite de 200 chars", () => {
-    expect(createStandaloneSchema.safeParse({ ...BASE, description: "a".repeat(200) }).success).toBe(true);
+    expect(
+      createStandaloneSchema.safeParse({ ...BASE, description: "a".repeat(200) }).success,
+    ).toBe(true);
   });
 
   it("rejeita dueDate implausível (antes de 2020)", () => {
-    expect(createStandaloneSchema.safeParse({ ...BASE, dueDate: "2010-01-01" }).success).toBe(false);
+    expect(createStandaloneSchema.safeParse({ ...BASE, dueDate: "2010-01-01" }).success).toBe(
+      false,
+    );
   });
 
   it("rejeita amount ausente", () => {
@@ -158,7 +167,9 @@ describe("updateReceivableSchema", () => {
   });
 
   it("aceita patch só com description (existe pra qualquer kind, não só avulsa)", () => {
-    expect(updateReceivableSchema.safeParse({ description: "Descrição corrigida" }).success).toBe(true);
+    expect(updateReceivableSchema.safeParse({ description: "Descrição corrigida" }).success).toBe(
+      true,
+    );
   });
 
   it("rejeita description vazia", () => {

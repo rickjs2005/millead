@@ -1,5 +1,8 @@
 import type { Request, Response } from "express";
-import type { ListProposalsQuery, RejectPublicInput } from "../../../application/dto/proposal.dto.js";
+import type {
+  ListProposalsQuery,
+  RejectPublicInput,
+} from "../../../application/dto/proposal.dto.js";
 import type { ProposalPublicService } from "../../../application/services/proposal-public-service.js";
 import type { ProposalService } from "../../../application/services/proposal-service.js";
 import { requireAuth } from "../require-auth.js";

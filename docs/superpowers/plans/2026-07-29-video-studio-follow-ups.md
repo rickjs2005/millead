@@ -64,7 +64,7 @@ segundo consumidor:
 Isso **apaga as ~45 linhas inteiras** do `next.config.ts` — `readdirSync`,
 `extensionAlias`, `resolveAlias` e o próprio `transpilePackages` — preserva NodeNext e
 os sufixos `.js` (convenção da casa: 157 arquivos do `apps/api` usam), e de quebra
-torna os sufixos *corretos*, porque o `dist` tem `.js` de verdade.
+torna os sufixos _corretos_, porque o `dist` tem `.js` de verdade.
 
 A alternativa — trocar o pacote para `moduleResolution: "Bundler"` — também funciona e
 é mais barata, mas quebra a consistência com os outros 158 arquivos NodeNext do repo e
@@ -76,12 +76,12 @@ Nasceram de tasks diferentes; ninguém tinha olhado os cinco lado a lado. Nenhum
 quebra nada hoje, mas todas atrapalham o futuro compilador `VideoBrief + Snapshot →
 VideoProject`:
 
-| # | Inconsistência | Por que importa |
-| - | -------------- | --------------- |
-| 1 | `project.ts` discrimina por `type: "site"\|"studio"`; `brief.ts` por `kind` | O compilador vai traduzir nome de campo à toa |
-| 2 | `brief.ts` documenta que props explícitas são o ponto, "nunca uma sacola `z.record(z.unknown())`" — e `project.ts` faz exatamente isso | O pacote contradiz a própria doutrina |
-| 3 | A lista de componentes de estúdio existe em 3 formas: `z.enum` (project), quatro `z.literal` (brief), `z.string().min(1)` (manifest) | Um 5º componente entra num e não nos outros, sem erro de tipo |
-| 4 | `BriefSceneSchema` é `z.union`; `project.ts` usa `z.discriminatedUnion` | Quando nenhum ramo casa, o usuário lê `"Invalid input"` cru na tela |
+| #   | Inconsistência                                                                                                                         | Por que importa                                                     |
+| --- | -------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| 1   | `project.ts` discrimina por `type: "site"\|"studio"`; `brief.ts` por `kind`                                                            | O compilador vai traduzir nome de campo à toa                       |
+| 2   | `brief.ts` documenta que props explícitas são o ponto, "nunca uma sacola `z.record(z.unknown())`" — e `project.ts` faz exatamente isso | O pacote contradiz a própria doutrina                               |
+| 3   | A lista de componentes de estúdio existe em 3 formas: `z.enum` (project), quatro `z.literal` (brief), `z.string().min(1)` (manifest)   | Um 5º componente entra num e não nos outros, sem erro de tipo       |
+| 4   | `BriefSceneSchema` é `z.union`; `project.ts` usa `z.discriminatedUnion`                                                                | Quando nenhum ramo casa, o usuário lê `"Invalid input"` cru na tela |
 
 O item 4 tem consequência medida: `buildBrief` mostra `error.issues.map(i => i.message)`,
 enquanto os testes afirmam contra `error.message` (o dump JSON do ZodError). São strings

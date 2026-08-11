@@ -149,7 +149,12 @@ export function createApp(container: Container): Express {
   app.use("/api/v1/tasks", createTaskRoutes(container.taskController, container.authenticate));
   app.use(
     "/api/v1/admin/social",
-    createSocialRoutes(container.socialController, container.authenticate, container.requireOwner, env.MILSOCIAL_SYNC_KEY),
+    createSocialRoutes(
+      container.socialController,
+      container.authenticate,
+      container.requireOwner,
+      env.MILSOCIAL_SYNC_KEY,
+    ),
   );
 
   app.use((req, res) => {

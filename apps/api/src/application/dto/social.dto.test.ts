@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { setFormatSchema } from "./social.dto.js";
 
 describe("setFormatSchema", () => {
-  it("aceita { format: \"REDESIGN\" }", () => {
+  it('aceita { format: "REDESIGN" }', () => {
     const result = setFormatSchema.safeParse({ format: "REDESIGN" });
     expect(result.success).toBe(true);
   });

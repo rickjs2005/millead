@@ -7,7 +7,13 @@ import { EmptyState } from "@/components/empty-state";
 import { ErrorState } from "@/components/error-state";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import {
@@ -30,7 +36,10 @@ import { formatCurrency } from "@/utils/format";
 import type { CostScope, CostSubscription } from "@/types/api";
 
 function monthlyBrl(subscription: CostSubscription, rate: number) {
-  const brl = subscription.currency === "USD" ? Number(subscription.amount) * rate : Number(subscription.amount);
+  const brl =
+    subscription.currency === "USD"
+      ? Number(subscription.amount) * rate
+      : Number(subscription.amount);
   return subscription.billingCycle === "YEARLY" ? brl / 12 : brl;
 }
 

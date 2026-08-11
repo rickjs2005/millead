@@ -1,7 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
 import type { ActivityRepository } from "../../domain/repositories/activity-repository.js";
 import { ActivityLogger } from "./activity-logger.js";
-import { ConflictError, GoneError, NotFoundError, ValidationError } from "../../domain/errors/app-error.js";
+import {
+  ConflictError,
+  GoneError,
+  NotFoundError,
+  ValidationError,
+} from "../../domain/errors/app-error.js";
 import type { Company, CompanyDetail } from "../../domain/entities/company.js";
 import type { CompanyRepository } from "../../domain/repositories/company-repository.js";
 import type { PricingEstimateWithItems } from "../../domain/entities/estimate.js";
@@ -320,19 +325,23 @@ describe("ProposalPublicService.getByToken", () => {
     expect(proposals.markViewed).toHaveBeenCalledTimes(1);
     expect(proposals.markViewed).toHaveBeenCalledWith(PROPOSAL_ID, expect.any(Date));
     expect(activityRepository.record).toHaveBeenCalledTimes(1);
-    expect((activityRepository.record as ReturnType<typeof vi.fn>).mock.calls[0]![0]).toMatchObject({
-      organizationId: ORG,
-      leadId: LEAD_ID,
-      userId: null,
-      type: "OTHER",
-      payload: { kind: "proposal_viewed_public", proposalId: PROPOSAL_ID },
-    });
+    expect((activityRepository.record as ReturnType<typeof vi.fn>).mock.calls[0]![0]).toMatchObject(
+      {
+        organizationId: ORG,
+        leadId: LEAD_ID,
+        userId: null,
+        type: "OTHER",
+        payload: { kind: "proposal_viewed_public", proposalId: PROPOSAL_ID },
+      },
+    );
     expect(view.status).toBe("VIEWED");
   });
 
   it("segunda chamada (status já VIEWED) não re-marca nem loga de novo", async () => {
     const { service, proposals, activityRepository } = makeService({
-      proposals: { findByPublicToken: vi.fn().mockResolvedValue(fakeProposal({ status: "VIEWED" })) },
+      proposals: {
+        findByPublicToken: vi.fn().mockResolvedValue(fakeProposal({ status: "VIEWED" })),
+      },
     });
 
     const view = await service.getByToken(TOKEN);
@@ -397,7 +406,9 @@ describe("ProposalPublicService.getByToken", () => {
       proposals: {
         findByPublicToken: vi
           .fn()
-          .mockResolvedValue(fakeProposal({ status: "ACCEPTED", validUntil: new Date("2020-01-01") })),
+          .mockResolvedValue(
+            fakeProposal({ status: "ACCEPTED", validUntil: new Date("2020-01-01") }),
+          ),
       },
     });
 
@@ -425,20 +436,30 @@ describe("ProposalPublicService.accept", () => {
     expect(contracts.createDraftFromProposal).toHaveBeenCalledTimes(1);
     expect(push.sendToOrg).toHaveBeenCalledTimes(1);
     expect(notifier.propostaDecidida).toHaveBeenCalledTimes(1);
-    expect((notifier.propostaDecidida as ReturnType<typeof vi.fn>).mock.calls[0]![0]).toMatchObject({
-      decision: "ACCEPTED",
-      contractCreated: true,
-      contractFailReason: null,
-    });
+    expect((notifier.propostaDecidida as ReturnType<typeof vi.fn>).mock.calls[0]![0]).toMatchObject(
+      {
+        decision: "ACCEPTED",
+        contractCreated: true,
+        contractFailReason: null,
+      },
+    );
     expect(activityRepository.record).toHaveBeenCalledTimes(1);
-    expect((activityRepository.record as ReturnType<typeof vi.fn>).mock.calls[0]![0]).toMatchObject({
-      payload: { kind: "proposal_accepted_public", proposalId: PROPOSAL_ID, contractCreated: true },
-    });
+    expect((activityRepository.record as ReturnType<typeof vi.fn>).mock.calls[0]![0]).toMatchObject(
+      {
+        payload: {
+          kind: "proposal_accepted_public",
+          proposalId: PROPOSAL_ID,
+          contractCreated: true,
+        },
+      },
+    );
   });
 
   it("de VIEWED para ACCEPTED também funciona", async () => {
     const { service, proposals } = makeService({
-      proposals: { findByPublicToken: vi.fn().mockResolvedValue(fakeProposal({ status: "VIEWED" })) },
+      proposals: {
+        findByPublicToken: vi.fn().mockResolvedValue(fakeProposal({ status: "VIEWED" })),
+      },
     });
 
     const result = await service.accept(TOKEN, null);
@@ -463,7 +484,9 @@ describe("ProposalPublicService.accept", () => {
 
   it("já ACCEPTED: retorna status sem erro, sem duplicar contrato (idempotente)", async () => {
     const { service, proposals, contracts, push, notifier } = makeService({
-      proposals: { findByPublicToken: vi.fn().mockResolvedValue(fakeProposal({ status: "ACCEPTED" })) },
+      proposals: {
+        findByPublicToken: vi.fn().mockResolvedValue(fakeProposal({ status: "ACCEPTED" })),
+      },
     });
 
     const result = await service.accept(TOKEN, null);
@@ -477,7 +500,9 @@ describe("ProposalPublicService.accept", () => {
 
   it("já REJECTED: lança ConflictError", async () => {
     const { service, proposals } = makeService({
-      proposals: { findByPublicToken: vi.fn().mockResolvedValue(fakeProposal({ status: "REJECTED" })) },
+      proposals: {
+        findByPublicToken: vi.fn().mockResolvedValue(fakeProposal({ status: "REJECTED" })),
+      },
     });
 
     await expect(service.accept(TOKEN, null)).rejects.toThrow(ConflictError);
@@ -498,10 +523,12 @@ describe("ProposalPublicService.accept", () => {
 
     expect(result).toEqual({ status: "ACCEPTED" });
     expect(proposals.decide).toHaveBeenCalledTimes(1);
-    expect((notifier.propostaDecidida as ReturnType<typeof vi.fn>).mock.calls[0]![0]).toMatchObject({
-      contractCreated: false,
-      contractFailReason: "Empresa do lead não tem CPF/CNPJ cadastrado.",
-    });
+    expect((notifier.propostaDecidida as ReturnType<typeof vi.fn>).mock.calls[0]![0]).toMatchObject(
+      {
+        contractCreated: false,
+        contractFailReason: "Empresa do lead não tem CPF/CNPJ cadastrado.",
+      },
+    );
   });
 
   it("erro genérico (não ValidationError) do createDraftFromProposal também é best-effort: aceite fica, atividade/push/e-mail rodam com contractCreated false", async () => {
@@ -518,15 +545,23 @@ describe("ProposalPublicService.accept", () => {
     expect(result).toEqual({ status: "ACCEPTED" });
     expect(proposals.decide).toHaveBeenCalledTimes(1);
     expect(activityRepository.record).toHaveBeenCalledTimes(1);
-    expect((activityRepository.record as ReturnType<typeof vi.fn>).mock.calls[0]![0]).toMatchObject({
-      payload: { kind: "proposal_accepted_public", proposalId: PROPOSAL_ID, contractCreated: false },
-    });
+    expect((activityRepository.record as ReturnType<typeof vi.fn>).mock.calls[0]![0]).toMatchObject(
+      {
+        payload: {
+          kind: "proposal_accepted_public",
+          proposalId: PROPOSAL_ID,
+          contractCreated: false,
+        },
+      },
+    );
     expect(push.sendToOrg).toHaveBeenCalledTimes(1);
-    expect((notifier.propostaDecidida as ReturnType<typeof vi.fn>).mock.calls[0]![0]).toMatchObject({
-      decision: "ACCEPTED",
-      contractCreated: false,
-      contractFailReason: "boom",
-    });
+    expect((notifier.propostaDecidida as ReturnType<typeof vi.fn>).mock.calls[0]![0]).toMatchObject(
+      {
+        decision: "ACCEPTED",
+        contractCreated: false,
+        contractFailReason: "boom",
+      },
+    );
     consoleErrorSpy.mockRestore();
   });
 
@@ -574,16 +609,20 @@ describe("ProposalPublicService.reject", () => {
     );
     expect(contracts.createDraftFromProposal).not.toHaveBeenCalled();
     expect(push.sendToOrg).toHaveBeenCalledTimes(1);
-    expect((notifier.propostaDecidida as ReturnType<typeof vi.fn>).mock.calls[0]![0]).toMatchObject({
-      decision: "REJECTED",
-      rejectReason: "Muito caro",
-      contractCreated: false,
-    });
+    expect((notifier.propostaDecidida as ReturnType<typeof vi.fn>).mock.calls[0]![0]).toMatchObject(
+      {
+        decision: "REJECTED",
+        rejectReason: "Muito caro",
+        contractCreated: false,
+      },
+    );
   });
 
   it("sem reason também funciona", async () => {
     const { service, proposals } = makeService({
-      proposals: { findByPublicToken: vi.fn().mockResolvedValue(fakeProposal({ status: "VIEWED" })) },
+      proposals: {
+        findByPublicToken: vi.fn().mockResolvedValue(fakeProposal({ status: "VIEWED" })),
+      },
     });
 
     const result = await service.reject(TOKEN, null);
@@ -598,7 +637,9 @@ describe("ProposalPublicService.reject", () => {
 
   it("já REJECTED: idempotente, retorna sem erro", async () => {
     const { service, proposals } = makeService({
-      proposals: { findByPublicToken: vi.fn().mockResolvedValue(fakeProposal({ status: "REJECTED" })) },
+      proposals: {
+        findByPublicToken: vi.fn().mockResolvedValue(fakeProposal({ status: "REJECTED" })),
+      },
     });
 
     const result = await service.reject(TOKEN, null);
@@ -609,7 +650,9 @@ describe("ProposalPublicService.reject", () => {
 
   it("já ACCEPTED: lança ConflictError", async () => {
     const { service, proposals } = makeService({
-      proposals: { findByPublicToken: vi.fn().mockResolvedValue(fakeProposal({ status: "ACCEPTED" })) },
+      proposals: {
+        findByPublicToken: vi.fn().mockResolvedValue(fakeProposal({ status: "ACCEPTED" })),
+      },
     });
 
     await expect(service.reject(TOKEN, null)).rejects.toThrow(ConflictError);
@@ -621,7 +664,9 @@ describe("ProposalPublicService.reject", () => {
       proposals: {
         findByPublicToken: vi
           .fn()
-          .mockResolvedValue(fakeProposal({ status: "VIEWED", validUntil: new Date("2020-01-01") })),
+          .mockResolvedValue(
+            fakeProposal({ status: "VIEWED", validUntil: new Date("2020-01-01") }),
+          ),
       },
     });
 

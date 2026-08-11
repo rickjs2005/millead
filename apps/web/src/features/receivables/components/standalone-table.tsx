@@ -80,7 +80,13 @@ const editSchema = z.object({
 });
 type EditValues = z.infer<typeof editSchema>;
 
-function EditStandaloneDialog({ receivable, trigger }: { receivable: Receivable; trigger: ReactNode }) {
+function EditStandaloneDialog({
+  receivable,
+  trigger,
+}: {
+  receivable: Receivable;
+  trigger: ReactNode;
+}) {
   const [open, setOpen] = useState(false);
   const update = useUpdateReceivable();
   const {

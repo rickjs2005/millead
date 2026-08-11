@@ -67,10 +67,12 @@ interface FakeRepo extends SocialRepository {
   __snapshots: Map<string, SocialMetricSnapshot[]>; // por postId
 }
 
-function makeRepo(options: {
-  posts?: SocialPost[];
-  config?: SocialConfig | null;
-} = {}): FakeRepo {
+function makeRepo(
+  options: {
+    posts?: SocialPost[];
+    config?: SocialConfig | null;
+  } = {},
+): FakeRepo {
   const postsById = new Map<string, SocialPost>();
   const postsByIgId = new Map<string, string>(); // igMediaId -> id
   const snapshots = new Map<string, SocialMetricSnapshot[]>();
@@ -340,7 +342,12 @@ describe("SocialService.sync", () => {
   });
 
   it("classifica posts UNCLASSIFIED e grava formatSource AI", async () => {
-    const post = fakePost({ id: "post-1", igMediaId: "ig-1", format: "UNCLASSIFIED", formatSource: "NONE" });
+    const post = fakePost({
+      id: "post-1",
+      igMediaId: "ig-1",
+      format: "UNCLASSIFIED",
+      formatSource: "NONE",
+    });
     const repo = makeRepo({ posts: [post], config: farFutureConfig });
     const instagram = makeInstagram([{ media: [], nextCursor: null }]);
     const analyst = makeAnalyst();

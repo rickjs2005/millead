@@ -40,10 +40,7 @@ function CapacityRow({ entry }: { entry: CapacityEntry }) {
           {status ? <Badge variant={status.badgeVariant}>{status.label}</Badge> : null}
         </div>
       </div>
-      <Progress
-        value={Math.min(entry.pct, 100)}
-        indicatorClassName={status?.indicatorClassName}
-      />
+      <Progress value={Math.min(entry.pct, 100)} indicatorClassName={status?.indicatorClassName} />
     </div>
   );
 }

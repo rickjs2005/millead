@@ -1,6 +1,11 @@
 import type {
-  SocialConfig, SocialMetrics, SocialMetricSnapshot,
-  SocialPost, SocialPostFormat, SocialFormatSource, SocialPostWithMetrics,
+  SocialConfig,
+  SocialMetrics,
+  SocialMetricSnapshot,
+  SocialPost,
+  SocialPostFormat,
+  SocialFormatSource,
+  SocialPostWithMetrics,
 } from "../entities/social.js";
 
 export interface UpsertSocialPostInput {
@@ -20,7 +25,11 @@ export interface SocialRepository {
   /** Posts publicados depois de `since` (corte de 90 dias do sync). */
   listPostsPublishedSince(since: Date): Promise<SocialPost[]>;
   listUnclassified(): Promise<SocialPost[]>;
-  setFormat(postId: string, format: SocialPostFormat, source: SocialFormatSource): Promise<SocialPost | null>;
+  setFormat(
+    postId: string,
+    format: SocialPostFormat,
+    source: SocialFormatSource,
+  ): Promise<SocialPost | null>;
   /** Idempotente por dia: upsert na chave (postId, collectedAt truncado no dia). */
   addSnapshot(postId: string, collectedAt: Date, metrics: SocialMetrics): Promise<void>;
   getSeries(postId: string): Promise<SocialMetricSnapshot[]>;

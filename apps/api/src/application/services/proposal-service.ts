@@ -85,9 +85,7 @@ export class ProposalService {
       const current = await this.repository.findByIdForOrg(id, organizationId);
       if (!current) throw new NotFoundError("Proposta não encontrada.");
       if (current.decidedAt) {
-        throw new ConflictError(
-          "Esta proposta já foi decidida pelo cliente pelo link público.",
-        );
+        throw new ConflictError("Esta proposta já foi decidida pelo cliente pelo link público.");
       }
     }
 

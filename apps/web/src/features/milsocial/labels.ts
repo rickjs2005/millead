@@ -34,5 +34,7 @@ export function fmtWatchTime(ms: number | null): string {
 /** Numero compacto pt-BR ("12,3 mil") ; "—" pra null. */
 export function fmtNum(n: number | null): string {
   if (n == null) return "—";
-  return new Intl.NumberFormat("pt-BR", { notation: "compact", maximumFractionDigits: 1 }).format(n);
+  return new Intl.NumberFormat("pt-BR", { notation: "compact", maximumFractionDigits: 1 }).format(
+    n,
+  );
 }

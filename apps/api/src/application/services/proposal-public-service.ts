@@ -238,7 +238,9 @@ export class ProposalPublicService {
               phone: company.phone,
             }
           : null,
-        contact: contact ? { name: contact.name, email: contact.email, phone: contact.phone } : null,
+        contact: contact
+          ? { name: contact.name, email: contact.email, phone: contact.phone }
+          : null,
       });
       return { contractCreated: true, contractFailReason: null };
     } catch (err) {

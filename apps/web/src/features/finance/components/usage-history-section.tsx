@@ -21,7 +21,18 @@ import { formatCurrency } from "@/utils/format";
 import type { CostUsageSeriesPoint } from "@/types/api";
 
 const MONTH_ABBR = [
-  "jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez",
+  "jan",
+  "fev",
+  "mar",
+  "abr",
+  "mai",
+  "jun",
+  "jul",
+  "ago",
+  "set",
+  "out",
+  "nov",
+  "dez",
 ];
 
 /** "2025-08" -> "ago/25". `new Date("YYYY-MM")` ancora em UTC meia-noite --
@@ -150,7 +161,9 @@ export function UsageHistorySection() {
               />
               <Tooltip content={<ChartTooltip />} cursor={{ fill: "hsl(var(--muted) / 0.4)" }} />
               <Legend
-                formatter={(value) => <span className="text-xs text-muted-foreground">{value}</span>}
+                formatter={(value) => (
+                  <span className="text-xs text-muted-foreground">{value}</span>
+                )}
               />
               <Bar
                 dataKey="usageCostBrl"

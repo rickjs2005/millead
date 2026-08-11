@@ -237,12 +237,16 @@ function CreateUsageDialog({ subscriptions }: { subscriptions: CostSubscription[
                   min={1}
                   {...register("credits")}
                 />
-                {errors.credits && <p className="text-xs text-destructive">{errors.credits.message}</p>}
+                {errors.credits && (
+                  <p className="text-xs text-destructive">{errors.credits.message}</p>
+                )}
               </div>
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor="usage-date">Data</Label>
                 <Input id="usage-date" type="date" {...register("usedAt")} />
-                {errors.usedAt && <p className="text-xs text-destructive">{errors.usedAt.message}</p>}
+                {errors.usedAt && (
+                  <p className="text-xs text-destructive">{errors.usedAt.message}</p>
+                )}
               </div>
             </div>
 
@@ -252,7 +256,10 @@ function CreateUsageDialog({ subscriptions }: { subscriptions: CostSubscription[
             </div>
           </div>
           <DialogFooter>
-            <Button type="submit" disabled={createUsage.isPending || creditSubscriptions.length === 0}>
+            <Button
+              type="submit"
+              disabled={createUsage.isPending || creditSubscriptions.length === 0}
+            >
               {createUsage.isPending ? "Salvando…" : "Lançar"}
             </Button>
           </DialogFooter>
@@ -275,7 +282,9 @@ export function CreditUsageSection() {
   const deleteUsage = useDeleteUsage();
   const { confirm, dialog } = useConfirmDialog();
 
-  const creditSubscriptions = (subscriptions ?? []).filter((s) => s.isActive && !!s.creditsIncluded);
+  const creditSubscriptions = (subscriptions ?? []).filter(
+    (s) => s.isActive && !!s.creditsIncluded,
+  );
   const bySubscription = summary?.bySubscription ?? [];
 
   const usageRows = creditSubscriptions.map((sub) => {
@@ -333,7 +342,8 @@ export function CreditUsageSection() {
                     <p className="text-sm font-medium">{row.name}</p>
                     <div className="flex items-center gap-2">
                       <p className="text-xs text-muted-foreground">
-                        {row.used}/{row.included} créditos · {row.pct}% · {formatCurrency(row.costBrl)}
+                        {row.used}/{row.included} créditos · {row.pct}% ·{" "}
+                        {formatCurrency(row.costBrl)}
                       </p>
                       {status ? <Badge variant={status.badgeVariant}>{status.label}</Badge> : null}
                     </div>
@@ -410,7 +420,9 @@ export function CreditUsageSection() {
               <TableBody>
                 {(entries ?? []).map((entry) => (
                   <TableRow key={entry.id}>
-                    <TableCell className="text-muted-foreground">{formatDateUtc(entry.usedAt)}</TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {formatDateUtc(entry.usedAt)}
+                    </TableCell>
                     <TableCell>{subscriptionName(entry.subscriptionId)}</TableCell>
                     <TableCell className="text-muted-foreground">
                       {entry.companyName ?? "Sem cliente"}

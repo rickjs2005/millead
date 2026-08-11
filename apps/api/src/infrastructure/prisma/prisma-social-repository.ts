@@ -1,5 +1,8 @@
 import { prisma } from "@millead/database";
-import type { SocialRepository, UpsertSocialPostInput } from "../../domain/repositories/social-repository.js";
+import type {
+  SocialRepository,
+  UpsertSocialPostInput,
+} from "../../domain/repositories/social-repository.js";
 import type {
   SocialConfig,
   SocialFormatSource,

@@ -41,7 +41,8 @@ const CATALOG = [
     billingCycle: "MONTHLY" as const,
     defaultScope: "AGENCY" as const,
     bestFor: "Geração de imagem/vídeo (200 créditos/mês)",
-    billingNotes: "US$ 15/mês no plano anual -- créditos mensais rastreados por assinatura (ver `creditsIncluded`)",
+    billingNotes:
+      "US$ 15/mês no plano anual -- créditos mensais rastreados por assinatura (ver `creditsIncluded`)",
   },
   {
     key: "higgsfield-ultra",
@@ -76,8 +77,7 @@ const CATALOG = [
     defaultScope: "CLIENT" as const,
     defaultCapacityLimit: 30,
     bestFor: "Next.js com SSR/ISR/APIs",
-    billingNotes:
-      "US$ 20/membro/mês + US$ 20 de crédito de uso; banda 1 TB, depois US$ 0,15/GB",
+    billingNotes: "US$ 20/membro/mês + US$ 20 de crédito de uso; banda 1 TB, depois US$ 0,15/GB",
   },
   {
     key: "supabase-free",

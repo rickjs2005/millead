@@ -20,7 +20,11 @@ export async function writePackage(
     throw new Error(`snapshot inválido -- nada foi gravado:\n${detail}`);
   }
 
-  await writeFile(join(tmpDir, "snapshot.json"), `${JSON.stringify(parsed.data, null, 2)}\n`, "utf8");
+  await writeFile(
+    join(tmpDir, "snapshot.json"),
+    `${JSON.stringify(parsed.data, null, 2)}\n`,
+    "utf8",
+  );
 
   const finalDir = join(capturesRoot, parsed.data.id);
 

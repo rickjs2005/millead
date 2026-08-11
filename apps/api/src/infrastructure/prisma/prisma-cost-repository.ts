@@ -119,10 +119,7 @@ export class PrismaCostRepository implements CostRepository {
     return rows.map(toDomainSubscription);
   }
 
-  async findSubscriptionById(
-    organizationId: string,
-    id: string,
-  ): Promise<CostSubscription | null> {
+  async findSubscriptionById(organizationId: string, id: string): Promise<CostSubscription | null> {
     const row = await prisma.costSubscription.findFirst({ where: { id, organizationId } });
     return row ? toDomainSubscription(row) : null;
   }

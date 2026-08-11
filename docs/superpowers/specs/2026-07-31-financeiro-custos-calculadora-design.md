@@ -17,21 +17,21 @@ Hoje a MilWeb precifica projetos por intuição. Não há registro de quanto cus
 
 ## Dados reais levantados (jul/2026)
 
-| Serviço | Plano | Preço de tabela | Observações |
-|---|---|---:|---|
-| Vercel | Hobby | US$ 0 | limites: 100 GB banda, 1M invocações; sem uso comercial |
-| Vercel | Pro | US$ 20/mês | + US$ 20 de crédito de uso incluso; banda 1 TB |
-| Supabase | Free | US$ 0 | 2 projetos, pausa após 1 semana inativo, 500 MB banco |
-| Supabase | Pro | US$ 25/mês | 8 GB banco, 100 GB storage; compute Micro US$ 10/projeto (1 crédito incluso) |
-| Render | Web Starter | US$ 7/mês | 512 MB RAM; free tier = 750 h/mês com spin-down |
-| Render | Postgres Basic-256mb | US$ 6/mês | Postgres free expira em 30 dias |
-| Claude | Pro | US$ 20/mês | inclui Claude Code |
-| Claude | **Max 5x — plano do Rick** | US$ 100/mês | **Rick paga ≈ R$ 550/mês (valor real declarado, seed usa este)** |
-| Higgsfield | **plano mais barato — plano do Rick** | — | **Rick paga ≈ R$ 239/mês (valor real declarado, seed usa este)** |
-| Higgsfield | Ultra | US$ 99/mês (anual) | referência de catálogo |
-| Cloudflare Pages | Free | R$ 0 | destino padrão de landing pages estáticas |
-| Registro.br | domínio .br | R$ 40/ano | pago pelo cliente em geral |
-| GitHub | Free | R$ 0 | |
+| Serviço          | Plano                                 |    Preço de tabela | Observações                                                                  |
+| ---------------- | ------------------------------------- | -----------------: | ---------------------------------------------------------------------------- |
+| Vercel           | Hobby                                 |              US$ 0 | limites: 100 GB banda, 1M invocações; sem uso comercial                      |
+| Vercel           | Pro                                   |         US$ 20/mês | + US$ 20 de crédito de uso incluso; banda 1 TB                               |
+| Supabase         | Free                                  |              US$ 0 | 2 projetos, pausa após 1 semana inativo, 500 MB banco                        |
+| Supabase         | Pro                                   |         US$ 25/mês | 8 GB banco, 100 GB storage; compute Micro US$ 10/projeto (1 crédito incluso) |
+| Render           | Web Starter                           |          US$ 7/mês | 512 MB RAM; free tier = 750 h/mês com spin-down                              |
+| Render           | Postgres Basic-256mb                  |          US$ 6/mês | Postgres free expira em 30 dias                                              |
+| Claude           | Pro                                   |         US$ 20/mês | inclui Claude Code                                                           |
+| Claude           | **Max 5x — plano do Rick**            |        US$ 100/mês | **Rick paga ≈ R$ 550/mês (valor real declarado, seed usa este)**             |
+| Higgsfield       | **plano mais barato — plano do Rick** |                  — | **Rick paga ≈ R$ 239/mês (valor real declarado, seed usa este)**             |
+| Higgsfield       | Ultra                                 | US$ 99/mês (anual) | referência de catálogo                                                       |
+| Cloudflare Pages | Free                                  |               R$ 0 | destino padrão de landing pages estáticas                                    |
+| Registro.br      | domínio .br                           |          R$ 40/ano | pago pelo cliente em geral                                                   |
+| GitHub           | Free                                  |               R$ 0 |                                                                              |
 
 ## Arquitetura
 
@@ -119,10 +119,7 @@ Seção nova **"Financeiro"** em `nav-items.ts` (permission `proposals:read`):
 
 1. **Fase 1 — Centro de Custos**: migrations (RLS!), seed do catálogo + produtos + custos reais do Rick (**Claude Max 5x R$ 550/mês** e **Higgsfield R$ 239/mês** como AGENCY ativos; Vercel Hobby, Supabase Free e Render Free como R$ 0 para rastreio de capacidade; domínios Registro.br R$ 40/ano), API `/costs`, página `/costs`, nav.
 
-**Editabilidade total das assinaturas (requisito explícito do Rick):** toda assinatura — inclusive as do seed — é um registro comum da org, com editar preço (subiu/baixou), ativar/desativar (`isActive` com switch na tabela) e adicionar/remover novas a qualquer momento. O seed só cria o ponto de partida; nada é fixo no código.
-2. **Fase 2 — Calculadora**: API `/estimates` + produtos, páginas de orçamento com preview ao vivo.
-3. **Fase 3 — Proposta + PDF**: renderer, `POST /:id/convert`, integração com a página de Propostas.
-4. **Fase 4 — Capacidade + Dashboard**: campos de capacidade na UI, alertas, cards no dashboard.
+**Editabilidade total das assinaturas (requisito explícito do Rick):** toda assinatura — inclusive as do seed — é um registro comum da org, com editar preço (subiu/baixou), ativar/desativar (`isActive` com switch na tabela) e adicionar/remover novas a qualquer momento. O seed só cria o ponto de partida; nada é fixo no código. 2. **Fase 2 — Calculadora**: API `/estimates` + produtos, páginas de orçamento com preview ao vivo. 3. **Fase 3 — Proposta + PDF**: renderer, `POST /:id/convert`, integração com a página de Propostas. 4. **Fase 4 — Capacidade + Dashboard**: campos de capacidade na UI, alertas, cards no dashboard.
 
 Cada fase: migration aplicada em produção (`pnpm db:migrate:deploy` manual, padrão atual), deploy API (Render auto via push) + web (Vercel), verificação no ar em `millead.milweb.com.br`.
 
@@ -131,6 +128,7 @@ Cada fase: migration aplicada em produção (`pnpm db:migrate:deploy` manual, pa
 Motivação: "na conta do cliente deveria cair apenas o Higgsfield — calcular quantos créditos gastei com aquele cliente". Modelo: custo por consumo em vez de rateio cego. Decisões do Rick: plano Higgsfield = **1.000 créditos/mês por R$ 239** (crédito ≈ R$ 0,239); estimar créditos no orçamento **e** registrar consumo real por cliente; **rateio da agência zerado por padrão** na calculadora (campo continua editável, com botão "usar rateio atual"; o custo da agência passa a ser coberto pela margem).
 
 Modelagem:
+
 - `CostSubscription.creditsIncluded Int?` — créditos/mês do plano; preço unitário derivado = mensal BRL ÷ creditsIncluded.
 - `CostUsageEntry` (nova, org-scoped, RLS): subscriptionId, companyId?, credits Int, usedAt DateTime, note?; lançamentos manuais do consumo real.
 - `PricingEstimateCost.isOneTime Boolean @default(false)` — créditos de projeto são custo ÚNICO, não mensal: `computeEstimate` passa a somar itens one-time 1× (fora do × infraMonths), API e espelho client.

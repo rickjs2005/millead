@@ -74,21 +74,13 @@ export function PublicLinkCard({ proposal }: { proposal: Proposal }) {
           <code className="flex-1 truncate rounded-md bg-muted px-2 py-1.5 text-xs">
             {url || "…"}
           </code>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={!url}
-            onClick={copyLink}
-          >
+          <Button type="button" variant="outline" size="sm" disabled={!url} onClick={copyLink}>
             {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
             Copiar
           </Button>
         </div>
 
-        {viewedAt && (
-          <p className="text-muted-foreground">Aberta pelo cliente em {viewedAt}</p>
-        )}
+        {viewedAt && <p className="text-muted-foreground">Aberta pelo cliente em {viewedAt}</p>}
 
         {proposal.status === "ACCEPTED" && decidedAt && (
           <p className="font-medium text-success">Aceita em {decidedAt}</p>

@@ -173,7 +173,9 @@ export class ReceivableService {
 
     const hasPaid = await this.receivables.hasPaid(organizationId, input.contractId);
     if (hasPaid) {
-      throw new ConflictError("Este contrato já possui parcela paga; não é possível recriar o plano.");
+      throw new ConflictError(
+        "Este contrato já possui parcela paga; não é possível recriar o plano.",
+      );
     }
 
     // Sem parcela paga: qualquer plano existente é só "em aberto" -- limpa
@@ -251,7 +253,11 @@ export class ReceivableService {
     return updated;
   }
 
-  async update(organizationId: string, id: string, patch: UpdateReceivableInput): Promise<Receivable> {
+  async update(
+    organizationId: string,
+    id: string,
+    patch: UpdateReceivableInput,
+  ): Promise<Receivable> {
     const existing = await this.receivables.findById(organizationId, id);
     if (!existing) throw new NotFoundError("Parcela não encontrada.");
     if (existing.paidAt) throw new ConflictError("Parcela paga não pode ser alterada.");
@@ -431,7 +437,11 @@ export class ReceivableService {
     return {
       months: keys.map((key) => {
         const bucket = buckets.get(key)!;
-        return { month: key, received: bucket.received.toFixed(2), expected: bucket.expected.toFixed(2) };
+        return {
+          month: key,
+          received: bucket.received.toFixed(2),
+          expected: bucket.expected.toFixed(2),
+        };
       }),
       yearTotals: {
         year: currentYear,

@@ -59,7 +59,9 @@ const MARGIN_PRESETS = [20, 30, 40];
  * cost-subscriptions-list.tsx -- valor mensal em BRL de uma assinatura. */
 function monthlyBrl(subscription: CostSubscription, rate: number) {
   const brl =
-    subscription.currency === "USD" ? Number(subscription.amount) * rate : Number(subscription.amount);
+    subscription.currency === "USD"
+      ? Number(subscription.amount) * rate
+      : Number(subscription.amount);
   return subscription.billingCycle === "YEARLY" ? brl / 12 : brl;
 }
 
@@ -297,7 +299,8 @@ function EstimateForm({
         validDays: estimate.validDays,
         finalPrice: estimate.finalPrice != null ? Number(estimate.finalPrice) : undefined,
         domainYears: estimate.domainYears ?? 0,
-        domainYearPriceBrl: estimate.domainYearPriceBrl != null ? Number(estimate.domainYearPriceBrl) : 0,
+        domainYearPriceBrl:
+          estimate.domainYearPriceBrl != null ? Number(estimate.domainYearPriceBrl) : 0,
       }
     : {
         title: "",
@@ -434,7 +437,9 @@ function EstimateForm({
   // subscriptionId, isOneTime true) -- do contrário, estimar créditos de uma
   // assinatura marcaria essa caixa como "recorrente adicionado" por engano.
   function isSubscriptionChecked(subscriptionId: string) {
-    return (values.costItems ?? []).some((c) => c?.subscriptionId === subscriptionId && !c?.isOneTime);
+    return (values.costItems ?? []).some(
+      (c) => c?.subscriptionId === subscriptionId && !c?.isOneTime,
+    );
   }
 
   function toggleSubscription(subscription: CostSubscription, checked: boolean) {
@@ -605,7 +610,8 @@ function EstimateForm({
   // dono, não resposta de cliente.
   function applyBriefing(detail: Parameters<typeof estimatePrefillFromBriefing>[0]) {
     const prefill = estimatePrefillFromBriefing(detail);
-    if (prefill.title) setValue("title", prefill.title, { shouldValidate: true, shouldDirty: true });
+    if (prefill.title)
+      setValue("title", prefill.title, { shouldValidate: true, shouldDirty: true });
     if (prefill.leadId) setValue("leadId", prefill.leadId, { shouldDirty: true });
     if (prefill.scopeText) setValue("scopeText", prefill.scopeText, { shouldDirty: true });
   }
@@ -649,420 +655,462 @@ function EstimateForm({
             renderizam <button> por baixo), sem precisar espalhar `disabled`
             campo a campo por todos os Cards abaixo. */}
         <fieldset disabled={isConverted} className="m-0 flex flex-col gap-4 border-0 p-0">
-        <Card>
-          <CardHeader>
-            <CardTitle>Dados gerais</CardTitle>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-4">
-            <Field label="Título" htmlFor="estimate-title" error={errors.title?.message}>
-              <Input id="estimate-title" {...register("title")} />
-            </Field>
+          <Card>
+            <CardHeader>
+              <CardTitle>Dados gerais</CardTitle>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-4">
+              <Field label="Título" htmlFor="estimate-title" error={errors.title?.message}>
+                <Input id="estimate-title" {...register("title")} />
+              </Field>
 
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="Lead (opcional)">
-                <Controller
-                  control={control}
-                  name="leadId"
-                  render={({ field }) => (
-                    <LeadCombobox value={field.value} onChange={(id) => field.onChange(id)} />
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Field label="Lead (opcional)">
+                  <Controller
+                    control={control}
+                    name="leadId"
+                    render={({ field }) => (
+                      <LeadCombobox value={field.value} onChange={(id) => field.onChange(id)} />
+                    )}
+                  />
+                </Field>
+
+                <Field label="Produto (opcional)">
+                  <Select value={productId} onValueChange={handleProductChange}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione um produto" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Nenhum produto</SelectItem>
+                      {products.map((product) => (
+                        <SelectItem key={product.id} value={product.id}>
+                          {product.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {selectedProduct && (
+                    <p className="text-xs text-muted-foreground">
+                      Faixa do catálogo: {formatCurrency(selectedProduct.priceMin)}–
+                      {formatCurrency(selectedProduct.priceMax)}
+                    </p>
                   )}
-                />
-              </Field>
-
-              <Field label="Produto (opcional)">
-                <Select value={productId} onValueChange={handleProductChange}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione um produto" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">Nenhum produto</SelectItem>
-                    {products.map((product) => (
-                      <SelectItem key={product.id} value={product.id}>
-                        {product.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {selectedProduct && (
-                  <p className="text-xs text-muted-foreground">
-                    Faixa do catálogo: {formatCurrency(selectedProduct.priceMin)}–
-                    {formatCurrency(selectedProduct.priceMax)}
-                  </p>
-                )}
-              </Field>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Horas por etapa</CardTitle>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-3">
-            {errors.hoursBreakdown?.message && (
-              <p className="text-xs text-destructive">{errors.hoursBreakdown.message}</p>
-            )}
-            {hourFields.map((field, index) => (
-              <div key={field.id} className="flex items-start gap-2">
-                <Field
-                  label={index === 0 ? "Etapa" : undefined}
-                  htmlFor={`hours-label-${index}`}
-                  error={errors.hoursBreakdown?.[index]?.label?.message}
-                >
-                  <Input
-                    id={`hours-label-${index}`}
-                    placeholder="Etapa"
-                    {...register(`hoursBreakdown.${index}.label`)}
-                  />
                 </Field>
-                <Field
-                  label={index === 0 ? "Horas" : undefined}
-                  htmlFor={`hours-value-${index}`}
-                  error={errors.hoursBreakdown?.[index]?.hours?.message}
-                >
-                  <Input
-                    id={`hours-value-${index}`}
-                    inputMode="decimal"
-                    className="w-28"
-                    {...register(`hoursBreakdown.${index}.hours`)}
-                  />
-                </Field>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  aria-label="Remover etapa"
-                  onClick={() => removeHour(index)}
-                  disabled={hourFields.length <= 1}
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
               </div>
-            ))}
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="w-fit gap-1.5"
-              onClick={() => appendHour({ label: "", hours: 0 })}
-            >
-              <Plus className="h-4 w-4" /> Adicionar etapa
-            </Button>
-            <p className="text-xs text-muted-foreground">Total: {computed.totalHours}h</p>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Infra do cliente</CardTitle>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-4">
-            {clientSubscriptions.length > 0 && (
-              <div className="flex flex-col gap-2 rounded-lg border border-border p-3">
-                <p className="text-xs font-medium text-muted-foreground">
-                  Assinaturas do cliente — marque pra adicionar como item de custo
-                </p>
-                {clientSubscriptions.map((subscription) => (
-                  <label
-                    key={subscription.id}
-                    className="flex cursor-pointer items-center gap-2 text-sm"
+          <Card>
+            <CardHeader>
+              <CardTitle>Horas por etapa</CardTitle>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-3">
+              {errors.hoursBreakdown?.message && (
+                <p className="text-xs text-destructive">{errors.hoursBreakdown.message}</p>
+              )}
+              {hourFields.map((field, index) => (
+                <div key={field.id} className="flex items-start gap-2">
+                  <Field
+                    label={index === 0 ? "Etapa" : undefined}
+                    htmlFor={`hours-label-${index}`}
+                    error={errors.hoursBreakdown?.[index]?.label?.message}
                   >
-                    <Checkbox
-                      checked={isSubscriptionChecked(subscription.id)}
-                      onCheckedChange={(checked) =>
-                        toggleSubscription(subscription, checked === true)
-                      }
+                    <Input
+                      id={`hours-label-${index}`}
+                      placeholder="Etapa"
+                      {...register(`hoursBreakdown.${index}.label`)}
                     />
-                    {subscription.name} —{" "}
-                    {subscription.currency === "USD"
-                      ? `US$ ${Number(subscription.amount).toFixed(2)}`
-                      : formatCurrency(subscription.amount)}
-                    {subscription.billingCycle === "YEARLY" ? "/ano" : "/mês"}
-                  </label>
-                ))}
-              </div>
-            )}
-
-            {catalog.length > 0 && (
-              <div className="flex flex-col gap-2 rounded-lg border border-border p-3">
-                <p className="text-xs font-medium text-muted-foreground">
-                  Catálogo de serviços — adiciona uma linha nova a cada clique
-                </p>
-                {catalog.map((item) => {
-                  const added = isCatalogItemAdded(item);
-                  return (
-                    <div key={item.key} className="flex items-center justify-between gap-2 text-sm">
-                      <span>
-                        {item.name} —{" "}
-                        {item.currency === "USD"
-                          ? `US$ ${Number(item.defaultAmount).toFixed(2)}`
-                          : formatCurrency(item.defaultAmount)}
-                        {item.billingCycle === "YEARLY" ? "/ano" : "/mês"}
-                      </span>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className="shrink-0 gap-1"
-                        disabled={added}
-                        onClick={() => addCatalogItem(item)}
-                      >
-                        <Plus className="h-3.5 w-3.5" /> {added ? "Adicionado" : "Adicionar"}
-                      </Button>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-
-            {creditSubscriptions.length > 0 && (
-              <div className="flex flex-col gap-2 rounded-lg border border-border p-3">
-                <p className="text-xs font-medium text-muted-foreground">
-                  Créditos estimados — custo único, não entra no × meses de infra
-                </p>
-                {creditSubscriptions.map((subscription) => {
-                  const included = subscription.creditsIncluded ?? 1;
-                  const unit = monthlyBrl(subscription, usdToBrlRate) / included;
-                  const credits = creditsLineValue(subscription.id);
-                  return (
-                    <div key={subscription.id} className="flex flex-wrap items-center gap-2 text-sm">
-                      <span className="min-w-0 flex-1">Créditos {subscription.name}:</span>
-                      <Input
-                        type="number"
-                        inputMode="numeric"
-                        min={0}
-                        className="w-24"
-                        value={credits || ""}
-                        placeholder="0"
-                        onChange={(e) => setCreditsLine(subscription, Number(e.target.value) || 0)}
-                        aria-label={`Créditos estimados de ${subscription.name}`}
-                      />
-                      <span className="text-xs text-muted-foreground">
-                        × {formatCurrency(unit)} = {formatCurrency(credits * unit)}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-
-            <div className="flex flex-col gap-2">
-              {costFields.map((field, index) => {
-                const item = values.costItems?.[index];
-                const origin = item?.isOneTime ? "único" : item?.subscriptionId ? "Assinatura" : "Avulso";
-                return (
-                  <div
-                    key={field.id}
-                    className="flex flex-wrap items-start gap-2 rounded-lg border border-border p-2"
+                  </Field>
+                  <Field
+                    label={index === 0 ? "Horas" : undefined}
+                    htmlFor={`hours-value-${index}`}
+                    error={errors.hoursBreakdown?.[index]?.hours?.message}
                   >
-                    <Field
-                      label="Nome"
-                      htmlFor={`cost-label-${index}`}
-                      error={errors.costItems?.[index]?.label?.message}
+                    <Input
+                      id={`hours-value-${index}`}
+                      inputMode="decimal"
+                      className="w-28"
+                      {...register(`hoursBreakdown.${index}.hours`)}
+                    />
+                  </Field>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    aria-label="Remover etapa"
+                    onClick={() => removeHour(index)}
+                    disabled={hourFields.length <= 1}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              ))}
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="w-fit gap-1.5"
+                onClick={() => appendHour({ label: "", hours: 0 })}
+              >
+                <Plus className="h-4 w-4" /> Adicionar etapa
+              </Button>
+              <p className="text-xs text-muted-foreground">Total: {computed.totalHours}h</p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Infra do cliente</CardTitle>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-4">
+              {clientSubscriptions.length > 0 && (
+                <div className="flex flex-col gap-2 rounded-lg border border-border p-3">
+                  <p className="text-xs font-medium text-muted-foreground">
+                    Assinaturas do cliente — marque pra adicionar como item de custo
+                  </p>
+                  {clientSubscriptions.map((subscription) => (
+                    <label
+                      key={subscription.id}
+                      className="flex cursor-pointer items-center gap-2 text-sm"
                     >
-                      <Input
-                        id={`cost-label-${index}`}
-                        className="w-40"
-                        {...register(`costItems.${index}.label`)}
+                      <Checkbox
+                        checked={isSubscriptionChecked(subscription.id)}
+                        onCheckedChange={(checked) =>
+                          toggleSubscription(subscription, checked === true)
+                        }
                       />
-                    </Field>
-                    <Field
-                      label="Valor"
-                      htmlFor={`cost-amount-${index}`}
-                      error={errors.costItems?.[index]?.amount?.message}
+                      {subscription.name} —{" "}
+                      {subscription.currency === "USD"
+                        ? `US$ ${Number(subscription.amount).toFixed(2)}`
+                        : formatCurrency(subscription.amount)}
+                      {subscription.billingCycle === "YEARLY" ? "/ano" : "/mês"}
+                    </label>
+                  ))}
+                </div>
+              )}
+
+              {catalog.length > 0 && (
+                <div className="flex flex-col gap-2 rounded-lg border border-border p-3">
+                  <p className="text-xs font-medium text-muted-foreground">
+                    Catálogo de serviços — adiciona uma linha nova a cada clique
+                  </p>
+                  {catalog.map((item) => {
+                    const added = isCatalogItemAdded(item);
+                    return (
+                      <div
+                        key={item.key}
+                        className="flex items-center justify-between gap-2 text-sm"
+                      >
+                        <span>
+                          {item.name} —{" "}
+                          {item.currency === "USD"
+                            ? `US$ ${Number(item.defaultAmount).toFixed(2)}`
+                            : formatCurrency(item.defaultAmount)}
+                          {item.billingCycle === "YEARLY" ? "/ano" : "/mês"}
+                        </span>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="shrink-0 gap-1"
+                          disabled={added}
+                          onClick={() => addCatalogItem(item)}
+                        >
+                          <Plus className="h-3.5 w-3.5" /> {added ? "Adicionado" : "Adicionar"}
+                        </Button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {creditSubscriptions.length > 0 && (
+                <div className="flex flex-col gap-2 rounded-lg border border-border p-3">
+                  <p className="text-xs font-medium text-muted-foreground">
+                    Créditos estimados — custo único, não entra no × meses de infra
+                  </p>
+                  {creditSubscriptions.map((subscription) => {
+                    const included = subscription.creditsIncluded ?? 1;
+                    const unit = monthlyBrl(subscription, usdToBrlRate) / included;
+                    const credits = creditsLineValue(subscription.id);
+                    return (
+                      <div
+                        key={subscription.id}
+                        className="flex flex-wrap items-center gap-2 text-sm"
+                      >
+                        <span className="min-w-0 flex-1">Créditos {subscription.name}:</span>
+                        <Input
+                          type="number"
+                          inputMode="numeric"
+                          min={0}
+                          className="w-24"
+                          value={credits || ""}
+                          placeholder="0"
+                          onChange={(e) =>
+                            setCreditsLine(subscription, Number(e.target.value) || 0)
+                          }
+                          aria-label={`Créditos estimados de ${subscription.name}`}
+                        />
+                        <span className="text-xs text-muted-foreground">
+                          × {formatCurrency(unit)} = {formatCurrency(credits * unit)}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              <div className="flex flex-col gap-2">
+                {costFields.map((field, index) => {
+                  const item = values.costItems?.[index];
+                  const origin = item?.isOneTime
+                    ? "único"
+                    : item?.subscriptionId
+                      ? "Assinatura"
+                      : "Avulso";
+                  return (
+                    <div
+                      key={field.id}
+                      className="flex flex-wrap items-start gap-2 rounded-lg border border-border p-2"
                     >
-                      <Input
-                        id={`cost-amount-${index}`}
-                        inputMode="decimal"
-                        className="w-24"
-                        {...register(`costItems.${index}.amount`)}
-                      />
-                    </Field>
-                    <Field label="Moeda">
-                      <Controller
-                        control={control}
-                        name={`costItems.${index}.currency`}
-                        render={({ field: f }) => (
-                          <Select value={f.value} onValueChange={f.onChange}>
-                            <SelectTrigger className="w-24">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="BRL">BRL</SelectItem>
-                              <SelectItem value="USD">USD</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        )}
-                      />
-                    </Field>
-                    {/* Custo único não tem ciclo (a API rejeita isOneTime+YEARLY) --
-                        esconder em vez de deixar um seletor que quebraria a gravação. */}
-                    {!item?.isOneTime && (
-                      <Field label="Ciclo">
+                      <Field
+                        label="Nome"
+                        htmlFor={`cost-label-${index}`}
+                        error={errors.costItems?.[index]?.label?.message}
+                      >
+                        <Input
+                          id={`cost-label-${index}`}
+                          className="w-40"
+                          {...register(`costItems.${index}.label`)}
+                        />
+                      </Field>
+                      <Field
+                        label="Valor"
+                        htmlFor={`cost-amount-${index}`}
+                        error={errors.costItems?.[index]?.amount?.message}
+                      >
+                        <Input
+                          id={`cost-amount-${index}`}
+                          inputMode="decimal"
+                          className="w-24"
+                          {...register(`costItems.${index}.amount`)}
+                        />
+                      </Field>
+                      <Field label="Moeda">
                         <Controller
                           control={control}
-                          name={`costItems.${index}.billingCycle`}
+                          name={`costItems.${index}.currency`}
                           render={({ field: f }) => (
                             <Select value={f.value} onValueChange={f.onChange}>
-                              <SelectTrigger className="w-28">
+                              <SelectTrigger className="w-24">
                                 <SelectValue />
                               </SelectTrigger>
                               <SelectContent>
-                                <SelectItem value="MONTHLY">Mensal</SelectItem>
-                                <SelectItem value="YEARLY">Anual</SelectItem>
+                                <SelectItem value="BRL">BRL</SelectItem>
+                                <SelectItem value="USD">USD</SelectItem>
                               </SelectContent>
                             </Select>
                           )}
                         />
                       </Field>
-                    )}
-                    <Badge variant={item?.isOneTime ? "outline" : "secondary"} className="mt-6">
-                      {origin}
-                    </Badge>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="mt-5"
-                      aria-label="Remover item de custo"
-                      onClick={() => removeCost(index)}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                );
-              })}
-            </div>
+                      {/* Custo único não tem ciclo (a API rejeita isOneTime+YEARLY) --
+                        esconder em vez de deixar um seletor que quebraria a gravação. */}
+                      {!item?.isOneTime && (
+                        <Field label="Ciclo">
+                          <Controller
+                            control={control}
+                            name={`costItems.${index}.billingCycle`}
+                            render={({ field: f }) => (
+                              <Select value={f.value} onValueChange={f.onChange}>
+                                <SelectTrigger className="w-28">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="MONTHLY">Mensal</SelectItem>
+                                  <SelectItem value="YEARLY">Anual</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            )}
+                          />
+                        </Field>
+                      )}
+                      <Badge variant={item?.isOneTime ? "outline" : "secondary"} className="mt-6">
+                        {origin}
+                      </Badge>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="mt-5"
+                        aria-label="Remover item de custo"
+                        onClick={() => removeCost(index)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  );
+                })}
+              </div>
 
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="w-fit gap-1.5"
-              onClick={() =>
-                appendCost({
-                  label: "",
-                  amount: 0,
-                  currency: "BRL",
-                  billingCycle: "MONTHLY",
-                  subscriptionId: null,
-                })
-              }
-            >
-              <Plus className="h-4 w-4" /> Item avulso
-            </Button>
-
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Field
-                label="Rateio da agência (mensal)"
-                htmlFor="agency-share"
-                error={errors.agencyShareMonthly?.message}
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="w-fit gap-1.5"
+                onClick={() =>
+                  appendCost({
+                    label: "",
+                    amount: 0,
+                    currency: "BRL",
+                    billingCycle: "MONTHLY",
+                    subscriptionId: null,
+                  })
+                }
               >
-                <Input id="agency-share" inputMode="decimal" {...register("agencyShareMonthly")} />
-                {/* Orçamento novo nasce com rateio 0 (decisão do Rick) -- este
+                <Plus className="h-4 w-4" /> Item avulso
+              </Button>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Field
+                  label="Rateio da agência (mensal)"
+                  htmlFor="agency-share"
+                  error={errors.agencyShareMonthly?.message}
+                >
+                  <Input
+                    id="agency-share"
+                    inputMode="decimal"
+                    {...register("agencyShareMonthly")}
+                  />
+                  {/* Orçamento novo nasce com rateio 0 (decisão do Rick) -- este
                     é só um atalho pra puxar o valor calculado hoje, não um
                     auto-fill. */}
-                {costSummary && (
-                  <p className="text-xs text-muted-foreground">
-                    Rateio calculado hoje: {formatCurrency(costSummary.perClientShareBrl)}
-                    {" — "}
-                    <button
-                      type="button"
-                      className="font-medium text-primary hover:underline"
-                      onClick={() => setValue("agencyShareMonthly", costSummary.perClientShareBrl)}
-                    >
-                      Usar
-                    </button>
-                  </p>
-                )}
-              </Field>
-              <Field label="Meses de infra" htmlFor="infra-months" error={errors.infraMonths?.message}>
-                <Input id="infra-months" inputMode="numeric" {...register("infraMonths")} />
-              </Field>
-            </div>
-
-            <Field label="Domínio .br (Registro.br)">
-              <Select
-                value={String(values.domainYears ?? 0)}
-                onValueChange={(v) => handleDomainYearsChange(Number(v))}
-              >
-                <SelectTrigger className="w-full sm:w-64">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="0">Nenhum</SelectItem>
-                  <SelectItem value="1">1 ano — {formatCurrency(domainYearPrice)}</SelectItem>
-                  <SelectItem value="2">2 anos — {formatCurrency(domainYearPrice * 2)}</SelectItem>
-                  <SelectItem value="3">3 anos — {formatCurrency(domainYearPrice * 3)}</SelectItem>
-                </SelectContent>
-              </Select>
-            </Field>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Precificação</CardTitle>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-4">
-            <Field
-              label="Reserva de suporte (%)"
-              htmlFor="support-reserve"
-              error={errors.supportReservePct?.message}
-            >
-              <Input id="support-reserve" inputMode="decimal" {...register("supportReservePct")} />
-            </Field>
-
-            <Field label="Margem (%)" htmlFor="margin-pct" error={errors.marginPct?.message}>
-              <div className="flex items-center gap-2">
-                {MARGIN_PRESETS.map((preset) => (
-                  <Button
-                    key={preset}
-                    type="button"
-                    variant={Number(values.marginPct) === preset ? "secondary" : "outline"}
-                    size="sm"
-                    onClick={() => setValue("marginPct", preset)}
-                  >
-                    {preset}%
-                  </Button>
-                ))}
-                <Input
-                  id="margin-pct"
-                  inputMode="decimal"
-                  className="w-24"
-                  {...register("marginPct")}
-                />
+                  {costSummary && (
+                    <p className="text-xs text-muted-foreground">
+                      Rateio calculado hoje: {formatCurrency(costSummary.perClientShareBrl)}
+                      {" — "}
+                      <button
+                        type="button"
+                        className="font-medium text-primary hover:underline"
+                        onClick={() =>
+                          setValue("agencyShareMonthly", costSummary.perClientShareBrl)
+                        }
+                      >
+                        Usar
+                      </button>
+                    </p>
+                  )}
+                </Field>
+                <Field
+                  label="Meses de infra"
+                  htmlFor="infra-months"
+                  error={errors.infraMonths?.message}
+                >
+                  <Input id="infra-months" inputMode="numeric" {...register("infraMonths")} />
+                </Field>
               </div>
-            </Field>
-          </CardContent>
-        </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Escopo e condições</CardTitle>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-4">
-            <Field label="Escopo (1 item por linha)" htmlFor="scope-items">
-              <Textarea id="scope-items" rows={5} {...register("scopeText")} />
-            </Field>
+              <Field label="Domínio .br (Registro.br)">
+                <Select
+                  value={String(values.domainYears ?? 0)}
+                  onValueChange={(v) => handleDomainYearsChange(Number(v))}
+                >
+                  <SelectTrigger className="w-full sm:w-64">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="0">Nenhum</SelectItem>
+                    <SelectItem value="1">1 ano — {formatCurrency(domainYearPrice)}</SelectItem>
+                    <SelectItem value="2">
+                      2 anos — {formatCurrency(domainYearPrice * 2)}
+                    </SelectItem>
+                    <SelectItem value="3">
+                      3 anos — {formatCurrency(domainYearPrice * 3)}
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </Field>
+            </CardContent>
+          </Card>
 
-            <div className="grid gap-4 sm:grid-cols-3">
-              <Field label="Prazo (dias)" htmlFor="deadline-days" error={errors.deadlineDays?.message}>
-                <Input id="deadline-days" inputMode="numeric" {...register("deadlineDays")} />
+          <Card>
+            <CardHeader>
+              <CardTitle>Precificação</CardTitle>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-4">
+              <Field
+                label="Reserva de suporte (%)"
+                htmlFor="support-reserve"
+                error={errors.supportReservePct?.message}
+              >
+                <Input
+                  id="support-reserve"
+                  inputMode="decimal"
+                  {...register("supportReservePct")}
+                />
               </Field>
-              <Field label="Validade (dias)" htmlFor="valid-days" error={errors.validDays?.message}>
-                <Input id="valid-days" inputMode="numeric" {...register("validDays")} />
-              </Field>
-              <Field label="Taxa horária (R$)" htmlFor="hourly-rate" error={errors.hourlyRate?.message}>
-                <Input id="hourly-rate" inputMode="decimal" {...register("hourlyRate")} />
-              </Field>
-            </div>
 
-            <Field label="Condições de pagamento" htmlFor="payment-terms">
-              <Textarea id="payment-terms" rows={2} {...register("paymentTerms")} />
-            </Field>
-          </CardContent>
-        </Card>
+              <Field label="Margem (%)" htmlFor="margin-pct" error={errors.marginPct?.message}>
+                <div className="flex items-center gap-2">
+                  {MARGIN_PRESETS.map((preset) => (
+                    <Button
+                      key={preset}
+                      type="button"
+                      variant={Number(values.marginPct) === preset ? "secondary" : "outline"}
+                      size="sm"
+                      onClick={() => setValue("marginPct", preset)}
+                    >
+                      {preset}%
+                    </Button>
+                  ))}
+                  <Input
+                    id="margin-pct"
+                    inputMode="decimal"
+                    className="w-24"
+                    {...register("marginPct")}
+                  />
+                </div>
+              </Field>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Escopo e condições</CardTitle>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-4">
+              <Field label="Escopo (1 item por linha)" htmlFor="scope-items">
+                <Textarea id="scope-items" rows={5} {...register("scopeText")} />
+              </Field>
+
+              <div className="grid gap-4 sm:grid-cols-3">
+                <Field
+                  label="Prazo (dias)"
+                  htmlFor="deadline-days"
+                  error={errors.deadlineDays?.message}
+                >
+                  <Input id="deadline-days" inputMode="numeric" {...register("deadlineDays")} />
+                </Field>
+                <Field
+                  label="Validade (dias)"
+                  htmlFor="valid-days"
+                  error={errors.validDays?.message}
+                >
+                  <Input id="valid-days" inputMode="numeric" {...register("validDays")} />
+                </Field>
+                <Field
+                  label="Taxa horária (R$)"
+                  htmlFor="hourly-rate"
+                  error={errors.hourlyRate?.message}
+                >
+                  <Input id="hourly-rate" inputMode="decimal" {...register("hourlyRate")} />
+                </Field>
+              </div>
+
+              <Field label="Condições de pagamento" htmlFor="payment-terms">
+                <Textarea id="payment-terms" rows={2} {...register("paymentTerms")} />
+              </Field>
+            </CardContent>
+          </Card>
         </fieldset>
 
         {!isConverted && (

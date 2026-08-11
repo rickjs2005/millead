@@ -133,7 +133,14 @@ function makeService(
     contratoAssinado: vi.fn().mockResolvedValue(undefined),
   } as unknown as ContractNotifier;
 
-  const service = new ContractService(contracts, companies, organizations, queue, gateway, notifier);
+  const service = new ContractService(
+    contracts,
+    companies,
+    organizations,
+    queue,
+    gateway,
+    notifier,
+  );
 
   return { service, contracts, companies, organizations, queue, gateway, notifier };
 }
@@ -176,9 +183,7 @@ describe("ContractService.createDraftFromProposal", () => {
     expect(arg.leadId).toBe("lead-1");
     expect(arg.createdById).toBeNull();
     expect(arg.valorTotal).toBe("5000.00");
-    expect(arg.descricaoProjeto).toBe(
-      "Site institucional\n- Página inicial\n- Página de contato",
-    );
+    expect(arg.descricaoProjeto).toBe("Site institucional\n- Página inicial\n- Página de contato");
     expect(arg.prazoEntregaDias).toBe(21);
     expect(arg.tipo).toBe("SITE");
     expect(arg.formaPagamento).toBe("PIX");
@@ -202,9 +207,9 @@ describe("ContractService.createDraftFromProposal", () => {
   it("sem empresa vinculada lança ValidationError e não cria contrato", async () => {
     const { service, contracts } = makeService();
 
-    await expect(
-      service.createDraftFromProposal(fakeInput({ company: null })),
-    ).rejects.toThrow(ValidationError);
+    await expect(service.createDraftFromProposal(fakeInput({ company: null }))).rejects.toThrow(
+      ValidationError,
+    );
     expect(contracts.create).not.toHaveBeenCalled();
   });
 

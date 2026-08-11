@@ -219,7 +219,10 @@ export function CostSubscriptionDialog({
                   control={control}
                   name="scope"
                   render={({ field }) => (
-                    <Select value={field.value} onValueChange={(v) => field.onChange(v as CostScope)}>
+                    <Select
+                      value={field.value}
+                      onValueChange={(v) => field.onChange(v as CostScope)}
+                    >
                       <SelectTrigger id="cost-scope">
                         <SelectValue />
                       </SelectTrigger>
@@ -269,7 +272,8 @@ export function CostSubscriptionDialog({
                 )}
                 {currency === "USD" && rate > 0 && (
                   <p className="text-xs text-muted-foreground">
-                    ≈ {formatCurrency(monthlyBrl(Number(amount || 0), currency, billingCycle, rate))}
+                    ≈{" "}
+                    {formatCurrency(monthlyBrl(Number(amount || 0), currency, billingCycle, rate))}
                     /mês no câmbio atual
                   </p>
                 )}

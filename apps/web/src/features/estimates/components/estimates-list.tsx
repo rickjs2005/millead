@@ -40,10 +40,7 @@ function EstimateRow({
   const { confirm, dialog } = useConfirmDialog();
 
   return (
-    <TableRow
-      className="cursor-pointer"
-      onClick={() => router.push(`/estimates/${estimate.id}`)}
-    >
+    <TableRow className="cursor-pointer" onClick={() => router.push(`/estimates/${estimate.id}`)}>
       <TableCell className="max-w-56 truncate font-medium text-foreground">
         {estimate.title}
       </TableCell>

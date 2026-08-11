@@ -53,7 +53,10 @@ export class EstimateService {
     ]);
     const usdToBrlRate = Number(settings.usdToBrlRate);
     return {
-      items: result.items.map((item) => ({ ...item, computed: this.toComputed(item, usdToBrlRate) })),
+      items: result.items.map((item) => ({
+        ...item,
+        computed: this.toComputed(item, usdToBrlRate),
+      })),
       total: result.total,
     };
   }
@@ -120,7 +123,10 @@ export class EstimateService {
    * os itens do orçamento estão congelados, só o USD varia. Null se não há
    * orçamento vinculado a essa proposta (ou se ela é de outra org).
    */
-  async projectedCostByProposalId(organizationId: string, proposalId: string): Promise<number | null> {
+  async projectedCostByProposalId(
+    organizationId: string,
+    proposalId: string,
+  ): Promise<number | null> {
     const estimate = await this.repository.findByProposalId(proposalId);
     if (!estimate || estimate.organizationId !== organizationId) return null;
 

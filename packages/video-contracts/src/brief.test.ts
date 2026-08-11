@@ -15,7 +15,13 @@ function validBrief() {
     totalDurationSec: 17,
     wordBudget: 43,
     scenes: [
-      { id: "sc1", kind: "studio" as const, component: "notebook" as const, durationSec: 3, zoomTargets: [] },
+      {
+        id: "sc1",
+        kind: "studio" as const,
+        component: "notebook" as const,
+        durationSec: 3,
+        zoomTargets: [],
+      },
       {
         id: "sc2",
         kind: "studio" as const,

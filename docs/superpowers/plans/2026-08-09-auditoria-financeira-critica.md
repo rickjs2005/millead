@@ -21,6 +21,7 @@
 ---
 
 ### Task 0: Branch + sanidade
+
 - [ ] `git checkout main && git pull && git checkout -b auditoria-financeira-critica`; suite api + type-check web verdes.
 
 ### Task 1: API — revalidar total do contrato em update/remove de parcela

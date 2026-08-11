@@ -63,9 +63,7 @@ export class ReceivableController {
 
   pay = async (req: Request, res: Response): Promise<void> => {
     const auth = requireAuth(req);
-    res
-      .status(200)
-      .json(await this.receivables.pay(auth.organizationId, req.params.id!, req.body));
+    res.status(200).json(await this.receivables.pay(auth.organizationId, req.params.id!, req.body));
   };
 
   unpay = async (req: Request, res: Response): Promise<void> => {

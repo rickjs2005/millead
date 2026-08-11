@@ -16,9 +16,7 @@ describe("escapeHtml", () => {
     const malicioso = `<a href="http://phishing.example">clique aqui</a>`;
     const escaped = escapeHtml(malicioso);
     expect(escaped).not.toContain("<a ");
-    expect(escaped).toBe(
-      "&lt;a href=&quot;http://phishing.example&quot;&gt;clique aqui&lt;/a&gt;",
-    );
+    expect(escaped).toBe("&lt;a href=&quot;http://phishing.example&quot;&gt;clique aqui&lt;/a&gt;");
   });
 
   it("texto normal sem caracteres especiais passa intacto", () => {

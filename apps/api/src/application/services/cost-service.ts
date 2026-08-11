@@ -52,9 +52,10 @@ interface CapacitySubscription {
 
 /** Puro pra ser testável sem repo -- só assinaturas ativas com used/limit definidos
  * e limit>0 entram na lista, ordenadas por pct desc. */
-export function computeCapacity(
-  subscriptions: readonly CapacitySubscription[],
-): { capacity: CapacityEntry[]; maxCapacityPct: number | null } {
+export function computeCapacity(subscriptions: readonly CapacitySubscription[]): {
+  capacity: CapacityEntry[];
+  maxCapacityPct: number | null;
+} {
   const capacity = subscriptions
     .filter(
       (s): s is CapacitySubscription & { capacityUsed: number; capacityLimit: number } =>
@@ -86,7 +87,10 @@ export function computeSummary(
   const sum = (scope: "AGENCY" | "CLIENT") =>
     active
       .filter((s) => s.scope === scope)
-      .reduce((acc, s) => acc + monthlyAmountBrl(Number(s.amount), s.currency, s.billingCycle, rate), 0);
+      .reduce(
+        (acc, s) => acc + monthlyAmountBrl(Number(s.amount), s.currency, s.billingCycle, rate),
+        0,
+      );
 
   const agencyMonthlyBrl = sum("AGENCY");
   const clientMonthlyBrl = sum("CLIENT");
@@ -127,7 +131,10 @@ function buildSummary(
       capacityUsed: s.capacityUsed,
       capacityLimit: s.capacityLimit,
     })),
-    { usdToBrlRate: Number(settings.usdToBrlRate), activeClientsCount: settings.activeClientsCount },
+    {
+      usdToBrlRate: Number(settings.usdToBrlRate),
+      activeClientsCount: settings.activeClientsCount,
+    },
     wonLeadsCount,
   );
 }
@@ -155,7 +162,10 @@ interface UsageSubscription {
  * null quando a assinatura não tem creditsIncluded. */
 function unitPriceBrlFor(sub: UsageSubscription | undefined, usdRate: number): number | null {
   if (!sub || !sub.creditsIncluded) return null;
-  return monthlyAmountBrl(Number(sub.amount), sub.currency, sub.billingCycle, usdRate) / sub.creditsIncluded;
+  return (
+    monthlyAmountBrl(Number(sub.amount), sub.currency, sub.billingCycle, usdRate) /
+    sub.creditsIncluded
+  );
 }
 
 /** Custo em BRL de UM lançamento -- usa o preço GRAVADO no momento
@@ -236,10 +246,15 @@ export function computeUsageSummary(
 }
 
 /** "YYYY-MM" do dia corrente no fuso informado (default America/Sao_Paulo). */
-export function currentMonthInTimeZone(now: Date = new Date(), timeZone = "America/Sao_Paulo"): string {
-  const parts = new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit" }).formatToParts(
-    now,
-  );
+export function currentMonthInTimeZone(
+  now: Date = new Date(),
+  timeZone = "America/Sao_Paulo",
+): string {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+  }).formatToParts(now);
   const year = parts.find((p) => p.type === "year")!.value;
   const month = parts.find((p) => p.type === "month")!.value;
   return `${year}-${month}`;
@@ -329,7 +344,10 @@ export function recurringCostBrlForMonth(
 ): number {
   return subscriptions
     .filter((s) => s.isActive && s.createdAt < monthEndExclusive)
-    .reduce((acc, s) => acc + monthlyAmountBrl(Number(s.amount), s.currency, s.billingCycle, usdRate), 0);
+    .reduce(
+      (acc, s) => acc + monthlyAmountBrl(Number(s.amount), s.currency, s.billingCycle, usdRate),
+      0,
+    );
 }
 
 /** Ponto da série mensal -- custo de consumo em BRL já resolvido (snapshot
@@ -532,7 +550,10 @@ export class CostService {
   }
 
   async createUsage(organizationId: string, input: CreateUsageEntryInput): Promise<CostUsageEntry> {
-    const subscription = await this.repository.findSubscriptionById(organizationId, input.subscriptionId);
+    const subscription = await this.repository.findSubscriptionById(
+      organizationId,
+      input.subscriptionId,
+    );
     if (!subscription) throw new NotFoundError("Assinatura não encontrada.");
     if (!subscription.creditsIncluded) {
       // Sem creditsIncluded não dá pra derivar preço/crédito -- aceitar
@@ -642,8 +663,17 @@ export class CostService {
       months: keys.map((key) => {
         const usageCostBrl = buckets.get(key)!;
         const { to: monthEndExclusive } = monthRangeUtc(key);
-        const recurringCostBrl = recurringCostBrlForMonth(subscriptions, monthEndExclusive, usdRate);
-        return { month: key, usageCostBrl, recurringCostBrl, totalCostBrl: usageCostBrl + recurringCostBrl };
+        const recurringCostBrl = recurringCostBrlForMonth(
+          subscriptions,
+          monthEndExclusive,
+          usdRate,
+        );
+        return {
+          month: key,
+          usageCostBrl,
+          recurringCostBrl,
+          totalCostBrl: usageCostBrl + recurringCostBrl,
+        };
       }),
       yearTotal,
       recurringMonthlyBrl: summary.totalMonthlyBrl,

@@ -25,25 +25,27 @@
 ### Task 1: Renderer do PDF da proposta + teste
 
 **Files:**
+
 - Create: `apps/api/src/infrastructure/proposals/pdf/render.ts`
 - Create: `apps/api/src/infrastructure/proposals/pdf/render.test.ts`
 
 **Interfaces:**
+
 - Produces:
 
 ```ts
 export interface ProposalPdfData {
-  proposalNumber: string;      // ex.: "2026-A1B2C3"
-  orgName: string;             // capa
-  clientName: string;          // empresa do lead, ou título do lead
-  projectTitle: string;        // título do orçamento
-  productName: string | null;  // nome do ProjectProduct, se houver
-  scopeItems: string[];        // bullets do escopo
+  proposalNumber: string; // ex.: "2026-A1B2C3"
+  orgName: string; // capa
+  clientName: string; // empresa do lead, ou título do lead
+  projectTitle: string; // título do orçamento
+  productName: string | null; // nome do ProjectProduct, se houver
+  scopeItems: string[]; // bullets do escopo
   deadlineDays: number;
   paymentTerms: string;
   validDays: number;
-  finalPrice: number;          // preço escolhido na conversão
-  infraMonthlyBrl: number;     // computed do orçamento (0 = sem linha de infra)
+  finalPrice: number; // preço escolhido na conversão
+  infraMonthlyBrl: number; // computed do orçamento (0 = sem linha de infra)
   infraMonths: number;
   createdAt: Date;
 }
@@ -90,7 +92,10 @@ describe("renderProposalPdf", () => {
   });
 
   it("escopo longo pagina sem estourar", async () => {
-    const many = Array.from({ length: 30 }, (_, i) => `Item de escopo número ${i + 1} com texto razoavelmente longo pra forçar quebra`);
+    const many = Array.from(
+      { length: 30 },
+      (_, i) => `Item de escopo número ${i + 1} com texto razoavelmente longo pra forçar quebra`,
+    );
     const bytes = await renderProposalPdf({ ...DATA, scopeItems: many });
     const doc = await PDFDocument.load(bytes);
     expect(doc.getPageCount()).toBeGreaterThanOrEqual(1);
@@ -113,12 +118,14 @@ describe("renderProposalPdf", () => {
 ### Task 2: Endpoint de conversão + serviço + testes
 
 **Files:**
+
 - Modify: `apps/api/src/application/dto/estimate.dto.ts` (append `convertEstimateSchema`)
 - Modify: `apps/api/src/domain/repositories/estimate-repository.ts` + `infrastructure/prisma/prisma-estimate-repository.ts` (método `markConverted`)
 - Modify: `apps/api/src/application/services/estimate-service.ts` (+ deps novas) e `estimate-service.test.ts`
 - Modify: `apps/api/src/interfaces/http/controllers/estimate-controller.ts`, `interfaces/http/routes/estimate-routes.ts`, `main/container.ts`
 
 **Interfaces:**
+
 - DTO: `convertEstimateSchema = z.object({ price: z.number().min(1).max(9_999_999) })` — o front manda o preço escolhido (mínimo/recomendado/premium/custom são decisão de UI).
 - Repo: `markConverted(organizationId: string, id: string, proposalId: string): Promise<void>` — `updateMany` org-scoped setando `{ status: "CONVERTED", proposalId }`.
 - Service: `convert(organizationId: string, userId: string, id: string, input: { price: number }): Promise<{ estimate: PricingEstimateWithItems & { computed: EstimateComputed }; proposalId: string; pdfUrl: string }>`:
@@ -144,6 +151,7 @@ describe("renderProposalPdf", () => {
 ### Task 3: Web — dialog de conversão + integração nas telas
 
 **Files:**
+
 - Modify: `apps/web/src/services/estimates.ts`, `features/estimates/hooks.ts`, `types/api.ts`
 - Create: `apps/web/src/features/estimates/components/convert-estimate-dialog.tsx`
 - Modify: `apps/web/src/features/estimates/components/estimate-editor.tsx` (botão "Gerar proposta" no header quando status ≠ CONVERTED e leadId presente; banner/estado quando CONVERTED com link)
@@ -151,6 +159,7 @@ describe("renderProposalPdf", () => {
 - Modify (conferir antes): página/lista de Propostas — se a UI de propostas ainda não mostra `pdfUrl`, adicionar link/botão "Ver PDF" quando presente (conferir `features/proposals/components/proposals-list.tsx`)
 
 **Interfaces:**
+
 - `estimatesService.convert(id, price)` → `POST /api/v1/estimates/${id}/convert` retorna `{ estimate, proposalId, pdfUrl }`; tipos correspondentes em `types/api.ts` (`ConvertEstimateResult`).
 - Hook `useConvertEstimate` — invalida `["estimates"]` E `["proposals"]`; toast com ação/link.
 

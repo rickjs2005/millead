@@ -30,9 +30,7 @@ export const RenderManifestSchema = z.object({
         path: ["endFrame"],
       }),
   ),
-  audio: z.array(
-    z.object({ file: z.string().min(1), startFrame: z.number().int().nonnegative() }),
-  ),
+  audio: z.array(z.object({ file: z.string().min(1), startFrame: z.number().int().nonnegative() })),
 });
 
 export type RenderManifest = z.infer<typeof RenderManifestSchema>;

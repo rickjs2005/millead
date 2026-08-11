@@ -3,7 +3,10 @@ import { wordBudgetFor } from "./build-brief";
 import { SITE_SLOT_INFO, STUDIO_COMPONENT_INFO } from "./scenes";
 import type { PromptTemplate } from "./types";
 
-function infoFor(scene: BriefScene): { label: string; zoomTargets: { id: string; label: string }[] } {
+function infoFor(scene: BriefScene): {
+  label: string;
+  zoomTargets: { id: string; label: string }[];
+} {
   return scene.kind === "site"
     ? SITE_SLOT_INFO[scene.slot]
     : STUDIO_COMPONENT_INFO[scene.component];

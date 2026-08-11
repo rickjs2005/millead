@@ -111,8 +111,7 @@ export function FinanceCards() {
 
   // ---- Alerta: ganhos sem contrato ----
   const wonWithoutContractCount = finance.data?.wonWithoutContractCount ?? 0;
-  const showWonWithoutContractAlert =
-    canLeads && !finance.isError && wonWithoutContractCount > 0;
+  const showWonWithoutContractAlert = canLeads && !finance.isError && wonWithoutContractCount > 0;
 
   return (
     <div className="flex flex-col gap-6">

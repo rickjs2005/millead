@@ -7,6 +7,7 @@
 ## Objetivo
 
 Fechar dois elos quebrados do funil comercial do MilLead:
+
 1. O cliente não tem onde aceitar uma proposta — hoje o dono marca ACCEPTED
    na mão com base em conversa de WhatsApp, sem rastreio nenhum.
 2. O contrato não nasce da proposta — sem vínculo, valores redigitados.
@@ -28,6 +29,7 @@ rascunho com tudo herdado; o dono revisa e dispara a assinatura.
 ## Modelo (Prisma)
 
 `Proposal` ganha campos (org-scoped como já é):
+
 - `publicToken String? @unique` — ~100 bits url-safe, mesmo padrão do token
   de briefing; gerado na primeira transição para SENT (idempotente: se já
   existe, mantém — reenvio não invalida link antigo).
@@ -37,6 +39,7 @@ rascunho com tudo herdado; o dono revisa e dispara a assinatura.
 - `rejectReason String? @db.Text` — motivo opcional da recusa.
 
 `Contract` ganha:
+
 - `proposalId String? @unique` + relation — o vínculo que faltava.
   `@unique` de propósito: 1 proposta gera no máximo 1 contrato.
 
@@ -73,15 +76,16 @@ Sem autenticação, rate-limit no padrão da rota pública de fechamento
 ### Herança proposta → contrato
 
 Ao aceitar, cria `Contract` DRAFT com:
+
 - `proposalId`, `organizationId`, `companyId` e `leadId` da proposta;
 - valor: o `price` da proposta (que já veio da cascata do orçamento);
 - descrição do objeto/escopo: título da proposta + escopo do orçamento de
   origem (via `estimateId` da proposta, quando houver);
 - dados do contratante: os mesmos que o prefill de briefing já monta
   (empresa/contato), reusando esse código onde der.
-Condições de pagamento, prazos e cláusulas ficam vazios/default — decisão
-do dono na revisão. O contrato NÃO entra na fila de assinatura
-automaticamente.
+  Condições de pagamento, prazos e cláusulas ficam vazios/default — decisão
+  do dono na revisão. O contrato NÃO entra na fila de assinatura
+  automaticamente.
 
 ### Rotas autenticadas (ajustes)
 
@@ -129,6 +133,7 @@ neutra). Mobile-first — cliente abre no celular.
 ## Testes
 
 Padrão do repo (vitest junto do código):
+
 - DTO: reason max length; token format.
 - Service: máquina de estados (SENT→VIEWED no GET só uma vez; aceite de
   SENT e de VIEWED; 410 expirada marca EXPIRED; idempotência do aceite

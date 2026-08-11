@@ -22,6 +22,7 @@
 ## Verificações de ambiente (uma vez, antes do Task 1)
 
 Rodar na raiz `C:\Users\rickj\projetos\millead`:
+
 - `git status` deve estar limpo. Criar branch: `git checkout main && git checkout -b feat/finance-module`, depois trazer a spec: `git checkout feat/video-studio-inspector -- docs/superpowers/specs/2026-07-31-financeiro-custos-calculadora-design.md docs/superpowers/plans/2026-07-31-financeiro-fase1-centro-custos.md && git commit -m "docs: spec e plano do módulo Financeiro"`.
 - `.env` na raiz precisa ter `DATABASE_URL` (session pooler Supabase, porta 5432) — migrations rodam com `dotenv -e ../../.env` via scripts `pnpm db:*`.
 
@@ -30,10 +31,12 @@ Rodar na raiz `C:\Users\rickj\projetos\millead`:
 ### Task 1: Modelos Prisma + migration com RLS
 
 **Files:**
+
 - Modify: `packages/database/prisma/schema.prisma` (append ao final)
 - Create: `packages/database/prisma/migrations/<timestamp>_add_finance_module/migration.sql` (gerada + editada)
 
 **Interfaces:**
+
 - Produces: models `CostSubscription`, `CostServiceCatalog`, `FinanceSettings`, `ProjectProduct`; enums `CostScope`, `CostCurrency`, `CostBillingCycle`, `CostCategory`. Client em `@millead/database` (`prisma.costSubscription`, etc.).
 
 - [ ] **Step 1: Append ao `schema.prisma`** (seguir convenções das tabelas vizinhas; `Organization` ganha as relações inversas — adicionar os campos de lista no model `Organization` existente: `costSubscriptions CostSubscription[]`, `costServiceCatalogItems CostServiceCatalog[]`, `financeSettings FinanceSettings?`, `projectProducts ProjectProduct[]`; e `Company` ganha `costSubscriptions CostSubscription[]`):
@@ -193,10 +196,12 @@ git commit -m "feat(db): modelos do módulo Financeiro (custos, catálogo, setti
 ### Task 2: Seed — catálogo real, produtos e assinaturas do Rick
 
 **Files:**
+
 - Create: `packages/database/prisma/seed-data/finance.ts`
 - Modify: `packages/database/prisma/seed.ts` (chamar a nova função no final do fluxo existente)
 
 **Interfaces:**
+
 - Consumes: models do Task 1.
 - Produces: função `seedFinance(prisma: PrismaClient): Promise<void>` exportada de `seed-data/finance.ts`.
 
@@ -208,28 +213,211 @@ import type { PrismaClient } from "../../src/generated/client/index.js";
 
 /** Preços de tabela levantados em 31/07/2026 (spec do módulo Financeiro). */
 const CATALOG = [
-  { key: "claude-pro", name: "Claude Pro", category: "AI", defaultAmount: 20, currency: "USD", billingCycle: "MONTHLY", defaultScope: "AGENCY", bestFor: "IA para código e conteúdo (inclui Claude Code)", billingNotes: "US$ 20/mês (US$ 17 no anual)" },
-  { key: "claude-max-5x", name: "Claude Max 5x", category: "AI", defaultAmount: 100, currency: "USD", billingCycle: "MONTHLY", defaultScope: "AGENCY", bestFor: "Uso pesado de Claude Code", billingNotes: "A partir de US$ 100/mês" },
-  { key: "higgsfield-starter", name: "Higgsfield Starter", category: "AI", defaultAmount: 15, currency: "USD", billingCycle: "MONTHLY", defaultScope: "AGENCY", bestFor: "Geração de imagem/vídeo (200 créditos/mês)", billingNotes: "US$ 15/mês no plano anual" },
-  { key: "higgsfield-ultra", name: "Higgsfield Ultra", category: "AI", defaultAmount: 99, currency: "USD", billingCycle: "MONTHLY", defaultScope: "AGENCY", bestFor: "Geração pesada (≈3.000 créditos/mês)", billingNotes: "US$ 99/mês no plano anual" },
-  { key: "vercel-hobby", name: "Vercel Hobby", category: "HOSTING", defaultAmount: 0, currency: "USD", billingCycle: "MONTHLY", defaultScope: "AGENCY", defaultCapacityLimit: 10, bestFor: "Sites pessoais/demonstração (sem uso comercial)", billingNotes: "Grátis: 100 GB banda, 1M invocações; sem excedentes" },
-  { key: "vercel-pro", name: "Vercel Pro", category: "HOSTING", defaultAmount: 20, currency: "USD", billingCycle: "MONTHLY", defaultScope: "CLIENT", defaultCapacityLimit: 30, bestFor: "Next.js com SSR/ISR/APIs", billingNotes: "US$ 20/membro/mês + US$ 20 de crédito de uso; banda 1 TB, depois US$ 0,15/GB" },
-  { key: "supabase-free", name: "Supabase Free", category: "DATABASE", defaultAmount: 0, currency: "USD", billingCycle: "MONTHLY", defaultScope: "AGENCY", defaultCapacityLimit: 2, bestFor: "Protótipos (pausa após 1 semana inativo)", billingNotes: "2 projetos, 500 MB banco, 50k MAUs" },
-  { key: "supabase-pro", name: "Supabase Pro", category: "DATABASE", defaultAmount: 25, currency: "USD", billingCycle: "MONTHLY", defaultScope: "CLIENT", defaultCapacityLimit: 6, bestFor: "Auth + Postgres de produção", billingNotes: "US$ 25/mês: 8 GB banco, 100 GB storage; compute Micro US$ 10/projeto (1 crédito incluso)" },
-  { key: "render-free", name: "Render Free", category: "HOSTING", defaultAmount: 0, currency: "USD", billingCycle: "MONTHLY", defaultScope: "AGENCY", defaultCapacityLimit: 1, bestFor: "APIs de teste (dorme após 15 min)", billingNotes: "750 h de instância/mês; Postgres free expira em 30 dias" },
-  { key: "render-starter", name: "Render Web Starter", category: "HOSTING", defaultAmount: 7, currency: "USD", billingCycle: "MONTHLY", defaultScope: "CLIENT", defaultCapacityLimit: 1, bestFor: "Backend/API pequeno sempre no ar", billingNotes: "US$ 7/mês por serviço (512 MB RAM)" },
-  { key: "render-postgres-basic", name: "Render Postgres Basic", category: "DATABASE", defaultAmount: 6, currency: "USD", billingCycle: "MONTHLY", defaultScope: "CLIENT", bestFor: "Postgres gerenciado pequeno", billingNotes: "US$ 6/mês (256 MB RAM)" },
-  { key: "cloudflare-pages", name: "Cloudflare Pages", category: "HOSTING", defaultAmount: 0, currency: "BRL", billingCycle: "MONTHLY", defaultScope: "CLIENT", defaultCapacityLimit: 20, bestFor: "Landing pages e sites estáticos", billingNotes: "Plano gratuito generoso; padrão para LP sem backend" },
-  { key: "registrobr-domain", name: "Domínio .br (Registro.br)", category: "DOMAIN", defaultAmount: 40, currency: "BRL", billingCycle: "YEARLY", defaultScope: "CLIENT", bestFor: "Domínio nacional do cliente", billingNotes: "R$ 40/ano por domínio" },
-  { key: "github-free", name: "GitHub Free", category: "OTHER", defaultAmount: 0, currency: "BRL", billingCycle: "MONTHLY", defaultScope: "AGENCY", bestFor: "Repositórios privados ilimitados", billingNotes: "Grátis para o uso atual" },
+  {
+    key: "claude-pro",
+    name: "Claude Pro",
+    category: "AI",
+    defaultAmount: 20,
+    currency: "USD",
+    billingCycle: "MONTHLY",
+    defaultScope: "AGENCY",
+    bestFor: "IA para código e conteúdo (inclui Claude Code)",
+    billingNotes: "US$ 20/mês (US$ 17 no anual)",
+  },
+  {
+    key: "claude-max-5x",
+    name: "Claude Max 5x",
+    category: "AI",
+    defaultAmount: 100,
+    currency: "USD",
+    billingCycle: "MONTHLY",
+    defaultScope: "AGENCY",
+    bestFor: "Uso pesado de Claude Code",
+    billingNotes: "A partir de US$ 100/mês",
+  },
+  {
+    key: "higgsfield-starter",
+    name: "Higgsfield Starter",
+    category: "AI",
+    defaultAmount: 15,
+    currency: "USD",
+    billingCycle: "MONTHLY",
+    defaultScope: "AGENCY",
+    bestFor: "Geração de imagem/vídeo (200 créditos/mês)",
+    billingNotes: "US$ 15/mês no plano anual",
+  },
+  {
+    key: "higgsfield-ultra",
+    name: "Higgsfield Ultra",
+    category: "AI",
+    defaultAmount: 99,
+    currency: "USD",
+    billingCycle: "MONTHLY",
+    defaultScope: "AGENCY",
+    bestFor: "Geração pesada (≈3.000 créditos/mês)",
+    billingNotes: "US$ 99/mês no plano anual",
+  },
+  {
+    key: "vercel-hobby",
+    name: "Vercel Hobby",
+    category: "HOSTING",
+    defaultAmount: 0,
+    currency: "USD",
+    billingCycle: "MONTHLY",
+    defaultScope: "AGENCY",
+    defaultCapacityLimit: 10,
+    bestFor: "Sites pessoais/demonstração (sem uso comercial)",
+    billingNotes: "Grátis: 100 GB banda, 1M invocações; sem excedentes",
+  },
+  {
+    key: "vercel-pro",
+    name: "Vercel Pro",
+    category: "HOSTING",
+    defaultAmount: 20,
+    currency: "USD",
+    billingCycle: "MONTHLY",
+    defaultScope: "CLIENT",
+    defaultCapacityLimit: 30,
+    bestFor: "Next.js com SSR/ISR/APIs",
+    billingNotes: "US$ 20/membro/mês + US$ 20 de crédito de uso; banda 1 TB, depois US$ 0,15/GB",
+  },
+  {
+    key: "supabase-free",
+    name: "Supabase Free",
+    category: "DATABASE",
+    defaultAmount: 0,
+    currency: "USD",
+    billingCycle: "MONTHLY",
+    defaultScope: "AGENCY",
+    defaultCapacityLimit: 2,
+    bestFor: "Protótipos (pausa após 1 semana inativo)",
+    billingNotes: "2 projetos, 500 MB banco, 50k MAUs",
+  },
+  {
+    key: "supabase-pro",
+    name: "Supabase Pro",
+    category: "DATABASE",
+    defaultAmount: 25,
+    currency: "USD",
+    billingCycle: "MONTHLY",
+    defaultScope: "CLIENT",
+    defaultCapacityLimit: 6,
+    bestFor: "Auth + Postgres de produção",
+    billingNotes:
+      "US$ 25/mês: 8 GB banco, 100 GB storage; compute Micro US$ 10/projeto (1 crédito incluso)",
+  },
+  {
+    key: "render-free",
+    name: "Render Free",
+    category: "HOSTING",
+    defaultAmount: 0,
+    currency: "USD",
+    billingCycle: "MONTHLY",
+    defaultScope: "AGENCY",
+    defaultCapacityLimit: 1,
+    bestFor: "APIs de teste (dorme após 15 min)",
+    billingNotes: "750 h de instância/mês; Postgres free expira em 30 dias",
+  },
+  {
+    key: "render-starter",
+    name: "Render Web Starter",
+    category: "HOSTING",
+    defaultAmount: 7,
+    currency: "USD",
+    billingCycle: "MONTHLY",
+    defaultScope: "CLIENT",
+    defaultCapacityLimit: 1,
+    bestFor: "Backend/API pequeno sempre no ar",
+    billingNotes: "US$ 7/mês por serviço (512 MB RAM)",
+  },
+  {
+    key: "render-postgres-basic",
+    name: "Render Postgres Basic",
+    category: "DATABASE",
+    defaultAmount: 6,
+    currency: "USD",
+    billingCycle: "MONTHLY",
+    defaultScope: "CLIENT",
+    bestFor: "Postgres gerenciado pequeno",
+    billingNotes: "US$ 6/mês (256 MB RAM)",
+  },
+  {
+    key: "cloudflare-pages",
+    name: "Cloudflare Pages",
+    category: "HOSTING",
+    defaultAmount: 0,
+    currency: "BRL",
+    billingCycle: "MONTHLY",
+    defaultScope: "CLIENT",
+    defaultCapacityLimit: 20,
+    bestFor: "Landing pages e sites estáticos",
+    billingNotes: "Plano gratuito generoso; padrão para LP sem backend",
+  },
+  {
+    key: "registrobr-domain",
+    name: "Domínio .br (Registro.br)",
+    category: "DOMAIN",
+    defaultAmount: 40,
+    currency: "BRL",
+    billingCycle: "YEARLY",
+    defaultScope: "CLIENT",
+    bestFor: "Domínio nacional do cliente",
+    billingNotes: "R$ 40/ano por domínio",
+  },
+  {
+    key: "github-free",
+    name: "GitHub Free",
+    category: "OTHER",
+    defaultAmount: 0,
+    currency: "BRL",
+    billingCycle: "MONTHLY",
+    defaultScope: "AGENCY",
+    bestFor: "Repositórios privados ilimitados",
+    billingNotes: "Grátis para o uso atual",
+  },
 ] as const;
 
 const PRODUCTS = [
-  { name: "Landing Page Essencial", priceMin: 2000, priceMax: 3500, baseHours: 24, description: "1 página, foco em conversão, CTA WhatsApp", order: 1 },
-  { name: "Landing Page Premium", priceMin: 3500, priceMax: 6000, baseHours: 40, description: "Animações, vídeo, SEO, scroll cinematográfico", order: 2 },
-  { name: "Site Institucional", priceMin: 5000, priceMax: 8000, baseHours: 60, description: "5–8 páginas, credibilidade e autoridade", order: 3 },
-  { name: "Site Institucional Premium", priceMin: 8000, priceMax: 15000, baseHours: 90, description: "Design exclusivo, CMS, animações", order: 4 },
-  { name: "Sistema Web / SaaS", priceMin: 15000, priceMax: 40000, baseHours: 150, description: "Aplicação sob medida com backend", order: 5 },
+  {
+    name: "Landing Page Essencial",
+    priceMin: 2000,
+    priceMax: 3500,
+    baseHours: 24,
+    description: "1 página, foco em conversão, CTA WhatsApp",
+    order: 1,
+  },
+  {
+    name: "Landing Page Premium",
+    priceMin: 3500,
+    priceMax: 6000,
+    baseHours: 40,
+    description: "Animações, vídeo, SEO, scroll cinematográfico",
+    order: 2,
+  },
+  {
+    name: "Site Institucional",
+    priceMin: 5000,
+    priceMax: 8000,
+    baseHours: 60,
+    description: "5–8 páginas, credibilidade e autoridade",
+    order: 3,
+  },
+  {
+    name: "Site Institucional Premium",
+    priceMin: 8000,
+    priceMax: 15000,
+    baseHours: 90,
+    description: "Design exclusivo, CMS, animações",
+    order: 4,
+  },
+  {
+    name: "Sistema Web / SaaS",
+    priceMin: 15000,
+    priceMax: 40000,
+    baseHours: 150,
+    description: "Aplicação sob medida com backend",
+    order: 5,
+  },
 ] as const;
 
 /**
@@ -237,12 +425,66 @@ const PRODUCTS = [
  * capacityUsed é estimativa inicial -- tudo editável na UI depois.
  */
 const RICK_SUBSCRIPTIONS = [
-  { serviceKey: "claude-max-5x", name: "Claude Max 5x", scope: "AGENCY", amount: 550, currency: "BRL", billingCycle: "MONTHLY", notes: "Valor real no cartão (US$ 100 + câmbio/IOF)" },
-  { serviceKey: "higgsfield-starter", name: "Higgsfield", scope: "AGENCY", amount: 239, currency: "BRL", billingCycle: "MONTHLY", notes: "Plano mais barato, valor real no cartão" },
-  { serviceKey: "vercel-hobby", name: "Vercel Hobby", scope: "AGENCY", amount: 0, currency: "BRL", billingCycle: "MONTHLY", capacityLimit: 15, capacityUsed: 12, notes: "Sites da MilWeb e demos no ar (estimativa, ajustar)" },
-  { serviceKey: "supabase-free", name: "Supabase Free", scope: "AGENCY", amount: 0, currency: "BRL", billingCycle: "MONTHLY", capacityLimit: 2, capacityUsed: 1, notes: "Banco da MilLead" },
-  { serviceKey: "render-free", name: "Render Free", scope: "AGENCY", amount: 0, currency: "BRL", billingCycle: "MONTHLY", capacityLimit: 1, capacityUsed: 1, notes: "millead-api" },
-  { serviceKey: "registrobr-domain", name: "Domínio milweb.com.br", scope: "AGENCY", amount: 40, currency: "BRL", billingCycle: "YEARLY", notes: "Registro.br" },
+  {
+    serviceKey: "claude-max-5x",
+    name: "Claude Max 5x",
+    scope: "AGENCY",
+    amount: 550,
+    currency: "BRL",
+    billingCycle: "MONTHLY",
+    notes: "Valor real no cartão (US$ 100 + câmbio/IOF)",
+  },
+  {
+    serviceKey: "higgsfield-starter",
+    name: "Higgsfield",
+    scope: "AGENCY",
+    amount: 239,
+    currency: "BRL",
+    billingCycle: "MONTHLY",
+    notes: "Plano mais barato, valor real no cartão",
+  },
+  {
+    serviceKey: "vercel-hobby",
+    name: "Vercel Hobby",
+    scope: "AGENCY",
+    amount: 0,
+    currency: "BRL",
+    billingCycle: "MONTHLY",
+    capacityLimit: 15,
+    capacityUsed: 12,
+    notes: "Sites da MilWeb e demos no ar (estimativa, ajustar)",
+  },
+  {
+    serviceKey: "supabase-free",
+    name: "Supabase Free",
+    scope: "AGENCY",
+    amount: 0,
+    currency: "BRL",
+    billingCycle: "MONTHLY",
+    capacityLimit: 2,
+    capacityUsed: 1,
+    notes: "Banco da MilLead",
+  },
+  {
+    serviceKey: "render-free",
+    name: "Render Free",
+    scope: "AGENCY",
+    amount: 0,
+    currency: "BRL",
+    billingCycle: "MONTHLY",
+    capacityLimit: 1,
+    capacityUsed: 1,
+    notes: "millead-api",
+  },
+  {
+    serviceKey: "registrobr-domain",
+    name: "Domínio milweb.com.br",
+    scope: "AGENCY",
+    amount: 40,
+    currency: "BRL",
+    billingCycle: "YEARLY",
+    notes: "Registro.br",
+  },
 ] as const;
 
 export async function seedFinance(prisma: PrismaClient): Promise<void> {
@@ -316,23 +558,21 @@ git commit -m "feat(db): seed do Financeiro -- catálogo com preços reais, prod
 ### Task 3: API — domínio, DTOs e repositório
 
 **Files:**
+
 - Create: `apps/api/src/domain/entities/cost.ts`
 - Create: `apps/api/src/domain/repositories/cost-repository.ts`
 - Create: `apps/api/src/application/dto/cost.dto.ts`
 - Create: `apps/api/src/infrastructure/prisma/prisma-cost-repository.ts`
 
 **Interfaces:**
+
 - Consumes: client Prisma do Task 1.
 - Produces: interface `CostRepository` e classe `PrismaCostRepository` com: `listSubscriptions(organizationId)`, `findSubscriptionById(organizationId, id)`, `createSubscription(organizationId, data: CreateCostSubscriptionInput)`, `updateSubscription(organizationId, id, data: UpdateCostSubscriptionInput)` (retorna `null` se não achou), `deleteSubscription(organizationId, id)` (retorna `boolean`), `listCatalog(organizationId)`, `getSettings(organizationId)` (upsert-cria default), `updateSettings(organizationId, data: UpdateFinanceSettingsInput)`, `listActiveAgencyAndClientTotals` não existe — totais são calculados no service a partir de `listSubscriptions`. Também `countWonLeads(organizationId)`.
 
 - [ ] **Step 1: Entities** — `apps/api/src/domain/entities/cost.ts`:
 
 ```ts
-import type {
-  CostSubscription,
-  CostServiceCatalog,
-  FinanceSettings,
-} from "@millead/database";
+import type { CostSubscription, CostServiceCatalog, FinanceSettings } from "@millead/database";
 
 export type { CostSubscription, CostServiceCatalog, FinanceSettings };
 
@@ -429,7 +669,11 @@ import type {
   UpdateFinanceSettingsInput,
 } from "../../application/dto/cost.dto.js";
 import type { CostRepository } from "../../domain/repositories/cost-repository.js";
-import type { CostSubscription, CostServiceCatalog, FinanceSettings } from "../../domain/entities/cost.js";
+import type {
+  CostSubscription,
+  CostServiceCatalog,
+  FinanceSettings,
+} from "../../domain/entities/cost.js";
 
 export class PrismaCostRepository implements CostRepository {
   listSubscriptions(organizationId: string): Promise<CostSubscription[]> {
@@ -517,10 +761,12 @@ git commit -m "feat(api): entidades, DTOs e repositório do Centro de Custos"
 ### Task 4: API — CostService com cálculo + testes unitários (TDD)
 
 **Files:**
+
 - Create: `apps/api/src/application/services/cost-service.test.ts` (antes de existir o service; conferir se testes existentes ficam colocalizados — `Glob apps/api/src/**/*.test.ts` — e seguir a convenção encontrada)
 - Create: `apps/api/src/application/services/cost-service.ts`
 
 **Interfaces:**
+
 - Consumes: `CostRepository` (Task 3).
 - Produces: `CostService` com `listSubscriptions`, `createSubscription`, `updateSubscription` (lança `NotFoundError` se null — conferir a classe de erro usada nos services existentes, ex. no `proposal-service.ts`, e usar a mesma), `deleteSubscription`, `listCatalog`, `getSettings`, `updateSettings`, `getSummary(organizationId): Promise<CostSummary>`. Helper puro exportado: `monthlyAmountBrl(amount: number, currency: "BRL" | "USD", billingCycle: "MONTHLY" | "YEARLY", usdToBrlRate: number): number`.
 
@@ -621,7 +867,10 @@ export function computeSummary(
   const sum = (scope: "AGENCY" | "CLIENT") =>
     active
       .filter((s) => s.scope === scope)
-      .reduce((acc, s) => acc + monthlyAmountBrl(Number(s.amount), s.currency, s.billingCycle, rate), 0);
+      .reduce(
+        (acc, s) => acc + monthlyAmountBrl(Number(s.amount), s.currency, s.billingCycle, rate),
+        0,
+      );
 
   const agencyMonthlyBrl = sum("AGENCY");
   const clientMonthlyBrl = sum("CLIENT");
@@ -685,7 +934,10 @@ export class CostService {
         billingCycle: s.billingCycle,
         isActive: s.isActive,
       })),
-      { usdToBrlRate: Number(settings.usdToBrlRate), activeClientsCount: settings.activeClientsCount },
+      {
+        usdToBrlRate: Number(settings.usdToBrlRate),
+        activeClientsCount: settings.activeClientsCount,
+      },
       wonLeads,
     );
   }
@@ -711,12 +963,14 @@ git commit -m "feat(api): CostService com normalização BRL/mês, rateio e test
 ### Task 5: API — controller, rotas, container e app
 
 **Files:**
+
 - Create: `apps/api/src/interfaces/http/controllers/cost-controller.ts`
 - Create: `apps/api/src/interfaces/http/routes/cost-routes.ts`
 - Modify: `apps/api/src/main/container.ts` (instanciar repo/service/controller, expor `costController`)
 - Modify: `apps/api/src/main/app.ts` (montar `/api/v1/costs`)
 
 **Interfaces:**
+
 - Consumes: `CostService` (Task 4), `PrismaCostRepository` (Task 3), padrão `requireAuth`/`asyncHandler`/`validateBody` existentes.
 - Produces: rotas `GET|POST /api/v1/costs`, `PATCH|DELETE /api/v1/costs/:id`, `GET /api/v1/costs/catalog`, `GET|PATCH /api/v1/costs/settings`, `GET /api/v1/costs/summary`.
 
@@ -810,7 +1064,12 @@ export function createCostRoutes(controller: CostController, authenticate: Reque
   );
   router.get("/summary", read, asyncHandler(controller.summary));
   router.get("/", read, asyncHandler(controller.list));
-  router.post("/", write, validateBody(createCostSubscriptionSchema), asyncHandler(controller.create));
+  router.post(
+    "/",
+    write,
+    validateBody(createCostSubscriptionSchema),
+    asyncHandler(controller.create),
+  );
   router.patch(
     "/:id",
     write,
@@ -853,6 +1112,7 @@ git commit -m "feat(api): rotas /api/v1/costs (assinaturas, catálogo, settings,
 ### Task 6: Web — tipos, service e hooks
 
 **Files:**
+
 - Modify: `apps/web/src/types/api.ts` (append)
 - Create: `apps/web/src/services/costs.ts`
 - Modify: `apps/web/src/lib/query-keys.ts` (append `costs`)
@@ -860,6 +1120,7 @@ git commit -m "feat(api): rotas /api/v1/costs (assinaturas, catálogo, settings,
 - Create: `apps/web/src/features/finance/finance-labels.ts`
 
 **Interfaces:**
+
 - Consumes: endpoints do Task 5; `api` client (`services/api-client.ts`).
 - Produces: tipos `CostSubscription`, `CostServiceCatalogItem`, `FinanceSettings`, `CostSummary`; `costsService`; hooks `useCostSubscriptions`, `useCostCatalog`, `useFinanceSettings`, `useCostSummary`, `useCreateCostSubscription`, `useUpdateCostSubscription`, `useDeleteCostSubscription`, `useUpdateFinanceSettings`; labels `SCOPE_LABELS`, `CYCLE_LABELS`, `CATEGORY_LABELS`.
 
@@ -871,13 +1132,7 @@ export type CostScope = "AGENCY" | "CLIENT";
 export type CostCurrency = "BRL" | "USD";
 export type CostBillingCycle = "MONTHLY" | "YEARLY";
 export type CostCategory =
-  | "HOSTING"
-  | "DATABASE"
-  | "AI"
-  | "DOMAIN"
-  | "EMAIL"
-  | "SIGNATURE"
-  | "OTHER";
+  "HOSTING" | "DATABASE" | "AI" | "DOMAIN" | "EMAIL" | "SIGNATURE" | "OTHER";
 
 export interface CostSubscription {
   id: string;
@@ -969,7 +1224,8 @@ import type {
 
 export const costsService = {
   list: () => api.get<CostSubscription[]>("/api/v1/costs"),
-  create: (payload: CostSubscriptionPayload) => api.post<CostSubscription>("/api/v1/costs", payload),
+  create: (payload: CostSubscriptionPayload) =>
+    api.post<CostSubscription>("/api/v1/costs", payload),
   update: (id: string, payload: Partial<CostSubscriptionPayload>) =>
     api.patch<CostSubscription>(`/api/v1/costs/${id}`, payload),
   remove: (id: string) => api.delete<void>(`/api/v1/costs/${id}`),
@@ -1102,6 +1358,7 @@ git commit -m "feat(web): tipos, service e hooks do Centro de Custos"
 ### Task 7: Web — página /costs (cards, tabela, dialogs)
 
 **Files:**
+
 - Create: `apps/web/src/app/(app)/costs/page.tsx`
 - Create: `apps/web/src/features/finance/components/cost-summary-cards.tsx`
 - Create: `apps/web/src/features/finance/components/cost-subscriptions-list.tsx`
@@ -1109,6 +1366,7 @@ git commit -m "feat(web): tipos, service e hooks do Centro de Custos"
 - Create: `apps/web/src/features/finance/components/finance-settings-dialog.tsx`
 
 **Interfaces:**
+
 - Consumes: hooks e labels do Task 6; `components/ui/*`; `formatCurrency` de `src/utils/format.ts`; `EmptyState`, `ConfirmDialog` de `components/`.
 - Produces: página completa em `/costs`.
 
@@ -1148,9 +1406,11 @@ git commit -m "feat(web): página /costs -- Centro de Custos com resumo, tabela 
 ### Task 8: Nav, dashboard-link e verificação final
 
 **Files:**
+
 - Modify: `apps/web/src/components/shell/nav-items.ts`
 
 **Interfaces:**
+
 - Consumes: página `/costs` (Task 7).
 - Produces: seção "Financeiro" no menu.
 

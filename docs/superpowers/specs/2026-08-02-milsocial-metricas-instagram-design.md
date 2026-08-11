@@ -143,6 +143,7 @@ model SocialConfig {
 ```
 
 Notas:
+
 - Snapshots diários (não update in-place) porque retenção/alcance continuam
   crescendo por dias — a curva por post é dado útil pra IA.
 - Campos de métrica são todos opcionais: a Graph API não retorna todas as
@@ -205,6 +206,7 @@ Camadas no molde do módulo de custos:
 
 Novos envs (todos `.optional()` no schema do `env.ts`, como as demais
 integrações — sem eles a rota responde 503):
+
 - `INSTAGRAM_ACCESS_TOKEN` — seed do token long-lived
 - `MILSOCIAL_SYNC_KEY` — chave do cron externo
 
@@ -274,6 +276,7 @@ Rick ──▶ /admin/milsocial ──BFF──▶ GET posts/comparison/series
 ## Testes
 
 No padrão do repo (vitest junto do arquivo):
+
 - `social.dto.test.ts` — validação zod.
 - `social-service.test.ts` — sync com `InstagramClient` mockado: primeira
   carga (paginação completa), incremental (para quando tudo já existe),

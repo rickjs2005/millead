@@ -1,6 +1,11 @@
 import type { FormScene, PromptTemplate } from "./types";
 
-function site(id: string, slot: FormScene["slot"], durationSec: number, zoomTargets: string[] = []): FormScene {
+function site(
+  id: string,
+  slot: FormScene["slot"],
+  durationSec: number,
+  zoomTargets: string[] = [],
+): FormScene {
   return { id, kind: "site", slot, enabled: true, durationSec, zoomTargets };
 }
 
@@ -76,7 +81,9 @@ export const TEMPLATES: PromptTemplate[] = [
       studio("sc5", "whatsapp", 4, ["mensagem"]),
       studio("sc6", "logo", 3),
     ],
-    body: body("Você escreve narração para vídeos que anunciam o lançamento do site novo de uma empresa."),
+    body: body(
+      "Você escreve narração para vídeos que anunciam o lançamento do site novo de uma empresa.",
+    ),
   },
   {
     id: "portfolio",

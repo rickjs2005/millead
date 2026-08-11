@@ -35,6 +35,7 @@
 ### Task 1: API — série mensal de recebíveis
 
 **Files:**
+
 - Modify: `apps/api/src/application/services/receivable-service.ts` (novo método `series`)
 - Modify: `apps/api/src/domain/repositories/receivable-repository.ts` (interface: `listForSeries`)
 - Modify: `apps/api/src/infrastructure/prisma/prisma-receivable-repository.ts` (implementação)
@@ -45,9 +46,13 @@
 
 ```ts
 // GET /api/v1/receivables/summary/series?months=12
-interface ReceivableSeriesPoint { month: string; received: string; expected: string }
+interface ReceivableSeriesPoint {
+  month: string;
+  received: string;
+  expected: string;
+}
 interface ReceivableSeries {
-  months: ReceivableSeriesPoint[];       // exatamente N, ordem cronológica asc
+  months: ReceivableSeriesPoint[]; // exatamente N, ordem cronológica asc
   yearTotals: { year: number; received: string; expected: string };
 }
 ```
@@ -66,6 +71,7 @@ Semântica: `received` = soma de `amount` com `paidAt` dentro do mês; `expected
 ### Task 2: API — série mensal de consumo de custos
 
 **Files:**
+
 - Modify: `apps/api/src/application/services/cost-service.ts` (método `getUsageSeries` + extração do custo-por-entrada)
 - Modify: `apps/api/src/interfaces/http/routes/cost-routes.ts` + `cost-controller.ts` + DTO
 - Test: `apps/api/src/application/services/cost-service.test.ts`
@@ -74,11 +80,14 @@ Semântica: `received` = soma de `amount` com `paidAt` dentro do mês; `expected
 
 ```ts
 // GET /api/v1/costs/usage/series?months=12
-interface CostUsageSeriesPoint { month: string; usageCostBrl: number }
+interface CostUsageSeriesPoint {
+  month: string;
+  usageCostBrl: number;
+}
 interface CostUsageSeries {
-  months: CostUsageSeriesPoint[];      // exatamente N, asc
-  yearTotal: number;                   // consumo do ano corrente
-  recurringMonthlyBrl: number;         // totalMonthlyBrl atual (mesma conta do getSummary)
+  months: CostUsageSeriesPoint[]; // exatamente N, asc
+  yearTotal: number; // consumo do ano corrente
+  recurringMonthlyBrl: number; // totalMonthlyBrl atual (mesma conta do getSummary)
 }
 ```
 
@@ -93,6 +102,7 @@ interface CostUsageSeries {
 ### Task 3: API — KPIs de contrato com recorte temporal
 
 **Files:**
+
 - Modify: `apps/api/src/infrastructure/prisma/prisma-contract-repository.ts:185-201` (método `kpis`)
 - Modify: tipo `ContractKpis` (onde estiver declarado no domínio/DTO da API)
 - Test: teste do repositório ou service de contratos (seguir onde os testes de kpis vivem; se não houver, criar teste de service com repo mockado validando o shape)
@@ -108,6 +118,7 @@ interface CostUsageSeries {
 ### Task 4: Web — /receivables com gráfico de 12 meses e totais do ano
 
 **Files:**
+
 - Modify: `apps/web/src/types/api.ts` (tipos `ReceivableSeriesPoint`/`ReceivableSeries` — copiar da Task 1)
 - Modify: `apps/web/src/services/receivables.ts` (método `series(months?)`)
 - Modify: `apps/web/src/features/receivables/hooks.ts` (`useReceivablesSeries`)
@@ -124,6 +135,7 @@ interface CostUsageSeries {
 ### Task 5: Web — /costs com histórico de consumo
 
 **Files:**
+
 - Modify: `apps/web/src/types/api.ts` (+`CostUsageSeries*`), `apps/web/src/services/costs.ts`, `apps/web/src/features/finance/hooks.ts` (`useUsageSeries`)
 - Create: `apps/web/src/features/finance/components/usage-history-section.tsx`
 - Modify: `apps/web/src/app/(app)/costs/page.tsx` (montar a seção acima do CreditUsageSection)
@@ -137,6 +149,7 @@ interface CostUsageSeries {
 ### Task 6: Web — KPIs de /contracts com mês/ano
 
 **Files:**
+
 - Modify: `apps/web/src/types/api.ts` (`ContractKpis` +2 campos)
 - Modify: `apps/web/src/app/(app)/contracts/page.tsx:123-134` (linha de KPIs)
 
@@ -148,6 +161,7 @@ interface CostUsageSeries {
 ### Task 7: Web — Dashboard P2
 
 **Files:**
+
 - Modify: `apps/web/src/app/(app)/dashboard/page.tsx`
 - Modify: `apps/web/src/features/dashboard/hooks.ts` (hooks: séries, overdue list, activities)
 - Create: `apps/web/src/features/dashboard/components/revenue-cost-chart.tsx`

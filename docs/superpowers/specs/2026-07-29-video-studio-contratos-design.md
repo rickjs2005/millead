@@ -27,15 +27,15 @@ schema presta quando um site de verdade tenta preenchê-lo.
 
 ## Decisões
 
-| Questão                              | Decisão                                                                                        |
-| ------------------------------------ | ---------------------------------------------------------------------------------------------- |
-| Escopo desta spec                    | Contratos **+** crawler que preenche o Snapshot                                                 |
-| Viewport do crawler v1               | **Desktop 1920×1080**; mobile é outro Snapshot da mesma URL, não um campo novo                   |
-| Granularidade do Snapshot            | **Uma URL, um viewport, um instante** — imutável, datado; site = coleção de snapshots            |
-| Persistência v1                      | **Disco local**, `captures/<snapshotId>/`. Sem Prisma, sem Blob, sem migration                  |
-| Onde moram os rótulos semânticos     | **Camada Annotation separada** — não dentro do Snapshot, não dentro do Projeto                  |
-| Unidade de tempo                     | Projeto em **segundos** (humano), Manifesto em **frames** (máquina)                             |
-| Manifesto                            | **Derivado a cada build, nunca persistido, nunca editado à mão**                                |
+| Questão                          | Decisão                                                                               |
+| -------------------------------- | ------------------------------------------------------------------------------------- |
+| Escopo desta spec                | Contratos **+** crawler que preenche o Snapshot                                       |
+| Viewport do crawler v1           | **Desktop 1920×1080**; mobile é outro Snapshot da mesma URL, não um campo novo        |
+| Granularidade do Snapshot        | **Uma URL, um viewport, um instante** — imutável, datado; site = coleção de snapshots |
+| Persistência v1                  | **Disco local**, `captures/<snapshotId>/`. Sem Prisma, sem Blob, sem migration        |
+| Onde moram os rótulos semânticos | **Camada Annotation separada** — não dentro do Snapshot, não dentro do Projeto        |
+| Unidade de tempo                 | Projeto em **segundos** (humano), Manifesto em **frames** (máquina)                   |
+| Manifesto                        | **Derivado a cada build, nunca persistido, nunca editado à mão**                      |
 
 ### Por que a Annotation é uma camada separada
 
@@ -269,14 +269,14 @@ Se o runner precisar consultar o site ou o banco para renderizar, o compilador f
 renomeia para `captures/<id>/` depois que o zod validar o `snapshot.json`. Falhou:
 imprime o erro do zod, apaga o temporário, sai com código ≠ 0.
 
-| Situação                          | Comportamento                                                                       |
-| --------------------------------- | ------------------------------------------------------------------------------------ |
-| Site inacessível / timeout / ≠ 200 | Falha explícita, reaproveitando as mensagens em português do `http-site-auditor.ts`  |
-| Endereço interno / IP privado      | Recusa **antes** do `page.goto` (ver abaixo)                                         |
-| Página infinita                    | Teto de 40 tiles (~43 mil px) e teto de bytes; estourou, falha com mensagem clara     |
-| Zero seções detectadas             | **Não é erro** — grava tudo com `isSection: false` e registra em `warnings[]`        |
-| Saída inválida no zod              | Não grava nada; erro do zod no stdout; exit ≠ 0                                      |
-| Chromium pendurado                 | `try/finally` com `browser.close()` + timeout global no processo                     |
+| Situação                           | Comportamento                                                                       |
+| ---------------------------------- | ----------------------------------------------------------------------------------- |
+| Site inacessível / timeout / ≠ 200 | Falha explícita, reaproveitando as mensagens em português do `http-site-auditor.ts` |
+| Endereço interno / IP privado      | Recusa **antes** do `page.goto` (ver abaixo)                                        |
+| Página infinita                    | Teto de 40 tiles (~43 mil px) e teto de bytes; estourou, falha com mensagem clara   |
+| Zero seções detectadas             | **Não é erro** — grava tudo com `isSection: false` e registra em `warnings[]`       |
+| Saída inválida no zod              | Não grava nada; erro do zod no stdout; exit ≠ 0                                     |
+| Chromium pendurado                 | `try/finally` com `browser.close()` + timeout global no processo                    |
 
 ### SSRF
 
@@ -321,18 +321,18 @@ caso em que tudo passa no código e o resultado visual está quebrado.
 
 Desta spec, com o motivo:
 
-| Item                                 | Motivo                                                                       |
-| ------------------------------------ | ----------------------------------------------------------------------------- |
-| Inspector visual, timeline, preview  | Subsistemas próprios; ciclo spec → plano separado                             |
-| Passo Designer (Claude nomeando)     | Mistura risco determinístico com probabilístico numa spec só                  |
-| Remotion, render, narração, legendas | Nada disso depende dos contratos estarem prontos primeiro                     |
+| Item                                 | Motivo                                                                                                  |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------- |
+| Inspector visual, timeline, preview  | Subsistemas próprios; ciclo spec → plano separado                                                       |
+| Passo Designer (Claude nomeando)     | Mistura risco determinístico com probabilístico numa spec só                                            |
+| Remotion, render, narração, legendas | Nada disso depende dos contratos estarem prontos primeiro                                               |
 | Viewport mobile                      | É outro Snapshot da mesma URL, não um campo novo; implementar dois dobra a superfície de bug na estreia |
-| Múltiplas páginas por captura        | Snapshot é por URL; o Projeto é dono da relação entre elas                    |
-| UI de diff / substituição de nó      | O dado (fingerprint) nasce agora; a feature, depois de sentir a dor           |
-| `fonts.json`                         | Carregar webfont de terceiro no Remotion é um buraco próprio, com licenciamento junto |
-| Vercel Blob / Prisma / migration     | Disco local no v1; a pasta mapeia 1:1 num prefixo do Blob depois              |
-| Templates de Campanha                | Dependem do Projeto e do Inspector existirem                                  |
-| Formato `.mlvideo` importável        | É uma linha no Postgres com `version`; o arquivo é exportação, não fundação   |
+| Múltiplas páginas por captura        | Snapshot é por URL; o Projeto é dono da relação entre elas                                              |
+| UI de diff / substituição de nó      | O dado (fingerprint) nasce agora; a feature, depois de sentir a dor                                     |
+| `fonts.json`                         | Carregar webfont de terceiro no Remotion é um buraco próprio, com licenciamento junto                   |
+| Vercel Blob / Prisma / migration     | Disco local no v1; a pasta mapeia 1:1 num prefixo do Blob depois                                        |
+| Templates de Campanha                | Dependem do Projeto e do Inspector existirem                                                            |
+| Formato `.mlvideo` importável        | É uma linha no Postgres com `version`; o arquivo é exportação, não fundação                             |
 
 ## Pendências a resolver antes de investir mais
 

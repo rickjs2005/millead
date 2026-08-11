@@ -15,7 +15,12 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CompanyCombobox } from "@/features/companies/components/company-combobox";
 import { useCompany } from "@/features/companies/hooks";
-import { buildBrief, scaleDurations, totalDuration, totalWordBudget } from "@/features/video-studio/build-brief";
+import {
+  buildBrief,
+  scaleDurations,
+  totalDuration,
+  totalWordBudget,
+} from "@/features/video-studio/build-brief";
 import {
   buildCapturePrompt,
   capturePromptFileName,
@@ -28,7 +33,12 @@ import {
 import { NarrationFields } from "@/features/video-studio/components/narration-fields";
 import { SceneList } from "@/features/video-studio/components/scene-list";
 import { TEMPLATES, templateById } from "@/features/video-studio/templates";
-import type { FormScene, NarrationMode, TotalDuration, VideoFormat } from "@/features/video-studio/types";
+import type {
+  FormScene,
+  NarrationMode,
+  TotalDuration,
+  VideoFormat,
+} from "@/features/video-studio/types";
 
 const DURACOES: TotalDuration[] = [15, 30, 45, 60];
 const FORMATOS: VideoFormat[] = ["9:16", "16:9", "1:1"];
@@ -65,7 +75,12 @@ export default function VideosPage() {
     const novo = templateById(id);
     if (!novo) return;
     setTemplateId(novo.id);
-    setScenes(scaleDurations(novo.defaultScenes.map((s) => ({ ...s })), totalDurationSec));
+    setScenes(
+      scaleDurations(
+        novo.defaultScenes.map((s) => ({ ...s })),
+        totalDurationSec,
+      ),
+    );
   }
 
   function redistribuir(alvo: TotalDuration) {
@@ -148,11 +163,20 @@ export default function VideosPage() {
         </div>
         <div className="space-y-2">
           <Label htmlFor="empresa">Empresa</Label>
-          <Input id="empresa" value={businessName} onChange={(e) => setBusinessName(e.target.value)} />
+          <Input
+            id="empresa"
+            value={businessName}
+            onChange={(e) => setBusinessName(e.target.value)}
+          />
         </div>
         <div className="space-y-2">
           <Label htmlFor="url">URL do site</Label>
-          <Input id="url" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://" />
+          <Input
+            id="url"
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+            placeholder="https://"
+          />
         </div>
         <div className="space-y-2">
           <Label htmlFor="segmento">Segmento (opcional)</Label>
@@ -163,10 +187,14 @@ export default function VideosPage() {
           <div className="space-y-2 sm:col-span-3">
             <Label>Template</Label>
             <Select value={templateId} onValueChange={trocarTemplate}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
                 {TEMPLATES.map((t) => (
-                  <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                  <SelectItem key={t.id} value={t.id}>
+                    {t.name}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -178,10 +206,14 @@ export default function VideosPage() {
               value={String(totalDurationSec)}
               onValueChange={(v) => redistribuir(Number(v) as TotalDuration)}
             >
-              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
                 {DURACOES.map((d) => (
-                  <SelectItem key={d} value={String(d)}>{d}s</SelectItem>
+                  <SelectItem key={d} value={String(d)}>
+                    {d}s
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -189,10 +221,14 @@ export default function VideosPage() {
           <div className="space-y-2">
             <Label>Formato</Label>
             <Select value={format} onValueChange={(v) => setFormat(v as VideoFormat)}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
                 {FORMATOS.map((f) => (
-                  <SelectItem key={f} value={f}>{f}</SelectItem>
+                  <SelectItem key={f} value={f}>
+                    {f}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -220,14 +256,17 @@ export default function VideosPage() {
           onChange={(patch) => {
             if (patch.mode !== undefined) setNarrationMode(patch.mode);
             if (patch.text !== undefined) setNarrationText(patch.text);
-            if (patch.customInstructions !== undefined) setCustomInstructions(patch.customInstructions);
+            if (patch.customInstructions !== undefined)
+              setCustomInstructions(patch.customInstructions);
           }}
         />
       </section>
 
       <section className="space-y-3">
         {erro ? (
-          <p className="rounded-md border border-amber-500/50 bg-amber-500/10 p-3 text-sm">{erro}</p>
+          <p className="rounded-md border border-amber-500/50 bg-amber-500/10 p-3 text-sm">
+            {erro}
+          </p>
         ) : (
           <Tabs defaultValue="prompt">
             <div className="flex items-center justify-between">
@@ -288,7 +327,9 @@ export default function VideosPage() {
                 <Button
                   size="sm"
                   variant="outline"
-                  onClick={() => baixar(renderPrompt, renderPromptFileName(brief!), "text/markdown")}
+                  onClick={() =>
+                    baixar(renderPrompt, renderPromptFileName(brief!), "text/markdown")
+                  }
                 >
                   Baixar .md
                 </Button>

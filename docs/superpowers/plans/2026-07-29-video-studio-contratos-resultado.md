@@ -6,12 +6,12 @@ Alvo: **milweb.com.br**, viewport 1920×1080.
 
 ## Critério de aceite da spec
 
-| # | Critério | Status | Evidência |
-| - | -------- | ------ | --------- |
-| 1 | Pacote valida no zod | ✅ | `snapshot.json` aceito, `warnings: []` |
-| 2 | Seções da home identificadas | ✅ | **13 seções**, com os ids reais do site |
-| 3 | Caixas conferem com os tiles a olho nu | ✅ | coordenadas contíguas, conferidas nas imagens |
-| 4 | Duas execuções diferem só em `id` e `capturedAt` | ✅ | 1276 nós e 13 seções nas duas capturas |
+| #   | Critério                                         | Status | Evidência                                     |
+| --- | ------------------------------------------------ | ------ | --------------------------------------------- |
+| 1   | Pacote valida no zod                             | ✅     | `snapshot.json` aceito, `warnings: []`        |
+| 2   | Seções da home identificadas                     | ✅     | **13 seções**, com os ids reais do site       |
+| 3   | Caixas conferem com os tiles a olho nu           | ✅     | coordenadas contíguas, conferidas nas imagens |
+| 4   | Duas execuções diferem só em `id` e `capturedAt` | ✅     | 1276 nós e 13 seções nas duas capturas        |
 
 **Números da captura:** 1276 nós · 13 seções · 14 tiles · página de 14.458px.
 
@@ -78,12 +78,12 @@ está.
 
 Regra da casa: nenhum "funcionou" sem alguém ter aberto as imagens.
 
-| Imagem | O que se vê |
-| ------ | ----------- |
-| `sections/top.jpg` | Hero inteiro: eyebrow, "Seu site pode ser o melhor **vendedor** da sua empresa.", os quatro bullets, a assinatura do Rick e os dois botões. Sem ghosting. |
-| `sections/projects.jpg` | "Projetos & produtos" com os dois cards da Kavita íntegros e o carrossel de projetos autorais (RJjstore, Milsaca, MilLead). **Sem barra no meio.** |
-| `sections/raio-x.jpg` | Calculadora, cartões de estatística, gauge de risco, barras e donut no lugar. |
-| `tiles/000-y0.jpg`, `tiles/006-y6480.jpg` | Barra de navegação no **topo** — correto. Lula e robô nítidos. |
+| Imagem                                    | O que se vê                                                                                                                                               |
+| ----------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `sections/top.jpg`                        | Hero inteiro: eyebrow, "Seu site pode ser o melhor **vendedor** da sua empresa.", os quatro bullets, a assinatura do Rick e os dois botões. Sem ghosting. |
+| `sections/projects.jpg`                   | "Projetos & produtos" com os dois cards da Kavita íntegros e o carrossel de projetos autorais (RJjstore, Milsaca, MilLead). **Sem barra no meio.**        |
+| `sections/raio-x.jpg`                     | Calculadora, cartões de estatística, gauge de risco, barras e donut no lugar.                                                                             |
+| `tiles/000-y0.jpg`, `tiles/006-y6480.jpg` | Barra de navegação no **topo** — correto. Lula e robô nítidos.                                                                                            |
 
 ## O que este resultado NÃO prova
 

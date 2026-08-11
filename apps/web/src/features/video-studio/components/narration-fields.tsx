@@ -16,11 +16,7 @@ interface NarrationFieldsProps {
   text: string;
   customInstructions: string;
   wordBudget: number;
-  onChange: (patch: {
-    mode?: NarrationMode;
-    text?: string;
-    customInstructions?: string;
-  }) => void;
+  onChange: (patch: { mode?: NarrationMode; text?: string; customInstructions?: string }) => void;
 }
 
 const ROTULOS: Record<NarrationMode, string> = {
@@ -47,10 +43,14 @@ export function NarrationFields({
     <div className="space-y-2">
       <Label>Narração</Label>
       <Select value={mode} onValueChange={(v) => onChange({ mode: v as NarrationMode })}>
-        <SelectTrigger><SelectValue /></SelectTrigger>
+        <SelectTrigger>
+          <SelectValue />
+        </SelectTrigger>
         <SelectContent>
           {(Object.keys(ROTULOS) as NarrationMode[]).map((m) => (
-            <SelectItem key={m} value={m}>{ROTULOS[m]}</SelectItem>
+            <SelectItem key={m} value={m}>
+              {ROTULOS[m]}
+            </SelectItem>
           ))}
         </SelectContent>
       </Select>

@@ -24,8 +24,12 @@ interface AnalysisDialogProps {
 export function AnalysisDialog({ analysis, loading, open, onOpenChange }: AnalysisDialogProps) {
   function handleCopy() {
     if (!analysis) return;
-    const text = [analysis.report, "", "Sugestões:", ...analysis.suggestions.map((s) => `- ${s}`)]
-      .join("\n");
+    const text = [
+      analysis.report,
+      "",
+      "Sugestões:",
+      ...analysis.suggestions.map((s) => `- ${s}`),
+    ].join("\n");
     void navigator.clipboard.writeText(text);
     toast.success("Análise copiada.");
   }

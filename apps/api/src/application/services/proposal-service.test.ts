@@ -136,9 +136,11 @@ function makeService(
     create: vi.fn(),
     findByIdForOrg: vi.fn().mockResolvedValue(fakeProposal()),
     list: vi.fn(),
-    update: vi.fn().mockImplementation(async (_id, _orgId, patch) =>
-      fakeProposal({ status: patch.status ?? "DRAFT" }),
-    ),
+    update: vi
+      .fn()
+      .mockImplementation(async (_id, _orgId, patch) =>
+        fakeProposal({ status: patch.status ?? "DRAFT" }),
+      ),
     // Fake CAS: comportamento default (sobrescrito nos testes de corrida/reenvio).
     ensurePublicToken: vi.fn().mockImplementation(async (_id, _orgId, token) => token),
     delete: vi.fn(),
@@ -195,7 +197,9 @@ describe("ProposalService.get", () => {
 
   it("com contrato já gerado a partir da proposta, devolve o id dele", async () => {
     const { service, contracts } = makeService({
-      contracts: { findByProposalId: vi.fn().mockResolvedValue(fakeContract({ id: "contract-9" })) },
+      contracts: {
+        findByProposalId: vi.fn().mockResolvedValue(fakeContract({ id: "contract-9" })),
+      },
     });
 
     const result = await service.get(ORG, PROPOSAL_ID);
@@ -290,9 +294,9 @@ describe("ProposalService.update", () => {
   it("guarda: ACCEPTED manual sobre proposta já decidida pelo cliente lança ConflictError", async () => {
     const { service, proposals } = makeService({
       proposals: {
-        findByIdForOrg: vi.fn().mockResolvedValue(
-          fakeProposal({ decidedAt: new Date("2026-08-01") }),
-        ),
+        findByIdForOrg: vi
+          .fn()
+          .mockResolvedValue(fakeProposal({ decidedAt: new Date("2026-08-01") })),
       },
     });
 
@@ -305,9 +309,9 @@ describe("ProposalService.update", () => {
   it("guarda: REJECTED manual sobre proposta já decidida pelo cliente lança ConflictError", async () => {
     const { service, proposals } = makeService({
       proposals: {
-        findByIdForOrg: vi.fn().mockResolvedValue(
-          fakeProposal({ decidedAt: new Date("2026-08-01") }),
-        ),
+        findByIdForOrg: vi
+          .fn()
+          .mockResolvedValue(fakeProposal({ decidedAt: new Date("2026-08-01") })),
       },
     });
 

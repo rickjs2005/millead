@@ -39,14 +39,14 @@ query filtrada (estilo `listForSummary`).
 ```ts
 interface ReceivableSeries {
   months: {
-    month: string;      // "2025-09"
-    received: string;   // soma de amount com paidAt no mês
-    expected: string;   // soma de amount com dueDate no mês (pago ou não)
-  }[];                  // SEMPRE N entradas — mês sem dado vem zerado
+    month: string; // "2025-09"
+    received: string; // soma de amount com paidAt no mês
+    expected: string; // soma de amount com dueDate no mês (pago ou não)
+  }[]; // SEMPRE N entradas — mês sem dado vem zerado
   yearTotals: {
-    year: number;       // ano corrente (America/Sao_Paulo)
-    received: string;   // paidAt no ano corrente
-    expected: string;   // dueDate no ano corrente
+    year: number; // ano corrente (America/Sao_Paulo)
+    received: string; // paidAt no ano corrente
+    expected: string; // dueDate no ano corrente
   };
 }
 ```
@@ -71,8 +71,8 @@ interface ReceivableSeries {
 ```ts
 interface CostUsageSeries {
   months: { month: string; usageCostBrl: number }[]; // zero-fill idem
-  yearTotal: number;            // consumo do ano corrente
-  recurringMonthlyBrl: number;  // totalMonthlyBrl ATUAL das assinaturas ativas
+  yearTotal: number; // consumo do ano corrente
+  recurringMonthlyBrl: number; // totalMonthlyBrl ATUAL das assinaturas ativas
 }
 ```
 
@@ -96,9 +96,9 @@ interface ContractKpis {
   total: number;
   aguardandoAssinatura: number;
   assinados: number;
-  valorFechado: string;     // lifetime (mantido)
-  valorFechadoMes: string;  // NOVO: assinadoEm no mês corrente
-  valorFechadoAno: string;  // NOVO: assinadoEm no ano corrente
+  valorFechado: string; // lifetime (mantido)
+  valorFechadoMes: string; // NOVO: assinadoEm no mês corrente
+  valorFechadoAno: string; // NOVO: assinadoEm no ano corrente
 }
 ```
 
@@ -110,6 +110,7 @@ interface ContractKpis {
 ## P1 — Frontend (apps/web)
 
 ### /receivables
+
 - Gráfico de barras (Recharts, já é dependência) com a série de 12 meses:
   `received` e `expected` lado a lado por mês; tooltip com valores formatados.
 - Cards novos "Recebido no ano" e "Previsto no ano" (yearTotals).
@@ -117,15 +118,18 @@ interface ContractKpis {
   ele ignora o seletor de mês e parece quebrado.
 
 ### /costs
+
 - Seção nova "Histórico de consumo" acima do CreditUsageSection: barras dos
   12 meses de `usageCostBrl` + linha/valor de referência do recorrente atual +
   card "Consumo no ano".
 
 ### /contracts
+
 - Linha de KPIs passa a mostrar "Fechado no mês" e "Fechado no ano" junto do
   lifetime (rótulos claros: "desde o início").
 
 ### Tipos
+
 - Novas interfaces em `apps/web/src/types/api.ts` espelhando as respostas.
 - Services/hooks novos seguindo o padrão existente (react-query).
 
