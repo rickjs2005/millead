@@ -23,6 +23,15 @@ export interface SyncResult {
   snapshotsSaved: number;
   classified: number;
   tokenRefreshed: boolean;
+  /**
+   * Posts cujo fetchInsights falhou nesta rodada (rate limit, midia removida,
+   * metrica nao suportada etc.). Contados em vez de engolidos: um sync que
+   * devolve `snapshotsSaved: 0, insightsFailed: 21` e um sync QUEBRADO, e
+   * antes era indistinguivel de um sync sem nada pra fazer.
+   */
+  insightsFailed: number;
+  /** Posts cuja classificacao por IA falhou. Sem ANTHROPIC_API_KEY fica 0 (nem tenta). */
+  classificationFailed: number;
 }
 
 export interface FormatComparisonRow {
@@ -77,8 +86,12 @@ export class SocialService {
         await this.repo.saveConfig(fresh.accessToken, fresh.expiresAt);
         token = fresh.accessToken;
         tokenRefreshed = true;
-      } catch {
+      } catch (err) {
         if (config) throw new SocialNotConfiguredError(); // token velho E refresh falhou
+        // Primeiro sync com o seed do env: segue com o seed, mas o operador
+        // precisa saber -- se o refresh nunca passar, o token morre aos 60 dias
+        // e nao ha como recuperar (regra da Meta).
+        console.warn("[milsocial] refresh do token falhou no primeiro sync (seguindo com o seed):", err);
       }
     }
 
@@ -114,17 +127,20 @@ export class SocialService {
     const since = new Date(Date.now() - NINETY_DAYS_MS);
     const active = await this.repo.listPostsPublishedSince(since);
     let snapshotsSaved = 0;
+    let insightsFailed = 0;
     const now = new Date();
     for (const post of active) {
       // Best-effort por post (espelha a classificacao abaixo): um post com
       // erro na Graph API (rate limit, midia removida etc.) nao pode abortar
       // o sync inteiro -- ele so fica sem snapshot novo e o proximo sync tenta de novo.
+      // Mas "nao aborta" nao pode virar "some": conta e loga.
       try {
         const metrics = await this.instagram.fetchInsights(token, post.igMediaId, post.mediaType);
         await this.repo.addSnapshot(post.id, now, metrics);
         snapshotsSaved++;
-      } catch {
-        /* post pulado; proxima sync tenta de novo */
+      } catch (err) {
+        insightsFailed++;
+        console.warn(`[milsocial] insights falharam para ${post.igMediaId} (post ${post.id}):`, err);
       }
     }
 
@@ -132,6 +148,7 @@ export class SocialService {
     // Nunca reclassifica um post marcado MANUAL (mesmo que o format dele
     // esteja hoje em UNCLASSIFIED por escolha explicita do usuario).
     let classified = 0;
+    let classificationFailed = 0;
     if (this.analyst) {
       for (const post of await this.repo.listUnclassified()) {
         if (post.formatSource === "MANUAL") continue;
@@ -139,13 +156,22 @@ export class SocialService {
           const format = await this.analyst.classifyFormat(post.caption, post.mediaType);
           await this.repo.setFormat(post.id, format, "AI");
           classified++;
-        } catch {
-          /* fica UNCLASSIFIED; proxima sync tenta de novo */
+        } catch (err) {
+          classificationFailed++;
+          console.warn(`[milsocial] classificacao falhou para o post ${post.id}:`, err);
         }
       }
     }
 
-    return { postsCreated, postsUpdated, snapshotsSaved, classified, tokenRefreshed };
+    return {
+      postsCreated,
+      postsUpdated,
+      snapshotsSaved,
+      classified,
+      tokenRefreshed,
+      insightsFailed,
+      classificationFailed,
+    };
   }
 
   listPosts(): Promise<SocialPostWithMetrics[]> {

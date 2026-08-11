@@ -6,14 +6,84 @@ on:
     - cron: "0 8 * * *"
   workflow_dispatch: {}
 
+env:
+  API_URL: https://millead-api.onrender.com
+
 jobs:
   sync:
     runs-on: ubuntu-latest
     steps:
-      - name: Disparar sync do MilSocial
+      # Secret ausente expande pra string vazia, e o curl DESCARTA um header sem
+      # valor -- a request chega sem X-Sync-Key nenhum e a API responde o 401 de
+      # "sessao ausente", nao o de "chave invalida". Foi exatamente esse 401
+      # ambiguo que manteve o sync quebrado por dias parecendo erro de chave.
+      - name: Conferir se o secret existe
+        env:
+          SYNC_KEY: ${{ secrets.MILSOCIAL_SYNC_KEY }}
         run: |
-          curl --fail --show-error \
-            --max-time 120 \
-            --retry 2 --retry-delay 60 \
-            -X POST "https://millead-api.onrender.com/api/v1/admin/social/sync" \
-            -H "X-Sync-Key: ${{ secrets.MILSOCIAL_SYNC_KEY }}"
+          if [ -z "$SYNC_KEY" ]; then
+            echo "::error::Secret MILSOCIAL_SYNC_KEY ausente ou vazio no repositorio."
+            echo "Crie em Settings > Secrets and variables > Actions com o MESMO valor"
+            echo "de MILSOCIAL_SYNC_KEY no Render (docs/milsocial-setup.md, secao 5.1)."
+            exit 1
+          fi
+
+      # Free tier do Render dorme apos ~15min ocioso e leva ~60s pra acordar.
+      # Sem isso, o cold start comia quase todo o tempo do sync.
+      - name: Acordar a API
+        run: curl --silent --show-error --max-time 180 --retry 3 --retry-all-errors "$API_URL/health"
+
+      - name: Disparar sync do MilSocial
+        env:
+          SYNC_KEY: ${{ secrets.MILSOCIAL_SYNC_KEY }}
+        run: |
+          # --fail-with-body (nao --fail): sem isso o corpo do erro da API e
+          # descartado e o log mostra so "error: 401", sem dizer qual 401.
+          # --max-time 600: a primeira carga historica pagina todos os posts e
+          # busca insights de cada um; 120s nao davam conta.
+          http_code=$(curl --fail-with-body --silent --show-error \
+            --max-time 600 \
+            --retry 2 --retry-delay 30 \
+            -X POST "$API_URL/api/v1/admin/social/sync" \
+            -H "X-Sync-Key: $SYNC_KEY" \
+            -o response.json -w "%{http_code}") || {
+              echo "::error::Sync falhou (HTTP ${http_code:-sem resposta})."
+              cat response.json 2>/dev/null || true
+              exit 1
+            }
+
+          echo "HTTP $http_code"
+          cat response.json
+          echo
+
+      # Um sync pode devolver 200 sem ter feito nada (token vivo, mas todas as
+      # chamadas de insights falhando). Sem esta checagem isso passa por sucesso.
+      - name: Validar o resultado
+        run: |
+          # As comparacoes ficam TODAS dentro do jq (-e usa o valor como exit
+          # code). Comparar com `[ "$x" -eq 0 ]` no shell parecia equivalente,
+          # mas se o parse falhasse o teste dava erro e o `if` avaliava falso --
+          # ou seja, um JSON quebrado PASSAVA na validacao. Que e exatamente o
+          # tipo de falha silenciosa que este passo existe pra impedir.
+          if ! jq -e . response.json > /dev/null 2>&1; then
+            echo "::error::Resposta da API nao e JSON valido."
+            cat response.json 2>/dev/null || true
+            exit 1
+          fi
+
+          jq -r '"posts: \(.postsCreated // 0) novos, \(.postsUpdated // 0) atualizados | snapshots: \(.snapshotsSaved // 0)"' response.json
+          jq -r '"falhas: \(.insightsFailed // 0) insights, \(.classificationFailed // 0) classificacoes"' response.json
+
+          if jq -e '(.insightsFailed // 0) > 0' response.json > /dev/null; then
+            echo "::warning::$(jq -r '.insightsFailed' response.json) post(s) ficaram sem snapshot novo (erro na Graph API)."
+          fi
+          if jq -e '(.classificationFailed // 0) > 0' response.json > /dev/null; then
+            echo "::warning::$(jq -r '.classificationFailed' response.json) classificacao(oes) por IA falharam."
+          fi
+
+          # Nenhum post visto E nenhum snapshot gravado = a conta sumiu, o token
+          # morreu ou a API mudou. Nunca e um resultado normal.
+          if jq -e '((.postsCreated // 0) + (.postsUpdated // 0) + (.snapshotsSaved // 0)) == 0' response.json > /dev/null; then
+            echo "::error::Sync respondeu 200 mas nao viu nenhum post nem gravou snapshot."
+            exit 1
+          fi

@@ -13,8 +13,13 @@ function safeEqual(a: string, b: string): boolean {
 
 /**
  * /sync aceita DUAS formas de auth: sessao do dono (authenticate+requireOwner)
- * OU header X-Sync-Key (cron do n8n, sem sessao). Header presente decide a
- * rota de auth na hora -- invalido e 401 direto, sem fallback pra sessao.
+ * OU header X-Sync-Key (cron do GitHub Actions, sem sessao). Header presente
+ * decide a rota de auth na hora -- invalido e 401 direto, sem fallback pra sessao.
+ *
+ * Atencao ao diagnosticar 401 no cron: header AUSENTE cai no fallback de sessao
+ * e o 401 vem de `authenticate` ("Token de acesso ausente"), nao daqui. Como o
+ * curl descarta header sem valor, um secret vazio produz esse 401 -- que parece
+ * erro de sessao, mas e erro de configuracao. O workflow ja checa isso antes.
  */
 export function ownerOrSyncKey(
   syncKey: string | undefined,

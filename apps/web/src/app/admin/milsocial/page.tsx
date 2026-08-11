@@ -72,9 +72,18 @@ export default function MilsocialPage() {
             </Button>
           </div>
           {syncMutation.isSuccess && (
-            <p className="text-xs text-muted-foreground">
-              {syncMutation.data.postsCreated} novos, {syncMutation.data.snapshotsSaved} snapshots
-            </p>
+            <div className="text-right">
+              <p className="text-xs text-muted-foreground">
+                {syncMutation.data.postsCreated} novos, {syncMutation.data.snapshotsSaved} snapshots
+              </p>
+              {/* Sync parcial devolve 200 igual a um sync perfeito -- sem isto,
+                  posts que ficaram sem métrica nova passavam despercebidos. */}
+              {syncMutation.data.insightsFailed > 0 && (
+                <p className="text-xs text-amber-600 dark:text-amber-500">
+                  {syncMutation.data.insightsFailed} post(s) sem métrica nova
+                </p>
+              )}
+            </div>
           )}
           {syncErrorMessage && <p className="text-xs text-destructive">{syncErrorMessage}</p>}
         </div>

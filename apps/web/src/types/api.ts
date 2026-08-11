@@ -1049,6 +1049,10 @@ export interface SocialSyncResult {
   snapshotsSaved: number;
   classified: number;
   tokenRefreshed: boolean;
+  /** Posts cujos insights falharam nesta rodada (ficaram sem snapshot novo). */
+  insightsFailed: number;
+  /** Classificações por IA que falharam. Sem IA configurada, sempre 0. */
+  classificationFailed: number;
 }
 
 export interface SocialAnalysis {

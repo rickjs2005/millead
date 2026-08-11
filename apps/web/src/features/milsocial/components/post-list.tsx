@@ -18,6 +18,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { OrganicMetricsNote } from "@/features/milsocial/components/organic-metrics-note";
 import { FORMAT_LABELS, FORMAT_ORDER, fmtNum } from "@/features/milsocial/labels";
 import { useSetFormatMutation } from "@/features/milsocial/hooks";
 import { formatDate } from "@/utils/format";
@@ -92,6 +93,7 @@ export function PostList({ posts }: { posts: SocialPostWithMetrics[] }) {
     <Card className="overflow-hidden p-0">
       <CardHeader className="pb-0">
         <CardTitle>Posts sincronizados</CardTitle>
+        <OrganicMetricsNote />
       </CardHeader>
       {posts.length === 0 ? (
         <EmptyState

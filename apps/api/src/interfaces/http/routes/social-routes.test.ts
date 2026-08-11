@@ -12,10 +12,10 @@ describe("ownerOrSyncKey", () => {
   it("X-Sync-Key valida passa direto (sem chamar authenticate/requireOwner)", () => {
     const authenticate = vi.fn() as unknown as RequestHandler;
     const requireOwner = vi.fn() as unknown as RequestHandler;
-    const mw = ownerOrSyncKey("chave-secreta-do-n8n", authenticate, requireOwner);
+    const mw = ownerOrSyncKey("chave-secreta-do-cron", authenticate, requireOwner);
     const next = vi.fn();
 
-    mw(makeReq({ "x-sync-key": "chave-secreta-do-n8n" }), res, next);
+    mw(makeReq({ "x-sync-key": "chave-secreta-do-cron" }), res, next);
 
     expect(next).toHaveBeenCalledWith();
     expect(authenticate).not.toHaveBeenCalled();
@@ -25,7 +25,7 @@ describe("ownerOrSyncKey", () => {
   it("X-Sync-Key invalida responde 401 sem fallback pra sessao", () => {
     const authenticate = vi.fn() as unknown as RequestHandler;
     const requireOwner = vi.fn() as unknown as RequestHandler;
-    const mw = ownerOrSyncKey("chave-secreta-do-n8n", authenticate, requireOwner);
+    const mw = ownerOrSyncKey("chave-secreta-do-cron", authenticate, requireOwner);
     const next = vi.fn();
 
     mw(makeReq({ "x-sync-key": "chave-errada" }), res, next);
@@ -38,7 +38,7 @@ describe("ownerOrSyncKey", () => {
   it("sem header X-Sync-Key cai no caminho authenticate + requireOwner", () => {
     const authenticate = vi.fn((_req: Request, _res: Response, cb: NextFunction) => cb()) as unknown as RequestHandler;
     const requireOwner = vi.fn((_req: Request, _res: Response, cb: NextFunction) => cb()) as unknown as RequestHandler;
-    const mw = ownerOrSyncKey("chave-secreta-do-n8n", authenticate, requireOwner);
+    const mw = ownerOrSyncKey("chave-secreta-do-cron", authenticate, requireOwner);
     const next = vi.fn();
 
     mw(makeReq({}), res, next);
@@ -52,7 +52,7 @@ describe("ownerOrSyncKey", () => {
     const authError = new Error("token invalido");
     const authenticate = vi.fn((_req: Request, _res: Response, cb: NextFunction) => cb(authError)) as unknown as RequestHandler;
     const requireOwner = vi.fn() as unknown as RequestHandler;
-    const mw = ownerOrSyncKey("chave-secreta-do-n8n", authenticate, requireOwner);
+    const mw = ownerOrSyncKey("chave-secreta-do-cron", authenticate, requireOwner);
     const next = vi.fn();
 
     mw(makeReq({}), res, next);

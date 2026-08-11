@@ -55,8 +55,10 @@ export class GraphApiInstagramClient implements InstagramClient {
       if (!nextCursor) {
         try {
           nextCursor = new URL(data.paging.next).searchParams.get("after");
-        } catch {
-          // URL invalida, deixar null
+        } catch (err) {
+          // URL invalida: encerra a paginacao aqui. Silencioso isso viraria uma
+          // primeira carga truncada que parece completa -- entao loga.
+          console.warn("[milsocial] paging.next invalido, paginacao encerrada:", err);
         }
       }
     }

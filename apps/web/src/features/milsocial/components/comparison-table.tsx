@@ -11,6 +11,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { OrganicMetricsNote } from "@/features/milsocial/components/organic-metrics-note";
 import { FORMAT_LABELS, fmtNum, fmtWatchTime } from "@/features/milsocial/labels";
 import type { FormatComparisonRow } from "@/types/api";
 
@@ -29,6 +30,7 @@ export function ComparisonTable({ rows }: { rows: FormatComparisonRow[] }) {
     <Card className="overflow-hidden p-0">
       <CardHeader className="pb-0">
         <CardTitle>Comparação por formato</CardTitle>
+        <OrganicMetricsNote />
       </CardHeader>
       {sorted.length === 0 ? (
         <EmptyState

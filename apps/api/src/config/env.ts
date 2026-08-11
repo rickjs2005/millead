@@ -52,7 +52,9 @@ const envSchema = z.object({
   // INSTAGRAM_ACCESS_TOKEN é o seed inicial do token long-lived; apos o
   // primeiro refresh, a linha de SocialConfig no banco vira a fonte de verdade.
   INSTAGRAM_ACCESS_TOKEN: z.string().min(1).optional(),
-  // Chave do cron externo (n8n) pro sync diario sem sessao de usuario.
+  // Chave do cron do GitHub Actions pro sync diario sem sessao de usuario.
+  // Precisa ser IDENTICA ao secret MILSOCIAL_SYNC_KEY do repositorio -- se
+  // divergirem (ou faltar de um lado), o sync diario responde 401 em silencio.
   MILSOCIAL_SYNC_KEY: z.string().min(24).optional(),
 
   // ===== Contratos (Fase 9 -- migrado do milweb-contratos) =====

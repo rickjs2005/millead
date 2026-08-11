@@ -39,7 +39,11 @@ A conta agora aparecerá como profissional e todos os reels terão métricas dis
 
 **⚠️ Não use o "Explorador da Graph API"** (Ferramentas > Explorador da Graph API): essa ferramenta gera token pra `graph.facebook.com` (fluxo de Login do Facebook / Páginas), incompatível com o MilSocial, que chama `graph.instagram.com` direto. Um token gerado ali causa o erro `code 190` na hora de sincronizar (seção 6). O token certo só sai de dentro do caso de uso do Instagram (passo 9-15 acima).
 
-**Nota:** Tokens long-lived do Instagram expiram a cada 60 dias se não forem usados. O MilSocial renova automaticamente este token na primeira sincronização e persiste o novo token no banco de dados (tabela `SocialConfig`), então não é necessário atualizar manualmente.
+**Nota:** Tokens long-lived do Instagram valem 60 dias. O MilSocial renova automaticamente e persiste o novo token no banco (`SocialConfig`), então não é necessário atualizar manualmente — **desde que o sync esteja rodando**.
+
+**Como a renovação funciona de verdade** (importa se o cron parar): o refresh só acontece *dentro* de um sync, e só quando faltam menos de 10 dias pra expirar. Ou seja, é preciso pelo menos um sync bem-sucedido dentro dos últimos 10 dias de vida do token. Se essa janela passar em branco, a Meta não aceita mais renovar — o token morre em definitivo e você refaz a seção 2 inteira. Por isso o cron agendado não é conveniência: é o que mantém o token vivo.
+
+Pra conferir a validade atual, olhe `SocialConfig.tokenExpiresAt` no banco (`pnpm --filter @millead/database studio`).
 
 ## 3. Configurar Variáveis de Ambiente
 
@@ -128,33 +132,16 @@ Sem n8n, o jeito mais simples de disparar o sync diário sem pagar por nenhum se
 4. Nome: `MILSOCIAL_SYNC_KEY` — Valor: cole o mesmo valor exato configurado em `MILSOCIAL_SYNC_KEY` no Render (seção 3.2)
 5. **Add secret**
 
-### 5.2 Criar o workflow
+### 5.2 O workflow
 
-Crie o arquivo `.github/workflows/milsocial-sync.yml` no repositório com este conteúdo:
+O arquivo `.github/workflows/milsocial-sync.yml` já existe no repositório e o GitHub agenda sozinho a partir do `cron` — não precisa criar nada. Ele roda quatro passos, nesta ordem:
 
-```yaml
-name: MilSocial daily sync
+1. **Conferir se o secret existe** — falha imediatamente com mensagem clara se `MILSOCIAL_SYNC_KEY` estiver ausente ou vazio, em vez de deixar o erro virar um 401 ambíguo lá na frente (ver seção 6)
+2. **Acordar a API** — o free tier do Render dorme e leva ~60s pra subir; sem isso o cold start comia quase todo o tempo do sync
+3. **Disparar o sync** — com `--fail-with-body` (imprime o corpo do erro) e `--max-time 600` (a primeira carga histórica é lenta)
+4. **Validar o resultado** — falha se a API responder 200 sem ter visto nenhum post nem gravado nenhum snapshot, e emite aviso se houver posts sem métrica nova
 
-on:
-  schedule:
-    # 05:00 America/Sao_Paulo (UTC-3) = 08:00 UTC
-    - cron: "0 8 * * *"
-  workflow_dispatch: {}
-
-jobs:
-  sync:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Disparar sync do MilSocial
-        run: |
-          curl --fail --show-error \
-            --max-time 120 \
-            --retry 2 --retry-delay 60 \
-            -X POST "https://millead-api.onrender.com/api/v1/admin/social/sync" \
-            -H "X-Sync-Key: ${{ secrets.MILSOCIAL_SYNC_KEY }}"
-```
-
-Commit e push — não precisa de mais nada, o GitHub já agenda sozinho a partir do `cron`.
+O passo 4 existe porque um sync pode responder `200 OK` sem ter feito absolutamente nada — token vivo, mas todas as chamadas de insights falhando. Sem essa checagem, isso passaria por sucesso.
 
 ### 5.3 Testar manualmente
 
@@ -186,13 +173,27 @@ A partir daí, o workflow dispara sozinho todo dia às 05:00 (horário de Brasí
 
 ### Erro 401 no workflow do GitHub Actions
 
-**Causa:** Secret `MILSOCIAL_SYNC_KEY` do GitHub incorreto, ausente, ou fora de sincronização com a chave no Render.  
-**Solução:** Confira o secret em Settings → Secrets and variables → Actions do repositório, cole novamente o valor exato de `MILSOCIAL_SYNC_KEY` do Render, e dispare de novo via **Run workflow** (seção 5.3).
+São **dois 401 diferentes**, e a mensagem no corpo da resposta diz qual é. O workflow imprime esse corpo (`--fail-with-body`) justamente pra você não precisar adivinhar:
+
+| Mensagem no corpo | Significado | Solução |
+|---|---|---|
+| `"Chave de sincronização inválida."` | O header chegou, mas o valor não bate com `MILSOCIAL_SYNC_KEY` do Render | Cole no GitHub o valor **exato** que está no Render |
+| `"Token de acesso ausente."` | O header **não chegou** — o secret está vazio, e o curl descarta header sem valor | Crie o secret (seção 5.1); o primeiro passo do workflow já detecta isso antes |
+
+Esse segundo caso é traiçoeiro: parece erro de sessão de usuário, mas é o secret faltando. Foi o que manteve o sync quebrado por dias enquanto o painel funcionava normalmente — o botão "Sincronizar agora" usa sessão do dono, um caminho de auth totalmente diferente do cron.
+
+### Os números não batem com o app do Instagram
+
+**Causa:** Não é bug. A Insights API da Meta devolve **apenas dados orgânicos** e não reporta interações vindas de anúncios; o app do Instagram soma orgânico + pago na mesma tela. Num post impulsionado a diferença chega a dezenas de vezes.
+
+**Como reconhecer:** compare as interações. Se alcance e views divergem muito (10x, 40x) mas curtidas/comentários/compartilhamentos estão quase iguais, é impulsionamento — anúncio compra impressão, não engajamento. Se **todas** as métricas divergirem na mesma proporção, aí sim investigue o sync.
+
+**Solução:** nenhuma pelo lado do MilLead. Trazer dados pagos exige conta de Meta Ads conectada e Marketing API, que é uma integração separada. O painel já avisa que as métricas são orgânicas.
 
 ### Sync completa mas a lista de posts está vazia
 
 **Causa:** Conta ainda não tem nenhum post publicado, ou o token não tem acesso à mídia da conta.  
-**Solução:** Publique um post novo na @milweb e sincronize novamente — o próximo sync (manual ou do n8n) traz o post e seus insights.
+**Solução:** Publique um post novo na @milweb e sincronize novamente — o próximo sync (manual ou agendado) traz o post e seus insights.
 
 ### Painel avisa "Token expirado"
 

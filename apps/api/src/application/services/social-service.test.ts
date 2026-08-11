@@ -182,6 +182,8 @@ function makeInstagram(
   pages: InstagramMediaPage[],
   options: {
     insightsByIgMediaId?: Record<string, InstagramInsights>;
+    /** igMediaIds cujo fetchInsights deve lancar (simula erro da Graph API). */
+    failInsightsFor?: string[];
     refreshToken?: () => Promise<{ accessToken: string; expiresAt: Date }>;
   } = {},
 ): FakeInstagram {
@@ -204,6 +206,9 @@ function makeInstagram(
 
     async fetchInsights(_token: string, igMediaId: string) {
       fetchInsightsCalls.push(igMediaId);
+      if (options.failInsightsFor?.includes(igMediaId)) {
+        throw new Error(`Instagram Graph API: falha simulada em ${igMediaId}`);
+      }
       return options.insightsByIgMediaId?.[igMediaId] ?? emptyMetrics({ reach: 100, likes: 10 });
     },
 
@@ -379,6 +384,75 @@ describe("SocialService.sync", () => {
     const result = await service.sync();
 
     expect(result.classified).toBe(0);
+  });
+
+  it("erro de insights num post: conta em insightsFailed, loga, e nao aborta o sync", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const ok = fakePost({
+      id: "post-ok",
+      igMediaId: "ig-ok",
+      publishedAt: new Date(Date.now() - 1 * DAY_MS),
+    });
+    const broken = fakePost({
+      id: "post-broken",
+      igMediaId: "ig-broken",
+      publishedAt: new Date(Date.now() - 1 * DAY_MS),
+    });
+    const repo = makeRepo({ posts: [ok, broken], config: farFutureConfig });
+    const instagram = makeInstagram([{ media: [], nextCursor: null }], {
+      failInsightsFor: ["ig-broken"],
+    });
+    const service = new SocialService(repo, instagram, null, undefined);
+
+    const result = await service.sync();
+
+    expect(result.snapshotsSaved).toBe(1);
+    expect(result.insightsFailed).toBe(1);
+    // O post que falhou nao pode ter snapshot; o outro tem.
+    expect(repo.__snapshots.get("post-broken")).toBeUndefined();
+    expect(repo.__snapshots.get("post-ok")).toHaveLength(1);
+    // O erro precisa aparecer em algum lugar -- antes era engolido por um catch vazio.
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(String(warn.mock.calls[0]?.[0])).toContain("ig-broken");
+    warn.mockRestore();
+  });
+
+  it("erro de classificacao: conta em classificationFailed, loga, e nao aborta o sync", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const post = fakePost({ id: "post-1", igMediaId: "ig-1", format: "UNCLASSIFIED" });
+    const repo = makeRepo({ posts: [post], config: farFutureConfig });
+    const instagram = makeInstagram([{ media: [], nextCursor: null }]);
+    const analyst = makeAnalyst({
+      classifyFormat: vi.fn(async () => {
+        throw new Error("IA indisponivel");
+      }),
+    });
+    const service = new SocialService(repo, instagram, analyst, undefined);
+
+    const result = await service.sync();
+
+    expect(result.classified).toBe(0);
+    expect(result.classificationFailed).toBe(1);
+    expect(repo.__posts.get("post-1")!.format).toBe("UNCLASSIFIED");
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(String(warn.mock.calls[0]?.[0])).toContain("post-1");
+    warn.mockRestore();
+  });
+
+  it("sync sem falhas zera os dois contadores de erro", async () => {
+    const post = fakePost({
+      id: "post-1",
+      igMediaId: "ig-1",
+      publishedAt: new Date(Date.now() - 1 * DAY_MS),
+    });
+    const repo = makeRepo({ posts: [post], config: farFutureConfig });
+    const instagram = makeInstagram([{ media: [], nextCursor: null }]);
+    const service = new SocialService(repo, instagram, makeAnalyst(), undefined);
+
+    const result = await service.sync();
+
+    expect(result.insightsFailed).toBe(0);
+    expect(result.classificationFailed).toBe(0);
   });
 
   it("renova token quando faltam menos de 10 dias e persiste no config", async () => {

@@ -30,5 +30,14 @@ services:
         value: https://millead.milweb.com.br,https://millead.vercel.app
       - key: APP_PUBLIC_URL
         sync: false # https://millead-api.onrender.com (a URL deste serviço)
+      # MilSocial (métricas do Instagram). Declaradas aqui porque ficarem só na
+      # doc já custou caro: o sync diário passou dias quebrado por causa de uma
+      # delas. `sync: false` = o valor é colado no dashboard, não no blueprint.
+      - key: INSTAGRAM_ACCESS_TOKEN
+        sync: false # token long-lived do Instagram (ver docs/milsocial-setup.md, seção 2)
+      - key: MILSOCIAL_SYNC_KEY
+        sync: false # MESMO valor do secret homônimo no GitHub Actions (seção 5.1)
+      - key: OWNER_EMAIL
+        sync: false # sem ela, /api/v1/admin/social responde 404 pra todo mundo
       # Opcionais (IA, contratos, e-mail, WhatsApp) -- adicionar quando for usar:
       # ANTHROPIC_API_KEY, SIGNATURE_PROVIDER, ZAPSIGN_*, CONTRACTOR_*, SMTP_*, WHATSAPP_*
