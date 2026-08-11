@@ -18,8 +18,8 @@ export function OrganicMetricsNote() {
       <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
       <span>
         Métricas <strong className="font-medium text-foreground">orgânicas</strong>. Em posts
-        impulsionados os números do app do Instagram são maiores porque incluem o alcance pago —
-        a API da Meta não entrega dados de anúncio.
+        impulsionados os números do app do Instagram são maiores porque incluem o alcance pago — a
+        API da Meta não entrega dados de anúncio.
       </span>
     </p>
   );

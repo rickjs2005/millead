@@ -91,7 +91,10 @@ export class SocialService {
         // Primeiro sync com o seed do env: segue com o seed, mas o operador
         // precisa saber -- se o refresh nunca passar, o token morre aos 60 dias
         // e nao ha como recuperar (regra da Meta).
-        console.warn("[milsocial] refresh do token falhou no primeiro sync (seguindo com o seed):", err);
+        console.warn(
+          "[milsocial] refresh do token falhou no primeiro sync (seguindo com o seed):",
+          err,
+        );
       }
     }
 
@@ -140,7 +143,10 @@ export class SocialService {
         snapshotsSaved++;
       } catch (err) {
         insightsFailed++;
-        console.warn(`[milsocial] insights falharam para ${post.igMediaId} (post ${post.id}):`, err);
+        console.warn(
+          `[milsocial] insights falharam para ${post.igMediaId} (post ${post.id}):`,
+          err,
+        );
       }
     }
 
