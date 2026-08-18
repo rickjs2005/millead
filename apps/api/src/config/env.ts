@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { boolEnv } from "./bool-env.js";
 
 /**
  * Valor exato do placeholder que vai no `.env.example` -- é público (está no
@@ -31,16 +32,13 @@ const envSchema = z.object({
   JWT_REFRESH_TTL: z.string().default("30d"),
   CORS_ORIGIN: z.string().default("http://localhost:3000"),
   /** true = workers BullMQ no mesmo processo da API (deploy de 1 serviço só). */
-  START_WORKERS: z.coerce.boolean().default(false),
+  START_WORKERS: boolEnv(false),
   /**
    * Registro público de conta/organização. Default true (não quebra nada);
    * em produção fica FALSE (sistema interno da MilWeb) — flip temporário
    * quando precisar cadastrar alguém novo da equipe.
    */
-  REGISTRATION_OPEN: z
-    .string()
-    .default("true")
-    .transform((v) => v !== "false" && v !== "0"),
+  REGISTRATION_OPEN: boolEnv(true),
   // ===== IA (Fase 7) =====
   // Opcional de propósito: sem a chave, o app sobe normalmente e os
   // endpoints de IA respondem 503 com instrução de configuração.
@@ -67,8 +65,8 @@ const envSchema = z.object({
   // API do ZapSign (confirmarAssinado) + rate-limit na rota. Mantido pra caso
   // um plano futuro permita header. Pode remover do Render sem impacto.
   ZAPSIGN_WEBHOOK_SECRET: z.string().optional(),
-  ZAPSIGN_SANDBOX: z.coerce.boolean().default(false),
-  ZAPSIGN_SEND_WHATSAPP: z.coerce.boolean().default(false),
+  ZAPSIGN_SANDBOX: boolEnv(false),
+  ZAPSIGN_SEND_WHATSAPP: boolEnv(false),
   // Dados da contratada nos contratos (snapshot jurídico). Sem eles, usa o
   // nome da organização e campos em branco -- preencha antes de uso real.
   CONTRACTOR_RAZAO_SOCIAL: z.string().optional(),
@@ -89,7 +87,7 @@ const envSchema = z.object({
   VAPID_PRIVATE_KEY: z.string().optional(),
   VAPID_SUBJECT: z.string().default("mailto:contato@milweb.com.br"),
   // WhatsApp próprio (Meta Cloud API -- opcional)
-  WHATSAPP_ENABLED: z.coerce.boolean().default(false),
+  WHATSAPP_ENABLED: boolEnv(false),
   WHATSAPP_PHONE_ID: z.string().optional(),
   WHATSAPP_TOKEN: z.string().optional(),
   WHATSAPP_API_VERSION: z.string().default("v21.0"),
