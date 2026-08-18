@@ -59,12 +59,17 @@ const envSchema = z.object({
   // URL pública da API (webhooks de assinatura apontam pra cá).
   APP_PUBLIC_URL: z.string().default("http://localhost:4000"),
   SIGNATURE_PROVIDER: z.enum(["mock", "zapsign"]).default("mock"),
+  // O token é POR AMBIENTE: com ZAPSIGN_SANDBOX=true tem que ser o token da
+  // conta de testes (sandbox.app.zapsign.com.br), não o de produção.
   ZAPSIGN_API_TOKEN: z.string().optional(),
   // Atualmente NÃO usado: os planos básicos do ZapSign não assinam o webhook
   // nem permitem header customizado, então a autenticidade vem da reconsulta na
   // API do ZapSign (confirmarAssinado) + rate-limit na rota. Mantido pra caso
   // um plano futuro permita header. Pode remover do Render sem impacto.
   ZAPSIGN_WEBHOOK_SECRET: z.string().optional(),
+  // true = fala com sandbox.api.zapsign.com.br: sem validade jurídica e sem
+  // exigir Plano de API (só o ambiente de produção exige). Precisa vir com o
+  // token da conta de sandbox em ZAPSIGN_API_TOKEN.
   ZAPSIGN_SANDBOX: boolEnv(false),
   ZAPSIGN_SEND_WHATSAPP: boolEnv(false),
   // Dados da contratada nos contratos (snapshot jurídico). Sem eles, usa o

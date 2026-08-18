@@ -6,12 +6,25 @@ import type {
   WebhookResultado,
 } from "../../../domain/services/contract-signature.js";
 
-const BASE = "https://api.zapsign.com.br/api/v1";
+/**
+ * O ambiente é escolhido pela URL, e SÓ por ela: sandbox é outro host, com
+ * conta e token próprios (sandbox.app.zapsign.com.br). Mandar
+ * `sandbox: true` no corpo pra api.zapsign.com.br não muda nada -- a conta
+ * continua batendo em produção e leva 402 se não tiver Plano de API. Foi
+ * exatamente esse engano que deixou os contratos parados em PDF_GERADO.
+ * https://docs.zapsign.com.br/ambiente-de-testes
+ */
+const BASE_PRODUCAO = "https://api.zapsign.com.br/api/v1";
+const BASE_SANDBOX = "https://sandbox.api.zapsign.com.br/api/v1";
 
 export interface ZapSignConfig {
   apiToken: string;
   webhookSecret?: string;
-  /** true = API de teste da ZapSign (sem validade jurídica, sem plano pago). */
+  /**
+   * true = ambiente de testes da ZapSign (sem validade jurídica, dispensa
+   * Plano de API). Exige o token da conta SANDBOX em `apiToken` -- o token de
+   * produção não vale no host de testes.
+   */
   sandbox: boolean;
   sendWhatsapp: boolean;
   isProduction: boolean;
@@ -23,8 +36,12 @@ export class ZapSignGateway implements ContractSignatureGateway {
 
   constructor(private readonly config: ZapSignConfig) {}
 
+  private get base(): string {
+    return this.config.sandbox ? BASE_SANDBOX : BASE_PRODUCAO;
+  }
+
   async criarDocumento(params: CriarDocumentoParams): Promise<DocumentoCriado> {
-    const res = await fetch(`${BASE}/docs/`, {
+    const res = await fetch(`${this.base}/docs/`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -34,7 +51,6 @@ export class ZapSignGateway implements ContractSignatureGateway {
         name: params.nome,
         base64_pdf: params.pdfBase64,
         external_id: params.metadata?.contractId,
-        sandbox: this.config.sandbox,
         signers: params.signatarios.map((s) => {
           const phone = s.telefone?.replace(/\D/g, "");
           const whatsapp = this.config.sendWhatsapp && Boolean(phone);
@@ -78,7 +94,7 @@ export class ZapSignGateway implements ContractSignatureGateway {
    * assinado -- o que derruba um webhook forjado.
    */
   async confirmarAssinado(docId: string): Promise<ConfirmacaoAssinatura> {
-    const res = await fetch(`${BASE}/docs/${docId}/`, {
+    const res = await fetch(`${this.base}/docs/${docId}/`, {
       headers: { Authorization: `Bearer ${this.config.apiToken}` },
     });
     if (!res.ok) {
