@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -9,6 +9,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { deveAplicarBriefing } from "@/features/briefings/briefing-apply";
 import { useBriefing, useBriefings } from "@/features/briefings/hooks";
 import { formatDate } from "@/utils/format";
 import type { BriefingDetail } from "@/types/api";
@@ -38,9 +39,28 @@ export function BriefingPicker({
     .filter((b) => b.status === "COMPLETED" || b.progressPercent > 0)
     .sort((a, b) => (a.status === "COMPLETED" ? 0 : 1) - (b.status === "COMPLETED" ? 0 : 1));
 
+  // `onDetail` fica num ref, FORA das dependências: os consumidores passam
+  // função nova a cada render (arrow inline ou declarada no componente), e
+  // com ela na lista o efeito reaplicava o briefing a cada renderização --
+  // apagando o que o dono digitava e mantendo a aba em 100% de CPU.
+  const onDetailRef = useRef(onDetail);
+  onDetailRef.current = onDetail;
+  // Aplica UMA vez por briefing escolhido (trocar de briefing aplica o novo).
+  const jaAplicadoRef = useRef<string | null>(null);
+
   useEffect(() => {
-    if (detail && detail.id === briefingId) onDetail(detail);
-  }, [detail, briefingId, onDetail]);
+    if (
+      !deveAplicarBriefing({
+        detailId: detail?.id,
+        briefingId,
+        jaAplicadoId: jaAplicadoRef.current,
+      })
+    ) {
+      return;
+    }
+    jaAplicadoRef.current = detail!.id;
+    onDetailRef.current(detail!);
+  }, [detail, briefingId]);
 
   if (options.length === 0) return null;
 
