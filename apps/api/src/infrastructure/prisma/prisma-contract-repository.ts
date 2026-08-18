@@ -14,6 +14,7 @@ import {
 } from "../../shared/pagination.js";
 import type { ContractStatus } from "@millead/database";
 import { contractKpisRanges } from "./contract-kpis-range.js";
+import { falhouProcessamento } from "./contract-failure.js";
 
 // Seleção sem os Bytes dos PDFs (pesados) -- hasPdf* vem de flags derivadas.
 const baseSelect = {
@@ -40,6 +41,9 @@ const baseSelect = {
   assinadoEm: true,
   createdAt: true,
   updatedAt: true,
+  // Só o último evento: é ele que diz se o worker parou numa falha (sem
+  // isso, "falhou" e "ainda processando" ficam idênticos na tela).
+  events: { orderBy: { createdAt: "desc" }, take: 1, select: { tipo: true, createdAt: true } },
 } as const;
 
 type Row = Prisma.ContractGetPayload<{ select: typeof baseSelect }> & {
@@ -48,8 +52,10 @@ type Row = Prisma.ContractGetPayload<{ select: typeof baseSelect }> & {
 };
 
 function toDomain(row: Row, hasPdfOriginal: boolean, hasPdfAssinado: boolean): Contract {
+  const { events, ...rest } = row;
   return {
-    ...row,
+    ...rest,
+    falhouProcessamento: falhouProcessamento(events),
     valorTotal: row.valorTotal.toString(),
     percentualEntrada: row.percentualEntrada.toString(),
     hasPdfOriginal,
@@ -126,7 +132,7 @@ export class PrismaContractRepository implements ContractRepository {
     if (!row) return null;
     const { pdfOriginal, pdfAssinado, signers, events, ...rest } = row;
     return {
-      ...toDomain(rest as Row, pdfOriginal !== null, pdfAssinado !== null),
+      ...toDomain({ ...rest, events } as Row, pdfOriginal !== null, pdfAssinado !== null),
       signers,
       events,
     };

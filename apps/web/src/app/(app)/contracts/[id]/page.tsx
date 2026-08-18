@@ -1,6 +1,15 @@
 "use client";
 
-import { ArrowLeft, Ban, Copy, Download, FileSignature, Loader2, RefreshCw } from "lucide-react";
+import {
+  AlertTriangle,
+  ArrowLeft,
+  Ban,
+  Copy,
+  Download,
+  FileSignature,
+  Loader2,
+  RefreshCw,
+} from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { toast } from "sonner";
@@ -14,11 +23,11 @@ import { Skeleton } from "@/components/ui/skeleton";
 import {
   CONTRACT_EVENT_LABELS,
   CONTRACT_PAYMENT_LABELS,
-  CONTRACT_PENDING_STATUSES,
   CONTRACT_STATUS_LABELS,
   CONTRACT_STATUS_VARIANT,
   CONTRACT_TYPE_LABELS,
 } from "@/features/contracts/contract-labels";
+import { contractProgress, mensagemDaFalha } from "@/features/contracts/contract-progress";
 import {
   useContract,
   useReprocessContract,
@@ -55,7 +64,8 @@ export default function ContractDetailPage() {
   }
 
   const c = contract.contractorSnapshot;
-  const pending = CONTRACT_PENDING_STATUSES.includes(contract.status);
+  const progresso = contractProgress(contract);
+  const motivoDaFalha = progresso === "falhou" ? mensagemDaFalha(contract.events) : null;
   const entrada = (Number(contract.valorTotal) * Number(contract.percentualEntrada)) / 100;
 
   async function openPdf(versao: "original" | "assinado") {
@@ -79,7 +89,8 @@ export default function ContractDetailPage() {
           <div className="flex items-center gap-3">
             <h1 className="text-2xl font-semibold tracking-tight">{contract.numero}</h1>
             <Badge variant={CONTRACT_STATUS_VARIANT[contract.status]} className="gap-1">
-              {pending && <Loader2 className="h-3 w-3 animate-spin" />}
+              {progresso === "processando" && <Loader2 className="h-3 w-3 animate-spin" />}
+              {progresso === "falhou" && <AlertTriangle className="h-3 w-3 text-destructive" />}
               {CONTRACT_STATUS_LABELS[contract.status]}
             </Badge>
           </div>
@@ -138,6 +149,26 @@ export default function ContractDetailPage() {
           </div>
         </div>
       </div>
+
+      {/* Antes disso, uma falha do worker ficava só na linha do tempo -- o
+          status seguia com spinner e a tela "girava" pra sempre. */}
+      {progresso === "falhou" && (
+        <Card className="border-destructive/50">
+          <CardContent className="flex items-start gap-3 p-4">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
+            <div className="flex flex-col gap-1">
+              <p className="text-sm font-medium">Falha ao preparar a assinatura</p>
+              {motivoDaFalha && (
+                <p className="break-words text-xs text-muted-foreground">{motivoDaFalha}</p>
+              )}
+              <p className="text-xs text-muted-foreground">
+                O contrato parou aqui e não continua sozinho. Corrija a causa e use
+                &ldquo;Reprocessar&rdquo;.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <div className="flex flex-col gap-4">

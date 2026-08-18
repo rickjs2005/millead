@@ -50,6 +50,9 @@ export interface Contract {
   assinadoEm: Date | null;
   hasPdfOriginal: boolean;
   hasPdfAssinado: boolean;
+  /** Último evento é FALHA_PROCESSAMENTO -- o worker parou e não volta
+   *  sozinho. É o que separa "falhou" de "ainda processando" na tela. */
+  falhouProcessamento: boolean;
   createdAt: Date;
   updatedAt: Date;
 }

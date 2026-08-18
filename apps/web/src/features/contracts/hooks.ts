@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { CONTRACT_PENDING_STATUSES } from "@/features/contracts/contract-labels";
+import { contractProgress } from "@/features/contracts/contract-progress";
 import { queryKeys } from "@/lib/query-keys";
 import { ApiError } from "@/services/api-client";
 import {
@@ -16,10 +16,11 @@ export function useContracts(params: ListContractsParams) {
     queryKey: queryKeys.contracts.list(params),
     queryFn: () => contractsService.list(params),
     placeholderData: (prev) => prev,
+    // Só insiste enquanto há worker trabalhando -- contrato que falhou não
+    // muda sozinho, e ficar dando refetch nele é o que fazia a tela "girar
+    // pra sempre".
     refetchInterval: (query) =>
-      query.state.data?.items.some((c) => CONTRACT_PENDING_STATUSES.includes(c.status))
-        ? POLL_MS
-        : false,
+      query.state.data?.items.some((c) => contractProgress(c) === "processando") ? POLL_MS : false,
   });
 }
 
@@ -36,9 +37,7 @@ export function useContract(id: string | undefined) {
     queryFn: () => contractsService.get(id!),
     enabled: !!id,
     refetchInterval: (query) =>
-      query.state.data && CONTRACT_PENDING_STATUSES.includes(query.state.data.status)
-        ? POLL_MS
-        : false,
+      query.state.data && contractProgress(query.state.data) === "processando" ? POLL_MS : false,
   });
 }
 

@@ -496,6 +496,8 @@ export interface Contract {
   assinadoEm: string | null;
   hasPdfOriginal: boolean;
   hasPdfAssinado: boolean;
+  /** Último evento é FALHA_PROCESSAMENTO: parou de vez, não adianta esperar. */
+  falhouProcessamento: boolean;
   createdAt: string;
   updatedAt: string;
 }

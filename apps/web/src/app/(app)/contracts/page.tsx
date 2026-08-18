@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  AlertTriangle,
   CalendarClock,
   CheckCircle2,
   Clock,
@@ -45,6 +46,7 @@ import {
   CONTRACT_STATUS_VARIANT,
   CONTRACT_TYPE_LABELS,
 } from "@/features/contracts/contract-labels";
+import { contractProgress } from "@/features/contracts/contract-progress";
 import { useContractKpis, useContracts, useCreateContract } from "@/features/contracts/hooks";
 import { useDebounce } from "@/hooks/use-debounce";
 import { formatCurrency, formatDate } from "@/utils/format";
@@ -261,9 +263,15 @@ export default function ContractsPage() {
               <span className="text-sm font-medium tabular-nums">
                 {formatCurrency(contract.valorTotal)}
               </span>
-              <Badge variant={CONTRACT_STATUS_VARIANT[contract.status]}>
-                {CONTRACT_STATUS_LABELS[contract.status]}
-              </Badge>
+              {contractProgress(contract) === "falhou" ? (
+                <Badge variant="destructive" className="gap-1">
+                  <AlertTriangle className="h-3 w-3" /> Falhou
+                </Badge>
+              ) : (
+                <Badge variant={CONTRACT_STATUS_VARIANT[contract.status]}>
+                  {CONTRACT_STATUS_LABELS[contract.status]}
+                </Badge>
+              )}
             </Link>
           ))}
         </div>

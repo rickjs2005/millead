@@ -117,6 +117,7 @@ function fakeContract(overrides: Partial<Contract> = {}): Contract {
     assinadoEm: null,
     hasPdfOriginal: false,
     hasPdfAssinado: false,
+    falhouProcessamento: false,
     createdAt: new Date("2026-07-31"),
     updatedAt: new Date("2026-07-31"),
     ...overrides,
