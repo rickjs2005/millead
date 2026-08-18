@@ -70,9 +70,15 @@ pnpm --filter @millead/api dev:worker
 - O Supabase expõe o schema `public` numa API REST própria (PostgREST).
   Por isso **toda tabela tem RLS habilitado sem policies** — isso bloqueia
   o acesso externo sem afetar o app, que entra via Prisma como dono das
-  tabelas. **Toda migration que criar tabela nova precisa incluir**
-  `ALTER TABLE <tabela> ENABLE ROW LEVEL SECURITY;` (o aviso INFO
-  "RLS Enabled No Policy" nos advisors do Supabase é intencional).
+  tabelas. É recomendável que toda migration que criar tabela nova já
+  inclua `ALTER TABLE <tabela> ENABLE ROW LEVEL SECURITY;`, mas isso não é
+  mais o único mecanismo de proteção: `pnpm db:migrate:deploy` roda
+  `prisma/ensure-rls.sql` logo depois do `prisma migrate deploy` (dev e
+  produção) e habilita RLS em qualquer tabela do schema `public` que ainda
+  não tenha — mesmo que a migration tenha esquecido a linha. Isso existe
+  porque a regra manual já foi esquecida 2x (17/08/2026: alerta crítico do
+  Supabase Advisor em tabelas criadas fora do módulo Financeiro). O aviso
+  INFO "RLS Enabled No Policy" nos advisors do Supabase é intencional.
 
 ## Scripts principais
 

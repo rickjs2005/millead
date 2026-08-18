@@ -15,7 +15,7 @@
   "scripts": {
     "generate": "dotenv -e ../../.env -- prisma generate",
     "migrate": "dotenv -e ../../.env -- prisma migrate dev",
-    "migrate:deploy": "dotenv -e ../../.env -- prisma migrate deploy",
+    "migrate:deploy": "dotenv -e ../../.env -- prisma migrate deploy && dotenv -e ../../.env -- prisma db execute --file prisma/ensure-rls.sql --schema prisma/schema.prisma",
     "seed": "dotenv -e ../../.env -- prisma db seed",
     "studio": "dotenv -e ../../.env -- prisma studio",
     "type-check": "tsc --noEmit",
