@@ -23,6 +23,11 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { BriefingAnswersView } from "@/features/briefings/components/briefing-answers-view";
 import {
+  agruparArquivosPorOrigem,
+  origensDosArquivos,
+  SEM_ORIGEM,
+} from "@/features/briefings/file-origin";
+import {
   BRIEFING_STATUS_LABELS,
   BRIEFING_STATUS_VARIANT,
   BRIEFING_TEMPLATE_KIND_LABELS,
@@ -193,39 +198,61 @@ export default function BriefingDetailPage() {
         </TabsList>
 
         <TabsContent value="respostas">
-          <BriefingAnswersView sections={briefing.template.sections} answers={briefing.answers} />
+          <BriefingAnswersView
+            sections={briefing.template.sections}
+            answers={briefing.answers}
+            files={briefing.files}
+          />
         </TabsContent>
 
         <TabsContent value="arquivos">
           {briefing.files.length === 0 ? (
             <EmptyState icon={FileDown} title="Nenhum arquivo enviado" className="py-16" />
           ) : (
-            <div className="flex flex-col gap-2">
-              {briefing.files.map((file) => (
-                <div
-                  key={file.id}
-                  className="flex items-center justify-between gap-3 rounded-lg border border-border p-3 text-sm"
-                >
-                  <a
-                    href={file.blobUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="min-w-0 flex-1 truncate hover:underline"
+            /* Agrupado por pergunta: com 20+ anexos, uma lista solta não diz
+               de qual serviço veio cada imagem. */
+            <div className="flex flex-col gap-5">
+              {agruparArquivosPorOrigem(
+                briefing.files,
+                origensDosArquivos(briefing.template.sections, briefing.answers),
+              ).map((grupo) => (
+                <div key={grupo.caminho} className="flex flex-col gap-2">
+                  <p
+                    className={
+                      grupo.caminho === SEM_ORIGEM
+                        ? "text-xs font-medium text-amber-600 dark:text-amber-500"
+                        : "text-xs font-medium text-muted-foreground"
+                    }
                   >
-                    {file.originalName}
-                  </a>
-                  <span className="shrink-0 text-xs text-muted-foreground">
-                    {(file.sizeBytes / 1024 / 1024).toFixed(1)} MB
-                  </span>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 shrink-0"
-                    title="Baixar arquivo"
-                    onClick={() => downloadBriefingFile(file.blobUrl, file.originalName)}
-                  >
-                    <Download className="h-4 w-4" />
-                  </Button>
+                    {grupo.caminho}
+                  </p>
+                  {grupo.arquivos.map((file) => (
+                    <div
+                      key={file.id}
+                      className="flex items-center justify-between gap-3 rounded-lg border border-border p-3 text-sm"
+                    >
+                      <a
+                        href={file.blobUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="min-w-0 flex-1 truncate hover:underline"
+                      >
+                        {file.originalName}
+                      </a>
+                      <span className="shrink-0 text-xs text-muted-foreground">
+                        {(file.sizeBytes / 1024 / 1024).toFixed(1)} MB
+                      </span>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 shrink-0"
+                        title="Baixar arquivo"
+                        onClick={() => downloadBriefingFile(file.blobUrl, file.originalName)}
+                      >
+                        <Download className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
                 </div>
               ))}
             </div>
