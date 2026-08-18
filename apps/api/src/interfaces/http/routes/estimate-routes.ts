@@ -30,6 +30,8 @@ export function createEstimateRoutes(
   router.get("/", read, validateQuery(listEstimatesQuerySchema), asyncHandler(controller.list));
   router.post("/", write, validateBody(createEstimateSchema), asyncHandler(controller.create));
   router.get("/:id", read, asyncHandler(controller.get));
+  // Prévia do PDF do cliente: leitura pura (não cria proposta, não converte).
+  router.get("/:id/preview-pdf", read, asyncHandler(controller.previewPdf));
   router.patch("/:id", write, validateBody(updateEstimateSchema), asyncHandler(controller.update));
   router.delete("/:id", write, asyncHandler(controller.remove));
   router.post(

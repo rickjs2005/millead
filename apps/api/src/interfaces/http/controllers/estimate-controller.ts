@@ -44,6 +44,16 @@ export class EstimateController {
     res.status(200).json(await this.estimates.listProducts(auth.organizationId));
   };
 
+  previewPdf = async (req: Request, res: Response): Promise<void> => {
+    const auth = requireAuth(req);
+    const pdf = await this.estimates.previewPdf(auth.organizationId, req.params.id!);
+    res
+      .status(200)
+      .type("application/pdf")
+      .setHeader("Content-Disposition", 'inline; filename="previa-orcamento.pdf"')
+      .send(Buffer.from(pdf));
+  };
+
   convert = async (req: Request, res: Response): Promise<void> => {
     const auth = requireAuth(req);
     const input = req.body as ConvertEstimateInput;

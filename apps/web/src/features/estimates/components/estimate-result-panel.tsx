@@ -1,8 +1,15 @@
 import type { ReactNode } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import { compararComFaixa, type VeredictoFaixa } from "@/features/estimates/price-band";
 import { formatCurrency } from "@/utils/format";
 import type { EstimateComputed, ProjectProduct } from "@/types/api";
+
+const LEGENDA_FAIXA: Record<VeredictoFaixa, string> = {
+  dentro: "dentro da faixa",
+  abaixo: "abaixo do piso",
+  acima: "acima do teto",
+};
 
 function Row({
   label,
@@ -48,6 +55,7 @@ export function EstimateResultPanel({
   agencyShareMonthly,
   domainYears,
   product,
+  finalPrice,
   children,
 }: {
   computed: EstimateComputed;
@@ -57,11 +65,14 @@ export function EstimateResultPanel({
   /** 0 quando o orçamento não tem domínio contratado. */
   domainYears: number;
   product?: ProjectProduct;
+  /** Preço que o dono vai cobrar -- comparado com a faixa do catálogo. */
+  finalPrice?: number | null;
   /** Bloco de "Preço final (você decide)" -- renderizado pelo editor (é o
    * único lugar com acesso ao `control` do react-hook-form), mas visualmente
    * pertence a este painel, logo abaixo dos 3 preços sugeridos. */
   children?: ReactNode;
 }) {
+  const veredicto = compararComFaixa(finalPrice, product);
   const rateioNoPeriodo = agencyShareMonthly * infraMonths;
   // `computed.infraCost` já inclui `oneTimeCost` (é o que `totalCost` precisa
   // somar) -- pra exibir "Infra + rateio no período" só com os itens
@@ -118,6 +129,17 @@ export function EstimateResultPanel({
           <p className="mt-1 text-xs text-muted-foreground">
             Faixa do catálogo ({product.name}): {formatCurrency(product.priceMin)}–
             {formatCurrency(product.priceMax)}
+            {veredicto && (
+              <span
+                className={
+                  veredicto === "dentro"
+                    ? "ml-1 font-medium text-emerald-600 dark:text-emerald-500"
+                    : "ml-1 font-medium text-amber-600 dark:text-amber-500"
+                }
+              >
+                · {LEGENDA_FAIXA[veredicto]}
+              </span>
+            )}
           </p>
         )}
       </CardContent>

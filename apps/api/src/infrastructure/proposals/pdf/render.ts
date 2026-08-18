@@ -35,6 +35,9 @@ export interface ProposalPdfData {
   domainYears: number | null; // Fase 6 -- null = orçamento sem domínio
   domainCostBrl: number; // computed.domainCost (0 = sem linha de domínio)
   createdAt: Date;
+  /** true = prévia baixada do orçamento: rótulo no topo pra ninguém tratar
+   *  um rascunho como proposta fechada (nem mandar pro cliente sem querer). */
+  preview?: boolean;
 }
 
 // Data por extenso sem hora (a proposta é lida pelo cliente, não precisa do
@@ -293,7 +296,7 @@ function drawConditions(doc: Doc, data: ProposalPdfData): void {
  * nunca inclui custo interno, margem, rateio ou custo/hora. */
 export async function renderProposalPdf(data: ProposalPdfData): Promise<Uint8Array> {
   const pdf = await PDFDocument.create();
-  pdf.setTitle(`Proposta ${data.proposalNumber}`);
+  pdf.setTitle(data.preview ? "Prévia de proposta" : `Proposta ${data.proposalNumber}`);
   pdf.setAuthor(data.orgName);
 
   const fonts: Fonts = await embedFonts(pdf);
@@ -305,13 +308,27 @@ export async function renderProposalPdf(data: ProposalPdfData): Promise<Uint8Arr
     y: TOP_START,
     header: {
       brandTitle: data.orgName,
-      brandSubtitle: "P R O P O S T A",
-      chipLabel: "PROPOSTA Nº",
+      brandSubtitle: data.preview ? "P R É V I A" : "P R O P O S T A",
+      chipLabel: data.preview ? "DOCUMENTO" : "PROPOSTA Nº",
       chipValue: data.proposalNumber,
       chipSub: `Emitido em ${fmtDataLonga(data.createdAt)}`,
     },
   };
   doc.y = drawHeader(doc);
+
+  // Prévia: aviso logo abaixo do cabeçalho. O documento é idêntico ao final
+  // de propósito (é pra isso que serve a prévia) -- sem este rótulo, os dois
+  // ficam indistinguíveis na mão do cliente.
+  if (data.preview) {
+    doc.page.drawText(sanitize("PRÉVIA - não é a proposta final"), {
+      x: MARGIN,
+      y: doc.y - 11,
+      size: 9,
+      font: fonts.bold,
+      color: COLORS.brand,
+    });
+    doc.y -= 11 + 8;
+  }
 
   // 1. Capa/cabeçalho: título + "Para: cliente".
   doc.page.drawText(sanitize("Proposta Comercial"), {
@@ -347,7 +364,9 @@ export async function renderProposalPdf(data: ProposalPdfData): Promise<Uint8Arr
   // 6. Rodapés (segundo passe, com numeração final).
   drawFooters(pdf, fonts, {
     footerLeft: data.orgName,
-    footerCenter: `Proposta comercial - ${data.proposalNumber}`,
+    footerCenter: data.preview
+      ? "Prévia de proposta - documento não final"
+      : `Proposta comercial - ${data.proposalNumber}`,
   });
 
   return pdf.save();

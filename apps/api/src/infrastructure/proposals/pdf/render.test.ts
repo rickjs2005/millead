@@ -21,6 +21,13 @@ const DATA = {
 };
 
 describe("renderProposalPdf", () => {
+  it("prévia se identifica no próprio documento -- não pode passar por proposta final", async () => {
+    const previa = await PDFDocument.load(await renderProposalPdf({ ...DATA, preview: true }));
+    const final = await PDFDocument.load(await renderProposalPdf(DATA));
+    expect(previa.getTitle()).toBe("Prévia de proposta");
+    expect(final.getTitle()).toBe("Proposta 2026-ABC123");
+  });
+
   it("gera PDF válido com ao menos 1 página", async () => {
     const bytes = await renderProposalPdf(DATA);
     expect(bytes.length).toBeGreaterThan(1000);

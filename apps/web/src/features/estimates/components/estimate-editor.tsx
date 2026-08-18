@@ -4,10 +4,12 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { FileText, Plus, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Controller, useFieldArray, useForm, useWatch } from "react-hook-form";
+import { toast } from "sonner";
 import { z } from "zod";
 import { useConfirmDialog } from "@/components/confirm-dialog";
+import { estimatesService } from "@/services/estimates";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -25,6 +27,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { BriefingPicker } from "@/features/briefings/components/briefing-picker";
 import { estimatePrefillFromBriefing } from "@/features/estimates/briefing-prefill";
 import { EstimateResultPanel } from "@/features/estimates/components/estimate-result-panel";
+import { distribuirHoras, ETAPAS_PADRAO } from "@/features/estimates/hours-from-product";
 import { computeEstimate, type EstimateCalcInput } from "@/features/estimates/estimate-calc";
 import {
   useConvertEstimate,
@@ -52,7 +55,7 @@ import type {
   ProjectProduct,
 } from "@/types/api";
 
-const DEFAULT_HOURS_LABELS = ["Design", "Frontend", "Backend", "SEO", "Testes"];
+const DEFAULT_HOURS_LABELS = ETAPAS_PADRAO;
 const MARGIN_PRESETS = [20, 30, 40];
 
 /** Espelho local do mesmo helper em cost-subscription-dialog.tsx/
@@ -407,6 +410,19 @@ function EstimateForm({
     }
   }, [computed.priceRecommended, setValue]);
 
+  const [baixandoPrevia, setBaixandoPrevia] = useState(false);
+  async function baixarPrevia() {
+    if (!estimate) return;
+    setBaixandoPrevia(true);
+    try {
+      await estimatesService.openPreviewPdf(estimate.id);
+    } catch {
+      toast.error("Não foi possível gerar a prévia.");
+    } finally {
+      setBaixandoPrevia(false);
+    }
+  }
+
   function setFinalPricePreset(price: number) {
     finalPriceTouchedRef.current = true;
     setValue("finalPrice", Math.round(price * 100) / 100, { shouldDirty: true });
@@ -415,12 +431,14 @@ function EstimateForm({
   function handleProductChange(id: string) {
     setValue("productId", id);
     if (id === "none") return;
+    // O produto já sabe quantas horas o projeto costuma dar (`baseHours`) --
+    // usar isso é a diferença entre abrir a tela com R$ 0,00 e abrir com um
+    // ponto de partida. Só preenche se o campo ainda estiver zerado: hora
+    // digitada pelo dono manda mais que a estimativa do catálogo.
     const currentHours = getValues("hoursBreakdown");
     if (currentHours.every((h) => !h.hours)) {
-      setValue(
-        "hoursBreakdown",
-        DEFAULT_HOURS_LABELS.map((label) => ({ label, hours: 0 })),
-      );
+      const produto = products.find((p) => p.id === id);
+      setValue("hoursBreakdown", distribuirHoras(produto?.baseHours), { shouldDirty: true });
     }
     if (!getValues("hourlyRate")) {
       setValue("hourlyRate", Number(settings.defaultHourlyRate));
@@ -1123,6 +1141,19 @@ function EstimateForm({
             </Button>
             {isEdit && (
               <>
+                {/* Prévia antes de formalizar: mostra pro cliente, ajusta o
+                    orçamento, baixa de novo. Não exige lead nem trava nada. */}
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="gap-1.5"
+                  disabled={isDirty || baixandoPrevia}
+                  title={isDirty ? "Salve o orçamento antes de baixar a prévia." : undefined}
+                  onClick={baixarPrevia}
+                >
+                  <FileText className="h-4 w-4" />
+                  {baixandoPrevia ? "Gerando…" : "Prévia em PDF"}
+                </Button>
                 <Button
                   type="button"
                   variant="secondary"
@@ -1157,6 +1188,7 @@ function EstimateForm({
         agencyShareMonthly={calcInput.agencyShareMonthly}
         domainYears={calcInput.domainYears ?? 0}
         product={selectedProduct}
+        finalPrice={Number(values.finalPrice) || null}
       >
         {!isConverted && (
           <div className="mt-1 flex flex-col gap-2 border-t border-border pt-3">

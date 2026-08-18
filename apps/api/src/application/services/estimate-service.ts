@@ -15,6 +15,7 @@ import type {
   UpdateEstimateInput,
 } from "../dto/estimate.dto.js";
 import { computeEstimate, type EstimateComputed } from "./estimate-calc.js";
+import { montarPdfDaProposta, resolverPreco } from "./estimate-pdf-payload.js";
 import type { ActivityLogger } from "./activity-logger.js";
 import {
   renderProposalPdf,
@@ -143,6 +144,72 @@ export class EstimateService {
    * criar a Proposal, a Proposal criada é apagada (cleanup) -- nunca fica
    * órfã sem pdfUrl, e o orçamento permanece intacto (não convertido).
    */
+  /**
+   * Dados do cliente resolvidos uma vez, usados pela proposta convertida e
+   * pela prévia. `lead` opcional: a prévia serve pra decidir preço e não
+   * exige lead vinculado (o convert exige, porque formaliza).
+   */
+  private async dadosDoPdf(
+    organizationId: string,
+    estimate: PricingEstimateWithItems,
+    lead: { title: string; companyId: string | null } | null,
+  ) {
+    const [company, org, products, settings] = await Promise.all([
+      lead?.companyId ? this.companies.findByIdForOrg(lead.companyId, organizationId) : null,
+      this.organizations.findById(organizationId),
+      this.repository.listProducts(organizationId),
+      this.costService.getSettings(organizationId),
+    ]);
+
+    const clientName = company?.name ?? lead?.title ?? "Cliente";
+    const orgName = org?.name ?? "MilLead";
+    const productName = estimate.productId
+      ? (products.find((p) => p.id === estimate.productId)?.name ?? null)
+      : null;
+    const computed = this.toComputed(estimate, Number(settings.usdToBrlRate));
+
+    return {
+      estimate: {
+        title: estimate.title,
+        scopeItems: estimate.scopeItems,
+        deadlineDays: estimate.deadlineDays,
+        paymentTerms: estimate.paymentTerms,
+        validDays: estimate.validDays,
+        infraMonths: estimate.infraMonths,
+        domainYears: estimate.domainYears,
+        finalPrice: estimate.finalPrice != null ? Number(estimate.finalPrice) : null,
+      },
+      computed,
+      orgName,
+      clientName,
+      productName,
+    };
+  }
+
+  /**
+   * PDF de PRÉVIA do orçamento: mesmo documento que o cliente receberia, mas
+   * sem criar proposta, sem subir no Blob e sem travar o orçamento -- dá pra
+   * mostrar, ajustar e baixar de novo quantas vezes precisar.
+   */
+  async previewPdf(organizationId: string, id: string): Promise<Uint8Array> {
+    const estimate = await this.repository.findById(organizationId, id);
+    if (!estimate) throw new NotFoundError("Orçamento não encontrado.");
+
+    const lead = estimate.leadId
+      ? await this.leads.findByIdForOrg(estimate.leadId, organizationId)
+      : null;
+    const basePdf = await this.dadosDoPdf(organizationId, estimate, lead);
+
+    return this.renderPdf(
+      montarPdfDaProposta({
+        ...basePdf,
+        proposalNumber: "PRÉVIA",
+        createdAt: new Date(),
+        preview: true,
+      }),
+    );
+  }
+
   async convert(
     organizationId: string,
     userId: string,
@@ -161,24 +228,14 @@ export class EstimateService {
     const lead = await this.leads.findByIdForOrg(estimate.leadId, organizationId);
     if (!lead) throw new NotFoundError("Lead não encontrado.");
 
-    const [company, org, products, settings] = await Promise.all([
-      lead.companyId ? this.companies.findByIdForOrg(lead.companyId, organizationId) : null,
-      this.organizations.findById(organizationId),
-      this.repository.listProducts(organizationId),
-      this.costService.getSettings(organizationId),
-    ]);
+    const basePdf = await this.dadosDoPdf(organizationId, estimate, lead);
 
-    const clientName = company?.name ?? lead.title;
-    const orgName = org?.name ?? "MilLead";
-    const productName = estimate.productId
-      ? (products.find((p) => p.id === estimate.productId)?.name ?? null)
-      : null;
-    const computed = this.toComputed(estimate, Number(settings.usdToBrlRate));
-
-    // Fase 6: `price` no body é opcional -- cascata price explícito >
-    // finalPrice decidido pelo dono (se salvo) > preço recomendado calculado.
-    const finalPrice = estimate.finalPrice != null ? Number(estimate.finalPrice) : null;
-    const price = input.price ?? finalPrice ?? computed.priceRecommended;
+    // Fase 6: `price` no body é opcional -- explícito > finalPrice > recomendado.
+    const price = resolverPreco({
+      priceOverride: input.price ?? null,
+      finalPrice: basePdf.estimate.finalPrice,
+      priceRecommended: basePdf.computed.priceRecommended,
+    });
 
     const validUntil = new Date(Date.now() + estimate.validDays * MS_PER_DAY);
     const proposal = await this.proposals.create({
@@ -195,23 +252,14 @@ export class EstimateService {
 
     let pdfUrl: string;
     try {
-      const pdfBytes = await this.renderPdf({
-        proposalNumber,
-        orgName,
-        clientName,
-        projectTitle: estimate.title,
-        productName,
-        scopeItems: estimate.scopeItems,
-        deadlineDays: estimate.deadlineDays,
-        paymentTerms: estimate.paymentTerms,
-        validDays: estimate.validDays,
-        finalPrice: price,
-        infraMonthlyBrl: computed.infraMonthlyBrl,
-        infraMonths: estimate.infraMonths,
-        domainYears: estimate.domainYears,
-        domainCostBrl: computed.domainCost,
-        createdAt: proposal.createdAt,
-      });
+      const pdfBytes = await this.renderPdf(
+        montarPdfDaProposta({
+          ...basePdf,
+          proposalNumber,
+          createdAt: proposal.createdAt,
+          priceOverride: price,
+        }),
+      );
 
       const upload = await this.blobStorage.upload({
         pathname: `proposals/${organizationId}/${proposal.id}.pdf`,

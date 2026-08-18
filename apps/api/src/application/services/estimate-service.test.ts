@@ -533,6 +533,34 @@ describe("EstimateService", () => {
       expect(estimates.markConverted).not.toHaveBeenCalled();
     });
 
+    it("prévia gera o PDF sem criar proposta, sem subir no Blob e sem converter", async () => {
+      const { service, estimates, proposals, blobStorage, renderPdf } = fakeRepos({
+        estimates: { findById: vi.fn().mockResolvedValue(fakeEstimate({ leadId: "lead-1" })) },
+        leads: { findByIdForOrg: vi.fn().mockResolvedValue(fakeLead({ companyId: "company-1" })) },
+      });
+
+      const bytes = await service.previewPdf(ORG, "est-1");
+
+      expect(bytes.length).toBeGreaterThan(0);
+      expect(renderPdf).toHaveBeenCalledWith(
+        expect.objectContaining({ preview: true, proposalNumber: "PRÉVIA" }),
+      );
+      // O ponto da prévia: dá pra baixar quantas vezes quiser sem efeito nenhum.
+      expect(proposals.create).not.toHaveBeenCalled();
+      expect(blobStorage.upload).not.toHaveBeenCalled();
+      expect(estimates.markConverted).not.toHaveBeenCalled();
+    });
+
+    it("prévia funciona sem lead vinculado -- é pra decidir preço, não pra formalizar", async () => {
+      const { service, renderPdf } = fakeRepos({
+        estimates: { findById: vi.fn().mockResolvedValue(fakeEstimate({ leadId: null })) },
+      });
+
+      await service.previewPdf(ORG, "est-1");
+
+      expect(renderPdf).toHaveBeenCalledWith(expect.objectContaining({ clientName: "Cliente" }));
+    });
+
     it("happy path: cria proposal com value=price, gera e sobe o PDF, marca convertido e loga Activity", async () => {
       const { service, estimates, proposals, blobStorage, renderPdf, activityRepository } =
         fakeRepos({
