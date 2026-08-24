@@ -25,6 +25,8 @@ export const PERMISSIONS = {
   ROLES_MANAGE: "roles:manage",
   BILLING_MANAGE: "billing:manage",
   SETTINGS_MANAGE: "settings:manage",
+  PROJECT_CHECKLISTS_READ: "project-checklists:read",
+  PROJECT_CHECKLISTS_WRITE: "project-checklists:write",
 } as const;
 
 export type PermissionKey = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
@@ -39,6 +41,7 @@ const READ_ONLY_PERMISSIONS: readonly PermissionKey[] = [
   PERMISSIONS.PROPOSALS_READ,
   PERMISSIONS.AUDITS_READ,
   PERMISSIONS.MESSAGES_READ,
+  PERMISSIONS.PROJECT_CHECKLISTS_READ,
 ];
 
 const SALES_PERMISSIONS: readonly PermissionKey[] = [
