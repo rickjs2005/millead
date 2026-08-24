@@ -11,6 +11,7 @@ import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PhaseStatusSelect } from "@/features/project-checklists/components/phase-status-select";
 import { useProjectChecklist } from "@/features/project-checklists/hooks";
+import { getPhaseChecklistItems } from "@/features/project-checklists/phase-checklist-items";
 import { ApiError } from "@/services/api-client";
 
 const TYPE_LABELS = {
@@ -70,16 +71,26 @@ export default function ProjectChecklistDetailPage() {
       </div>
 
       <Card className="divide-y p-0">
-        {data.phases.map((phase) => (
-          <div key={phase.id} className="flex items-center justify-between gap-4 p-4">
-            <div>
-              <p className="text-sm font-medium">
-                Fase {String(phase.phaseNumber).padStart(2, "0")} — {phase.phaseName}
-              </p>
+        {data.phases.map((phase) => {
+          const items = getPhaseChecklistItems(data.type, phase.phaseNumber);
+          return (
+            <div key={phase.id} className="flex flex-col gap-3 p-4 sm:flex-row sm:items-start sm:justify-between">
+              <div className="flex-1">
+                <p className="text-sm font-medium">
+                  Fase {String(phase.phaseNumber).padStart(2, "0")} — {phase.phaseName}
+                </p>
+                {items.length > 0 && (
+                  <ul className="mt-1.5 list-disc space-y-0.5 pl-4 text-xs text-muted-foreground">
+                    {items.map((item) => (
+                      <li key={item}>{item}</li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+              <PhaseStatusSelect checklistId={data.id} phase={phase} />
             </div>
-            <PhaseStatusSelect checklistId={data.id} phase={phase} />
-          </div>
-        ))}
+          );
+        })}
       </Card>
     </div>
   );
