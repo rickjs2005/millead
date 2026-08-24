@@ -33,7 +33,9 @@ export type PermissionKey =
   | "members:manage"
   | "roles:manage"
   | "billing:manage"
-  | "settings:manage";
+  | "settings:manage"
+  | "project-checklists:read"
+  | "project-checklists:write";
 
 export interface PublicUser {
   id: string;
@@ -1158,4 +1160,36 @@ export interface CreateStandaloneReceivablePayload {
   description: string;
   dueDate: string;
   alreadyPaid?: boolean;
+}
+
+export type ProjectChecklistType = "INSTITUTIONAL" | "SYSTEM";
+export type ProjectChecklistPhaseStatus = "NOT_STARTED" | "IN_PROGRESS" | "DONE" | "NOT_APPLICABLE";
+
+export interface ProjectChecklistPhase {
+  id: string;
+  projectChecklistId: string;
+  phaseNumber: number;
+  phaseName: string;
+  status: ProjectChecklistPhaseStatus;
+  naNote: string | null;
+  updatedAt: string;
+}
+
+export interface ProjectChecklist {
+  id: string;
+  organizationId: string;
+  name: string;
+  type: ProjectChecklistType;
+  companyId: string | null;
+  localFolder: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ProjectChecklistSummary extends ProjectChecklist {
+  progressPercent: number;
+}
+
+export interface ProjectChecklistDetail extends ProjectChecklist {
+  phases: ProjectChecklistPhase[];
 }

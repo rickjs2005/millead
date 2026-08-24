@@ -82,4 +82,8 @@ export const queryKeys = {
     margin: (contractId: string) => ["receivables", "margin", contractId] as const,
     standalone: () => ["receivables", "standalone"] as const,
   },
+  projectChecklists: {
+    list: () => ["project-checklists", "list"] as const,
+    detail: (id: string) => ["project-checklists", "detail", id] as const,
+  },
 };

@@ -6,6 +6,7 @@ import {
   Clapperboard,
   ClipboardList,
   FileSignature,
+  FolderKanban,
   HandCoins,
   Instagram,
   LayoutDashboard,
@@ -98,6 +99,7 @@ export const NAV_SECTIONS: NavSection[] = [
   {
     title: "Interno",
     items: [
+      { label: "Projetos", href: "/projetos", icon: FolderKanban, permission: "project-checklists:read" },
       // Ferramenta pessoal do dono -- invisivel pra qualquer outro usuario.
       { label: "MilSocial", href: "/admin/milsocial", icon: Instagram, ownerOnly: true },
     ],
