@@ -87,6 +87,13 @@ const envSchema = z.object({
   SMTP_PASS: z.string().optional(),
   SMTP_FROM: z.string().optional(),
   OWNER_EMAIL: z.string().optional(),
+  // ===== Automação de checklist de projetos (Claude Code, sem sessão) =====
+  // Chave usada pelas skills site-institucional/sistema-web pra sincronizar
+  // project-state.md com o MilLead sem login. Opcional: sem ela, as rotas
+  // /api/v1/project-checklists continuam funcionando normalmente por sessão
+  // de usuário -- só a sincronização automática fica desativada.
+  AUTOMATION_API_KEY: z.string().min(24).optional(),
+  AUTOMATION_ORGANIZATION_ID: z.string().optional(),
   // ===== Web Push (PWA) — opcional; sem as chaves a feature fica muda =====
   VAPID_PUBLIC_KEY: z.string().optional(),
   VAPID_PRIVATE_KEY: z.string().optional(),

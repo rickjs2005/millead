@@ -37,6 +37,10 @@ services:
         sync: false # token long-lived do Instagram (ver docs/milsocial-setup.md, seção 2)
       - key: MILSOCIAL_SYNC_KEY
         sync: false # MESMO valor do secret homônimo no GitHub Actions (seção 5.1)
+      - key: AUTOMATION_API_KEY
+        sync: false # gerada com openssl rand -hex 24; guardada em ~/.claude/millead-api-key na máquina do Rick
+      - key: AUTOMATION_ORGANIZATION_ID
+        sync: false # id da organização MilWeb (ver packages/database/prisma/seed.ts)
       - key: OWNER_EMAIL
         sync: false # sem ela, /api/v1/admin/social responde 404 pra todo mundo
       # Opcionais (IA, contratos, e-mail, WhatsApp) -- adicionar quando for usar:
