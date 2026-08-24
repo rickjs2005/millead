@@ -1192,4 +1192,5 @@ export interface ProjectChecklistSummary extends ProjectChecklist {
 
 export interface ProjectChecklistDetail extends ProjectChecklist {
   phases: ProjectChecklistPhase[];
+  progressPercent: number;
 }

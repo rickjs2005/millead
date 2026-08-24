@@ -10,6 +10,15 @@ function safeEqual(a: string, b: string): boolean {
 }
 
 /**
+ * Valor sintético usado em `req.auth.userId` pra requests autenticados via
+ * X-Automation-Key -- NÃO é um id de `users` real (não tem linha na tabela),
+ * então nada que grave `userId` como FK (ex.: AuditLog) pode usar isso direto.
+ * Exportado pra `audit-mutations.ts` reconhecer esse ator sem duplicar a
+ * string mágica.
+ */
+export const AUTOMATION_USER_ID = "automation";
+
+/**
  * Rotas de automação (ex.: sync do project-checklist a partir das skills do
  * Claude Code) aceitam DUAS formas de auth: sessão normal (JWT) OU header
  * X-Automation-Key. Header presente decide a rota na hora -- inválido é 401
@@ -27,10 +36,10 @@ export function apiKeyOrSession(
     if (typeof header === "string") {
       if (apiKey && organizationId && safeEqual(header, apiKey)) {
         req.auth = {
-          id: "automation",
-          userId: "automation",
+          id: AUTOMATION_USER_ID,
+          userId: AUTOMATION_USER_ID,
           organizationId,
-          roleId: "automation",
+          roleId: AUTOMATION_USER_ID,
           status: "ACTIVE",
           organizationName: "Automação",
           organizationSlug: "automation",

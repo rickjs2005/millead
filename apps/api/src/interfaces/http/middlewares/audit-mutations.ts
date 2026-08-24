@@ -1,6 +1,7 @@
 import type { NextFunction, Request, RequestHandler, Response } from "express";
 import type { AuditLogger } from "../../../application/services/audit-logger.js";
 import { getRequestMeta } from "../request-meta.js";
+import { AUTOMATION_USER_ID } from "./api-key-or-session.js";
 
 const MUTATING_METHODS = new Set(["POST", "PATCH", "PUT", "DELETE"]);
 const VERB_BY_METHOD: Record<string, string> = {
@@ -52,14 +53,29 @@ export function createAuditMutationsMiddleware(auditLogger: AuditLogger): Reques
       const verb = VERB_BY_METHOD[req.method] ?? req.method.toLowerCase();
       const entityId = typeof req.params.id === "string" ? req.params.id : undefined;
 
+      // O ator de automação (X-Automation-Key) não é um `users.id` real --
+      // gravar "automation" direto em AuditLog.userId quebraria a FK e fazia
+      // TODA mutação automatizada falhar de audit em silêncio (fire-and-forget
+      // engolia o erro). Grava userId null e marca o ator nos metadados.
+      const isAutomation = auth.userId === AUTOMATION_USER_ID;
+
       void auditLogger
         .log(
-          { organizationId: auth.organizationId, userId: auth.userId, ...getRequestMeta(req) },
+          {
+            organizationId: auth.organizationId,
+            userId: isAutomation ? null : auth.userId,
+            ...getRequestMeta(req),
+          },
           `${resource}.${verb}`,
           {
             entityType: resource,
             entityId,
-            metadata: { method: req.method, path, status: res.statusCode },
+            metadata: {
+              method: req.method,
+              path,
+              status: res.statusCode,
+              ...(isAutomation ? { actor: "automation" } : {}),
+            },
           },
         )
         .catch(() => {

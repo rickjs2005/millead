@@ -178,7 +178,10 @@ export function buildContainer(): Container {
   const companyService = new CompanyService(companyRepository);
   const leadService = new LeadService(leadRepository, pipelineRepository, activityLogger);
   const pipelineService = new PipelineService(pipelineRepository);
-  const projectChecklistService = new ProjectChecklistService(projectChecklistRepository);
+  const projectChecklistService = new ProjectChecklistService(
+    projectChecklistRepository,
+    companyRepository,
+  );
   const tagService = new TagService(tagRepository);
   const taskService = new TaskService(taskRepository);
   const meetingService = new MeetingService(meetingRepository);

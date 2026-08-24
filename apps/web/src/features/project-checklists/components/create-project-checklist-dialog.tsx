@@ -24,11 +24,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { CompanyCombobox } from "@/features/companies/components/company-combobox";
 import { useCreateProjectChecklist } from "@/features/project-checklists/hooks";
 
 const schema = z.object({
   name: z.string().min(1, "Informe um nome."),
   type: z.enum(["INSTITUTIONAL", "SYSTEM"]),
+  companyId: z.string().optional(),
   localFolder: z.string().optional(),
 });
 type FormValues = z.infer<typeof schema>;
@@ -52,6 +54,7 @@ export function CreateProjectChecklistDialog() {
     await createProjectChecklist.mutateAsync({
       name: values.name,
       type: values.type,
+      companyId: values.companyId || undefined,
       localFolder: values.localFolder || undefined,
     });
     reset();
@@ -94,6 +97,16 @@ export function CreateProjectChecklistDialog() {
                       <SelectItem value="SYSTEM">Sistema (banco + backend + frontend)</SelectItem>
                     </SelectContent>
                   </Select>
+                )}
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label>Empresa</Label>
+              <Controller
+                control={control}
+                name="companyId"
+                render={({ field }) => (
+                  <CompanyCombobox value={field.value} onChange={(id) => field.onChange(id)} />
                 )}
               />
             </div>

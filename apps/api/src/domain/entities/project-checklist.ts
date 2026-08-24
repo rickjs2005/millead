@@ -23,6 +23,10 @@ export interface ProjectChecklistPhase {
 
 export interface ProjectChecklistDetail extends ProjectChecklist {
   phases: ProjectChecklistPhase[];
+  /** Progresso 0-100, DONE + NOT_APPLICABLE contam como concluídas sobre as
+   * 16 fases -- mesma conta de ProjectChecklistSummary, calculada por
+   * `computeProgressPercent` (application/services/project-checklist-service.ts). */
+  progressPercent: number;
 }
 
 /** Usado na listagem: progresso 0-100, DONE + NOT_APPLICABLE contam como concluídas sobre as 16 fases. */

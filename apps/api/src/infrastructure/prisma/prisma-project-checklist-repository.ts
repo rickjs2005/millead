@@ -1,4 +1,5 @@
 import { prisma } from "@millead/database";
+import { computeProgressPercent } from "../../application/services/project-checklist-service.js";
 import type {
   ProjectChecklist,
   ProjectChecklistDetail,
@@ -36,12 +37,6 @@ function toDomainPhase(row: {
   return { ...row };
 }
 
-function computeProgressPercent(phases: { status: string }[]): number {
-  if (phases.length === 0) return 0;
-  const done = phases.filter((p) => p.status === "DONE" || p.status === "NOT_APPLICABLE").length;
-  return Math.round((done / phases.length) * 100);
-}
-
 export class PrismaProjectChecklistRepository implements ProjectChecklistRepository {
   async create(
     input: CreateProjectChecklistInput,
@@ -65,7 +60,12 @@ export class PrismaProjectChecklistRepository implements ProjectChecklistReposit
       include: { phases: { orderBy: { phaseNumber: "asc" } } },
     });
     const { phases, ...checklist } = row;
-    return { ...toDomainChecklist(checklist), phases: phases.map(toDomainPhase) };
+    const domainPhases = phases.map(toDomainPhase);
+    return {
+      ...toDomainChecklist(checklist),
+      phases: domainPhases,
+      progressPercent: computeProgressPercent(domainPhases),
+    };
   }
 
   async findByIdForOrg(id: string, organizationId: string): Promise<ProjectChecklistDetail | null> {
@@ -75,7 +75,12 @@ export class PrismaProjectChecklistRepository implements ProjectChecklistReposit
     });
     if (!row) return null;
     const { phases, ...checklist } = row;
-    return { ...toDomainChecklist(checklist), phases: phases.map(toDomainPhase) };
+    const domainPhases = phases.map(toDomainPhase);
+    return {
+      ...toDomainChecklist(checklist),
+      phases: domainPhases,
+      progressPercent: computeProgressPercent(domainPhases),
+    };
   }
 
   async list(organizationId: string): Promise<ProjectChecklistSummary[]> {

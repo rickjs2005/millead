@@ -1,4 +1,6 @@
+import type { ProjectChecklistPhaseStatus } from "@millead/database";
 import { NotFoundError, ValidationError } from "../../domain/errors/app-error.js";
+import type { CompanyRepository } from "../../domain/repositories/company-repository.js";
 import type {
   CreateProjectChecklistInput,
   ProjectChecklistRepository,
@@ -50,13 +52,36 @@ export const PHASE_TEMPLATES = {
   SYSTEM: SYSTEM_PHASE_NAMES,
 } as const;
 
+/**
+ * Progresso 0-100: fases DONE + NOT_APPLICABLE contam como concluídas sobre
+ * o total de fases. Função pura (sem I/O) pra ser testável sem banco --
+ * tanto o repositório Prisma quanto este service chamam a mesma implementação
+ * em vez de duplicar a conta em duas camadas.
+ */
+export function computeProgressPercent(phases: { status: ProjectChecklistPhaseStatus }[]): number {
+  if (phases.length === 0) return 0;
+  const done = phases.filter((p) => p.status === "DONE" || p.status === "NOT_APPLICABLE").length;
+  return Math.round((done / phases.length) * 100);
+}
+
 export class ProjectChecklistService {
-  constructor(private readonly projectChecklists: ProjectChecklistRepository) {}
+  constructor(
+    private readonly projectChecklists: ProjectChecklistRepository,
+    private readonly companies: CompanyRepository,
+  ) {}
 
   async create(
     organizationId: string,
     input: Omit<CreateProjectChecklistInput, "organizationId">,
   ) {
+    // companyId cruza tenant se não validado: a FK só garante que a linha
+    // Company existe, não que pertence à mesma organização de quem está
+    // criando o checklist -- sem isso, qualquer usuário autenticado poderia
+    // linkar um checklist a uma Company de outro tenant.
+    if (input.companyId) {
+      const company = await this.companies.findByIdForOrg(input.companyId, organizationId);
+      if (!company) throw new NotFoundError("Empresa não encontrada.");
+    }
     const phaseNames = PHASE_TEMPLATES[input.type];
     return this.projectChecklists.create({ organizationId, ...input }, [...phaseNames]);
   }
