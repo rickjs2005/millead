@@ -29,6 +29,7 @@ import { createHealthRoutes } from "../interfaces/http/routes/health-routes.js";
 import { createLeadRoutes } from "../interfaces/http/routes/lead-routes.js";
 import { createMeetingRoutes } from "../interfaces/http/routes/meeting-routes.js";
 import { createPipelineRoutes } from "../interfaces/http/routes/pipeline-routes.js";
+import { createProjectChecklistRoutes } from "../interfaces/http/routes/project-checklist-routes.js";
 import {
   createProposalRoutes,
   createPublicProposalRoutes,
@@ -129,6 +130,13 @@ export function createApp(container: Container): Express {
     createCompanyRoutes(container.companyController, container.authenticate),
   );
   app.use("/api/v1/leads", createLeadRoutes(container.leadController, container.authenticate));
+  app.use(
+    "/api/v1/project-checklists",
+    createProjectChecklistRoutes(
+      container.projectChecklistController,
+      container.projectChecklistAuthenticate,
+    ),
+  );
   app.use(
     "/api/v1/meetings",
     createMeetingRoutes(container.meetingController, container.authenticate),

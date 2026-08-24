@@ -10,6 +10,7 @@ import { ContractService } from "../application/services/contract-service.js";
 import { CostService } from "../application/services/cost-service.js";
 import { EstimateService } from "../application/services/estimate-service.js";
 import { MessageService } from "../application/services/message-service.js";
+import { ProjectChecklistService } from "../application/services/project-checklist-service.js";
 import { ReceivableService } from "../application/services/receivable-service.js";
 import { CompanyService } from "../application/services/company-service.js";
 import { LeadService } from "../application/services/lead-service.js";
@@ -29,6 +30,7 @@ import { LoginUseCase } from "../application/use-cases/auth/login-use-case.js";
 import { LogoutUseCase } from "../application/use-cases/auth/logout-use-case.js";
 import { RefreshUseCase } from "../application/use-cases/auth/refresh-use-case.js";
 import { RegisterUseCase } from "../application/use-cases/auth/register-use-case.js";
+import { PERMISSIONS } from "@millead/database/permissions";
 import { env } from "../config/env.js";
 import { BcryptPasswordHasher } from "../infrastructure/auth/bcrypt-password-hasher.js";
 import { JwtAccessTokenService } from "../infrastructure/auth/jwt-access-token-service.js";
@@ -64,6 +66,7 @@ import { PrismaMessageTemplateRepository } from "../infrastructure/prisma/prisma
 import { PrismaMembershipRepository } from "../infrastructure/prisma/prisma-membership-repository.js";
 import { PrismaOrganizationRepository } from "../infrastructure/prisma/prisma-organization-repository.js";
 import { PrismaPipelineRepository } from "../infrastructure/prisma/prisma-pipeline-repository.js";
+import { PrismaProjectChecklistRepository } from "../infrastructure/prisma/prisma-project-checklist-repository.js";
 import { PrismaProposalRepository } from "../infrastructure/prisma/prisma-proposal-repository.js";
 import { PrismaRefreshTokenRepository } from "../infrastructure/prisma/prisma-refresh-token-repository.js";
 import { PrismaRoleRepository } from "../infrastructure/prisma/prisma-role-repository.js";
@@ -71,6 +74,7 @@ import { PrismaSocialRepository } from "../infrastructure/prisma/prisma-social-r
 import { PrismaTagRepository } from "../infrastructure/prisma/prisma-tag-repository.js";
 import { PrismaTaskRepository } from "../infrastructure/prisma/prisma-task-repository.js";
 import { PrismaUserRepository } from "../infrastructure/prisma/prisma-user-repository.js";
+import { apiKeyOrSession } from "../interfaces/http/middlewares/api-key-or-session.js";
 import { createAuthenticateMiddleware } from "../interfaces/http/middlewares/authenticate.js";
 import { createRequireOwner } from "../interfaces/http/middlewares/require-owner.js";
 import { AiController } from "../interfaces/http/controllers/ai-controller.js";
@@ -86,6 +90,7 @@ import { CompanyController } from "../interfaces/http/controllers/company-contro
 import { LeadController } from "../interfaces/http/controllers/lead-controller.js";
 import { MeetingController } from "../interfaces/http/controllers/meeting-controller.js";
 import { PipelineController } from "../interfaces/http/controllers/pipeline-controller.js";
+import { ProjectChecklistController } from "../interfaces/http/controllers/project-checklist-controller.js";
 import { ProposalController } from "../interfaces/http/controllers/proposal-controller.js";
 import { SettingsController } from "../interfaces/http/controllers/settings-controller.js";
 import { SocialController } from "../interfaces/http/controllers/social-controller.js";
@@ -107,6 +112,8 @@ export interface Container {
   leadController: LeadController;
   meetingController: MeetingController;
   pipelineController: PipelineController;
+  projectChecklistController: ProjectChecklistController;
+  projectChecklistAuthenticate: RequestHandler;
   proposalController: ProposalController;
   receivableController: ReceivableController;
   settingsController: SettingsController;
@@ -139,6 +146,7 @@ export function buildContainer(): Container {
   const companyRepository = new PrismaCompanyRepository();
   const activityRepository = new PrismaActivityRepository();
   const pipelineRepository = new PrismaPipelineRepository();
+  const projectChecklistRepository = new PrismaProjectChecklistRepository();
   const tagRepository = new PrismaTagRepository();
   const leadRepository = new PrismaLeadRepository();
   const taskRepository = new PrismaTaskRepository();
@@ -170,6 +178,7 @@ export function buildContainer(): Container {
   const companyService = new CompanyService(companyRepository);
   const leadService = new LeadService(leadRepository, pipelineRepository, activityLogger);
   const pipelineService = new PipelineService(pipelineRepository);
+  const projectChecklistService = new ProjectChecklistService(projectChecklistRepository);
   const tagService = new TagService(tagRepository);
   const taskService = new TaskService(taskRepository);
   const meetingService = new MeetingService(meetingRepository);
@@ -343,6 +352,13 @@ export function buildContainer(): Container {
   );
   const socialController = new SocialController(socialService);
   const authenticate = createAuthenticateMiddleware(accessTokenService, membershipRepository);
+  const projectChecklistController = new ProjectChecklistController(projectChecklistService);
+  const projectChecklistAuthenticate = apiKeyOrSession(
+    env.AUTOMATION_API_KEY,
+    env.AUTOMATION_ORGANIZATION_ID,
+    [PERMISSIONS.PROJECT_CHECKLISTS_READ, PERMISSIONS.PROJECT_CHECKLISTS_WRITE],
+    authenticate,
+  );
   const requireOwner = createRequireOwner(userRepository, env.OWNER_EMAIL);
 
   return {
@@ -358,6 +374,8 @@ export function buildContainer(): Container {
     leadController,
     meetingController,
     pipelineController,
+    projectChecklistController,
+    projectChecklistAuthenticate,
     proposalController,
     receivableController,
     settingsController,
