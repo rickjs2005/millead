@@ -133,7 +133,7 @@ Isso é uma mudança de *instrução*, não de código — as skills continuam s
 Seguindo o padrão do repositório (vitest, `*.test.ts` co-localizado):
 
 - `apps/api/src/application/services/project-checklist-service.test.ts` — cobre: criação semeia exatamente 16 fases do tipo certo; `updatePhaseStatus` rejeita `NOT_APPLICABLE` sem `naNote`; cálculo de progresso % trata `NOT_APPLICABLE` como concluída.
-- `apps/api/src/interfaces/http/middlewares/authenticate.test.ts` (se não existir teste pro middleware hoje, criar um cobrindo só o novo caminho): request com `Authorization: Bearer <AUTOMATION_API_KEY correta>` popula `req.auth` com as permissões fixas; com key errada, cai pro fluxo JWT normal (não autentica automaticamente com qualquer bearer).
+- `apps/api/src/interfaces/http/middlewares/api-key-or-session.test.ts` — request com `X-Automation-Key: <AUTOMATION_API_KEY correta>` popula `req.auth` com as permissões fixas `[PROJECT_CHECKLISTS_READ, PROJECT_CHECKLISTS_WRITE]`; com key errada, a request recebe 401 direto (sem fallback pro fluxo de sessão).
 
 ## Riscos / trade-offs aceitos
 
