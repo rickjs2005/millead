@@ -17,6 +17,8 @@ import { TasksList } from "@/features/tasks/components/tasks-list";
 import { useTasks } from "@/features/tasks/hooks";
 import { TASK_STATUS_LABELS } from "@/features/tasks/task-labels";
 import type { TaskStatus } from "@/types/api";
+import { useTeamDirectory } from "@/features/team/hooks";
+import { useAuthStore } from "@/stores/auth-store";
 
 /** Conteúdo completo do módulo de tarefas (filtros + lista + paginação),
  * sem o cabeçalho de página -- vive como tab da Agenda (auditoria de UX
@@ -29,12 +31,17 @@ export function TasksPanel() {
   // /tasks?overdue=true) -- depois disso o toggle manda, sem reagir a
   // mudanças posteriores no searchParams.
   const [overdueOnly, setOverdueOnly] = useState(() => searchParams.get("overdue") === "true");
+  const [assigneeId, setAssigneeId] = useState<string | "ALL">("ALL");
+  const currentUserId = useAuthStore((state) => state.user?.id);
+  const { data: members = [] } = useTeamDirectory();
+  const memberNameById = new Map(members.map((member) => [member.userId, member.name]));
 
   const { data, isLoading, isError, refetch } = useTasks({
     page,
     pageSize: 20,
     status: status === "ALL" ? undefined : status,
     overdue: overdueOnly || undefined,
+    assigneeId: assigneeId === "ALL" ? undefined : assigneeId,
   });
 
   return (
@@ -55,6 +62,25 @@ export function TasksPanel() {
             {Object.entries(TASK_STATUS_LABELS).map(([value, label]) => (
               <SelectItem key={value} value={value}>
                 {label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select
+          value={assigneeId}
+          onValueChange={(value) => {
+            setAssigneeId(value);
+            setPage(1);
+          }}
+        >
+          <SelectTrigger className="w-48">
+            <SelectValue placeholder="Responsável" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="ALL">Todos os responsáveis</SelectItem>
+            {members.map((member) => (
+              <SelectItem key={member.userId} value={member.userId}>
+                {member.userId === currentUserId ? "Minhas tarefas (Você)" : member.name}
               </SelectItem>
             ))}
           </SelectContent>
@@ -81,7 +107,11 @@ export function TasksPanel() {
         <ErrorState onRetry={() => refetch()} />
       ) : (
         <Card className="p-4">
-          <TasksList tasks={data?.items ?? []} isLoading={isLoading} />
+          <TasksList
+            tasks={data?.items ?? []}
+            isLoading={isLoading}
+            memberNameById={memberNameById}
+          />
         </Card>
       )}
 

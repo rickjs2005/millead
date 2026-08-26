@@ -43,21 +43,22 @@ model User {
   createdAt    DateTime  @default(now()) @map("created_at")
   updatedAt    DateTime  @updatedAt @map("updated_at")
 
-  memberships       Membership[]
-  refreshTokens     RefreshToken[]
-  auditLogs         AuditLog[]
-  leadNotes         LeadNote[]
-  assignedLeads     Lead[]             @relation("LeadOwner")
-  assignedTasks     Task[]             @relation("TaskAssignee")
-  activities        Activity[]
-  createdMeetings   Meeting[]          @relation("MeetingCreatedBy")
-  meetingAttendees  MeetingAttendee[]
-  createdProposals  Proposal[]         @relation("ProposalCreatedBy")
-  requestedAudits   Audit[]            @relation("AuditRequestedBy")
-  contracts         Contract[]         @relation("ContractCreatedBy")
-  createdBriefings  Briefing[]         @relation("BriefingCreatedBy")
-  pushSubscriptions PushSubscription[]
-  pricingEstimates  PricingEstimate[]
+  memberships         Membership[]
+  refreshTokens       RefreshToken[]
+  auditLogs           AuditLog[]
+  leadNotes           LeadNote[]
+  assignedLeads       Lead[]             @relation("LeadOwner")
+  assignedTasks       Task[]             @relation("TaskAssignee")
+  activities          Activity[]
+  createdMeetings     Meeting[]          @relation("MeetingCreatedBy")
+  meetingAttendees    MeetingAttendee[]
+  createdProposals    Proposal[]         @relation("ProposalCreatedBy")
+  requestedAudits     Audit[]            @relation("AuditRequestedBy")
+  contracts           Contract[]         @relation("ContractCreatedBy")
+  createdBriefings    Briefing[]         @relation("BriefingCreatedBy")
+  pushSubscriptions   PushSubscription[]
+  pricingEstimates    PricingEstimate[]
+  sentTeamInvitations TeamInvitation[]   @relation("TeamInvitationInviter")
 
   @@map("users")
 }
@@ -118,6 +119,7 @@ model Organization {
   pricingEstimateCosts    PricingEstimateCost[]
   costUsageEntries        CostUsageEntry[]
   receivables             Receivable[]
+  teamInvitations         TeamInvitation[]
 
   @@map("organizations")
 }
@@ -165,13 +167,39 @@ model Role {
   createdAt      DateTime @default(now()) @map("created_at")
   updatedAt      DateTime @updatedAt @map("updated_at")
 
-  organization Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  permissions  RolePermission[]
-  memberships  Membership[]
+  organization    Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  permissions     RolePermission[]
+  memberships     Membership[]
+  teamInvitations TeamInvitation[]
 
   @@unique([organizationId, name])
   @@index([organizationId])
   @@map("roles")
+}
+
+/// Convite de acesso a uma organização. O token é guardado apenas como hash;
+/// o valor bruto existe somente no link enviado por e-mail.
+model TeamInvitation {
+  id             String    @id @default(cuid())
+  organizationId String    @map("organization_id")
+  roleId         String    @map("role_id")
+  invitedById    String?   @map("invited_by_id")
+  email          String
+  tokenHash      String    @unique @map("token_hash")
+  expiresAt      DateTime  @map("expires_at")
+  acceptedAt     DateTime? @map("accepted_at")
+  revokedAt      DateTime? @map("revoked_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  role         Role         @relation(fields: [roleId], references: [id], onDelete: Restrict)
+  invitedBy    User?        @relation("TeamInvitationInviter", fields: [invitedById], references: [id], onDelete: SetNull)
+
+  @@unique([organizationId, email])
+  @@index([organizationId])
+  @@index([roleId])
+  @@map("team_invitations")
 }
 
 /// Catálogo global de permissões (não é por tenant) -- ex.: "leads:read",

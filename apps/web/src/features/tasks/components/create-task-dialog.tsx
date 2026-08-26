@@ -19,12 +19,14 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { LeadCombobox } from "@/features/leads/components/lead-combobox";
 import { useCreateTask } from "@/features/tasks/hooks";
+import { MemberSelect } from "@/features/team/components/member-select";
 
 const schema = z.object({
   title: z.string().min(1, "Informe um título."),
   description: z.string().optional(),
   leadId: z.string().optional(),
   dueAt: z.string().optional(),
+  assigneeId: z.string().optional(),
 });
 type FormValues = z.infer<typeof schema>;
 
@@ -56,6 +58,7 @@ export function CreateTaskDialog({
       ...values,
       leadId: leadId ?? values.leadId,
       dueAt: values.dueAt || undefined,
+      assigneeId: values.assigneeId || undefined,
     });
     reset();
     setOpen(false);
@@ -101,6 +104,16 @@ export function CreateTaskDialog({
                 />
               </div>
             )}
+            <div className="flex flex-col gap-1.5">
+              <Label>Responsável</Label>
+              <Controller
+                control={control}
+                name="assigneeId"
+                render={({ field }) => (
+                  <MemberSelect value={field.value} onChange={field.onChange} />
+                )}
+              />
+            </div>
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="dueAt">Vencimento</Label>
               <Input id="dueAt" type="date" {...register("dueAt")} />

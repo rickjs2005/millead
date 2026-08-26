@@ -27,12 +27,14 @@ import {
 import { CompanyCombobox } from "@/features/companies/components/company-combobox";
 import { useCreateLead } from "@/features/leads/hooks";
 import { LEAD_SOURCE_LABELS } from "@/features/leads/lead-labels";
+import { MemberSelect } from "@/features/team/components/member-select";
 
 const schema = z.object({
   title: z.string().min(1, "Informe um título."),
   companyId: z.string().optional(),
   source: z.enum(["MANUAL", "IMPORT", "SCRAPER", "REFERRAL", "INBOUND"]),
   value: z.string().optional(),
+  ownerId: z.string().optional(),
 });
 type FormValues = z.infer<typeof schema>;
 
@@ -54,6 +56,7 @@ export function CreateLeadDialog() {
       companyId: values.companyId || undefined,
       source: values.source,
       value: values.value || undefined,
+      ownerId: values.ownerId || undefined,
     });
     reset();
     setOpen(false);
@@ -79,6 +82,16 @@ export function CreateLeadDialog() {
               <Label htmlFor="title">Título</Label>
               <Input id="title" placeholder="Ex.: Loja iPhone Centro" {...register("title")} />
               {errors.title && <p className="text-xs text-destructive">{errors.title.message}</p>}
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label>Responsável</Label>
+              <Controller
+                control={control}
+                name="ownerId"
+                render={({ field }) => (
+                  <MemberSelect value={field.value} onChange={field.onChange} />
+                )}
+              />
             </div>
             <div className="flex flex-col gap-1.5">
               <Label>Empresa</Label>

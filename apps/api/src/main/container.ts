@@ -24,6 +24,7 @@ import { DefaultProposalNotifier } from "../infrastructure/proposals/proposal-no
 import { SessionIssuer } from "../application/services/session-issuer.js";
 import { TagService } from "../application/services/tag-service.js";
 import { TaskService } from "../application/services/task-service.js";
+import { TeamService } from "../application/services/team-service.js";
 import { ChangePasswordUseCase } from "../application/use-cases/auth/change-password-use-case.js";
 import { GetCurrentUserUseCase } from "../application/use-cases/auth/get-current-user-use-case.js";
 import { LoginUseCase } from "../application/use-cases/auth/login-use-case.js";
@@ -74,6 +75,8 @@ import { PrismaSocialRepository } from "../infrastructure/prisma/prisma-social-r
 import { PrismaTagRepository } from "../infrastructure/prisma/prisma-tag-repository.js";
 import { PrismaTaskRepository } from "../infrastructure/prisma/prisma-task-repository.js";
 import { PrismaUserRepository } from "../infrastructure/prisma/prisma-user-repository.js";
+import { PrismaTeamRepository } from "../infrastructure/prisma/prisma-team-repository.js";
+import { DefaultTeamInvitationNotifier } from "../infrastructure/team/default-team-invitation-notifier.js";
 import { apiKeyOrSession } from "../interfaces/http/middlewares/api-key-or-session.js";
 import { createAuthenticateMiddleware } from "../interfaces/http/middlewares/authenticate.js";
 import { createRequireOwner } from "../interfaces/http/middlewares/require-owner.js";
@@ -96,6 +99,7 @@ import { SettingsController } from "../interfaces/http/controllers/settings-cont
 import { SocialController } from "../interfaces/http/controllers/social-controller.js";
 import { TagController } from "../interfaces/http/controllers/tag-controller.js";
 import { TaskController } from "../interfaces/http/controllers/task-controller.js";
+import { TeamController } from "../interfaces/http/controllers/team-controller.js";
 import type { MembershipRepository } from "../domain/repositories/membership-repository.js";
 import type { RequestHandler } from "express";
 
@@ -120,6 +124,7 @@ export interface Container {
   socialController: SocialController;
   tagController: TagController;
   taskController: TaskController;
+  teamController: TeamController;
   authenticate: RequestHandler;
   requireOwner: RequestHandler;
   membershipRepository: MembershipRepository;
@@ -141,6 +146,7 @@ export function buildContainer(): Container {
   const organizationRepository = new PrismaOrganizationRepository();
   const roleRepository = new PrismaRoleRepository();
   const membershipRepository = new PrismaMembershipRepository();
+  const teamRepository = new PrismaTeamRepository();
   const refreshTokenRepository = new PrismaRefreshTokenRepository();
   const auditLogRepository = new PrismaAuditLogRepository();
   const companyRepository = new PrismaCompanyRepository();
@@ -176,14 +182,28 @@ export function buildContainer(): Container {
   const activityLogger = new ActivityLogger(activityRepository);
   const sessionIssuer = new SessionIssuer(accessTokenService, refreshTokenRepository);
   const companyService = new CompanyService(companyRepository);
-  const leadService = new LeadService(leadRepository, pipelineRepository, activityLogger);
+  const leadService = new LeadService(
+    leadRepository,
+    pipelineRepository,
+    activityLogger,
+    membershipRepository,
+  );
   const pipelineService = new PipelineService(pipelineRepository);
   const projectChecklistService = new ProjectChecklistService(
     projectChecklistRepository,
     companyRepository,
   );
   const tagService = new TagService(tagRepository);
-  const taskService = new TaskService(taskRepository);
+  const taskService = new TaskService(taskRepository, membershipRepository);
+  const teamService = new TeamService(
+    teamRepository,
+    roleRepository,
+    userRepository,
+    passwordHasher,
+    sessionIssuer,
+    auditLogger,
+    new DefaultTeamInvitationNotifier(),
+  );
   const meetingService = new MeetingService(meetingRepository);
   const proposalNotifier = new DefaultProposalNotifier();
   const proposalService = new ProposalService(
@@ -337,6 +357,7 @@ export function buildContainer(): Container {
   const pipelineController = new PipelineController(pipelineService);
   const tagController = new TagController(tagService);
   const taskController = new TaskController(taskService);
+  const teamController = new TeamController(teamService);
   const meetingController = new MeetingController(meetingService);
   const proposalController = new ProposalController(proposalService, proposalPublicService);
   const settingsController = new SettingsController(settingsService);
@@ -385,6 +406,7 @@ export function buildContainer(): Container {
     socialController,
     tagController,
     taskController,
+    teamController,
     authenticate,
     requireOwner,
     membershipRepository,

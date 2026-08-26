@@ -152,9 +152,12 @@ sessão) → `POST /api/v1/auth/login` → `POST /api/v1/auth/refresh` →
 - Toda organização nova ganha 4 papéis do sistema automaticamente
   (`SYSTEM_ROLES`): **Owner** (tudo), **Admin** (tudo exceto cobrança),
   **Sales** (opera o CRM), **Viewer** (só leitura).
-- Middleware `requirePermission("leads:write")` em cada rota protegida —
-  ainda não há rotas de negócio na Fase 1 (só `/auth/me`), mas o
-  middleware já está pronto pra Fase 4 em diante.
+- Middleware `requirePermission("leads:write")` em cada rota protegida.
+- Gestão de equipe usa `members:manage` e `roles:manage`. A camada de
+  aplicação também impede escalada horizontal/vertical: papel e membro
+  precisam pertencer ao tenant e o ator só concede permissões que já possui.
+- Convites guardam apenas SHA-256 do token opaco. O token bruto aparece uma
+  vez no link, expira em 7 dias e é consumido atomicamente na aceitação.
 
 ## Auditoria de ações vs. auditoria de site
 
@@ -288,5 +291,5 @@ autocontido — reavaliar quando o projeto for a produção com tráfego real.
 
 Ver roadmap completo no [README](../README.md#roadmap-de-fases). **Todas as
 8 fases concluídas.** Próximos candidatos fora do roadmap original: envio
-real de mensagens (Twilio/e-mail), edição de propostas, gestão de equipe
-(API de membros) e deploy em produção (build de verdade no lugar do `tsx`).
+real de mensagens (Twilio/e-mail), automação Lead → Projeto, central “Hoje”
+e deploy em produção (build de verdade no lugar do `tsx`).

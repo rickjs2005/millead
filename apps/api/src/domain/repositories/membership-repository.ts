@@ -14,4 +14,6 @@ export interface MembershipRepository {
   findContext(userId: string, organizationId: string): Promise<MembershipContext | null>;
   /** Todas as organizações que o usuário pode acessar -- usado no login pra listar workspaces. */
   listContextsForUser(userId: string): Promise<MembershipContext[]>;
+  /** Valida responsável sem permitir atribuição cruzada entre tenants. */
+  isActiveMember(userId: string, organizationId: string): Promise<boolean>;
 }

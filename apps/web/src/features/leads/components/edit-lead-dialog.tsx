@@ -27,6 +27,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { CompanyCombobox } from "@/features/companies/components/company-combobox";
 import { useUpdateLead } from "@/features/leads/hooks";
 import type { LeadDetail } from "@/types/api";
+import { MemberSelect } from "@/features/team/components/member-select";
 
 const CURRENCIES = ["BRL", "USD", "EUR"] as const;
 
@@ -36,6 +37,7 @@ const schema = z.object({
   value: z.string().optional(),
   currency: z.enum(CURRENCIES),
   lostReason: z.string().optional(),
+  ownerId: z.string().optional(),
 });
 type FormValues = z.infer<typeof schema>;
 
@@ -58,6 +60,7 @@ export function EditLeadDialog({ lead, companyName }: { lead: LeadDetail; compan
         ? (lead.currency as (typeof CURRENCIES)[number])
         : "BRL",
       lostReason: lead.lostReason ?? "",
+      ownerId: lead.ownerId ?? undefined,
     },
   });
 
@@ -68,6 +71,7 @@ export function EditLeadDialog({ lead, companyName }: { lead: LeadDetail; compan
       companyId: values.companyId ?? null,
       value: values.value === "" ? null : values.value,
       currency: values.currency,
+      ownerId: values.ownerId ?? null,
       lostReason:
         lead.status === "LOST" ? (values.lostReason === "" ? null : values.lostReason) : undefined,
     });
@@ -91,6 +95,16 @@ export function EditLeadDialog({ lead, companyName }: { lead: LeadDetail; compan
               <Label htmlFor="lead-title">Título</Label>
               <Input id="lead-title" {...register("title")} />
               {errors.title && <p className="text-xs text-destructive">{errors.title.message}</p>}
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label>Responsável</Label>
+              <Controller
+                control={control}
+                name="ownerId"
+                render={({ field }) => (
+                  <MemberSelect value={field.value} onChange={field.onChange} />
+                )}
+              />
             </div>
             <div className="flex flex-col gap-1.5">
               <Label>Empresa</Label>

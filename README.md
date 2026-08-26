@@ -158,20 +158,16 @@ pnpm --filter @millead/api dev:worker
       assinatura e não pelo navegador, e capacidades ainda adormecidas
       (ver abaixo).
 
-## O que falta de verdade
+## Gestão de equipe
 
-- [ ] **Gestão de membros (API + telas)**: é a única ausência de produto.
-      Hoje `settings/team` é um `EmptyState` honesto e as rotas de
-      `/api/v1/settings` só cobrem integrações e dois `PATCH`. Sem isso a
-      organização é de usuário único.
-
-- **Filtros por pessoa, prontos e adormecidos**: `ownerId` (leads) e
-  `assigneeId` (tarefas) já existem no schema, no repositório Prisma e nos
-  tipos do front, mas nenhum formulário atribui responsável e nenhuma tela
-  filtra por ele. **Não é ponta solta**: eles servem operação com mais de
-  uma pessoa, o que depende da gestão de membros acima. Quando ela existir,
-  ligar os filtros é trabalho de minutos. Consequência hoje: a coluna
-  "Responsável" na tabela de leads sempre exibe `—`.
+- [x] Convites por e-mail/link com token opaco, hash no banco, expiração em
+      7 dias, reenvio e revogação.
+- [x] Membros ativos/suspensos, papéis padrão e personalizados e proteção do
+      último Owner ativo.
+- [x] Escalada de privilégio bloqueada: ninguém pode conceder permissões que
+      não possui, nem atribuir um usuário de outro tenant.
+- [x] Responsável em leads e tarefas, com diretório da equipe e filtros
+      “Meus leads”/“Minhas tarefas”.
 
 - **Código morto encontrado na mesma varredura** (remoção trivial, sem
   impacto): `tasksService.get`, `proposalsService.get`,
@@ -186,7 +182,7 @@ RBAC. Listagens aceitam `?page=&pageSize=` (paginação) e devolvem
 `{ items, page, pageSize, total, totalPages }`.
 
 | Recurso    | Rotas                                                                                                                                                                                   |
-| ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
 | Empresas   | `POST/GET /api/v1/companies`, `GET/PATCH /:id`, `POST/DELETE /:id/websites[/:websiteId]`, `POST/DELETE /:id/socials[/:socialId]`                                                        |
 | Leads      | `POST/GET /api/v1/leads`, `GET/PATCH /:id`, `PATCH /:id/stage`, `POST/DELETE /:id/contacts[/:contactId]`, `POST /:id/notes`, `POST/DELETE /:id/tags[/:tagId]`, `GET /:id/activities`    |
 | Etiquetas  | `GET/POST /api/v1/tags`                                                                                                                                                                 |
@@ -198,6 +194,7 @@ RBAC. Listagens aceitam `?page=&pageSize=` (paginação) e devolvem
 | IA         | `GET /api/v1/ai/status`, `POST /api/v1/ai/leads/:id/score`, `POST .../report`, `POST .../message`, `POST /api/v1/ai/creative-direction` (503 sem `ANTHROPIC_API_KEY`)                   |
 | Mensagens  | `GET /api/v1/messages[?leadId=&status=&channel=]`, `PATCH /:id`, `GET/POST /api/v1/messages/templates`, `PATCH /templates/:id`                                                          |
 | Contratos  | `POST/GET /api/v1/contracts`, `GET /kpis`, `GET /:id[/pdf]`, `PATCH /:id/status`, `POST /:id/reprocess` -- públicas: `POST /api/v1/public/contracts`, `POST /api/v1/webhooks/signature` |
+| Equipe     | `GET /api/v1/team/directory`, membros, convites e papéis em `/api/v1/team/*`; públicas: `POST /api/v1/public/team-invitations/preview                                                   | accept` |
 
 Detalhes de design que valem saber antes de consumir essa API:
 

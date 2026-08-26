@@ -29,7 +29,6 @@ import {
   LEAD_STATUS_VARIANT,
 } from "@/features/leads/lead-labels";
 import type { Lead, PipelineStage } from "@/types/api";
-import { useAuthStore } from "@/stores/auth-store";
 import { formatCurrency, formatDate } from "@/utils/format";
 
 interface LeadsTableProps {
@@ -39,6 +38,7 @@ interface LeadsTableProps {
   selected: Set<string>;
   onToggleSelect: (id: string) => void;
   onToggleSelectAll: () => void;
+  memberNameById: Map<string, string>;
 }
 
 export function LeadsTable({
@@ -48,9 +48,9 @@ export function LeadsTable({
   selected,
   onToggleSelect,
   onToggleSelectAll,
+  memberNameById,
 }: LeadsTableProps) {
   const router = useRouter();
-  const userId = useAuthStore((s) => s.user?.id);
   const allSelected = leads.length > 0 && leads.every((l) => selected.has(l.id));
   const deleteLead = useDeleteLead();
   const { confirm, dialog } = useConfirmDialog();
@@ -139,7 +139,7 @@ export function LeadsTable({
                   </Badge>
                 </TableCell>
                 <TableCell className="text-muted-foreground">
-                  {lead.ownerId ? (lead.ownerId === userId ? "Você" : "Outro membro") : "—"}
+                  {lead.ownerId ? (memberNameById.get(lead.ownerId) ?? "Membro indisponível") : "—"}
                 </TableCell>
                 <TableCell className="text-muted-foreground">
                   {formatDate(lead.createdAt)}

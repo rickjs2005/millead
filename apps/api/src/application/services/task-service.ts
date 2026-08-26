@@ -1,4 +1,5 @@
-import { NotFoundError } from "../../domain/errors/app-error.js";
+import { NotFoundError, ValidationError } from "../../domain/errors/app-error.js";
+import type { MembershipRepository } from "../../domain/repositories/membership-repository.js";
 import type {
   TaskFilters,
   TaskRepository,
@@ -8,9 +9,13 @@ import type { PaginationParams } from "../../shared/pagination.js";
 import type { CreateTaskInput } from "../dto/task.dto.js";
 
 export class TaskService {
-  constructor(private readonly repository: TaskRepository) {}
+  constructor(
+    private readonly repository: TaskRepository,
+    private readonly memberships: MembershipRepository,
+  ) {}
 
-  create(organizationId: string, input: CreateTaskInput) {
+  async create(organizationId: string, input: CreateTaskInput) {
+    await this.validateAssignee(organizationId, input.assigneeId);
     return this.repository.create({ organizationId, ...input });
   }
 
@@ -25,6 +30,7 @@ export class TaskService {
   }
 
   async update(organizationId: string, id: string, patch: UpdateTaskInput) {
+    await this.validateAssignee(organizationId, patch.assigneeId);
     // Marcar DONE sem `completedAt` explícito preenche com agora;
     // sair de DONE (reabrir a tarefa) limpa o campo.
     const resolvedPatch: UpdateTaskInput = { ...patch };
@@ -37,6 +43,16 @@ export class TaskService {
     const task = await this.repository.update(id, organizationId, resolvedPatch);
     if (!task) throw new NotFoundError("Tarefa não encontrada.");
     return task;
+  }
+
+  private async validateAssignee(
+    organizationId: string,
+    assigneeId: string | null | undefined,
+  ): Promise<void> {
+    if (!assigneeId) return;
+    if (!(await this.memberships.isActiveMember(assigneeId, organizationId))) {
+      throw new ValidationError("O responsável precisa ser um membro ativo desta equipe.");
+    }
   }
 
   async delete(organizationId: string, id: string) {

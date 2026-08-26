@@ -13,8 +13,8 @@ import { authRateLimit } from "../middlewares/rate-limit.js";
 import { validateBody } from "../middlewares/validate.js";
 
 /** O MilLead é sistema INTERNO da MilWeb: com REGISTRATION_OPEN=false o
- *  registro público fecha (403) — flip temporário da env pra cadastrar
- *  alguém novo da equipe (Settings > Equipe ainda é stub). */
+ *  registro público de novos workspaces fecha (403). Novos membros entram
+ *  pelo fluxo de convite em Settings > Equipe. */
 const registrationGate: RequestHandler = (_req, res, next) => {
   if (!env.REGISTRATION_OPEN) {
     res.status(403).json({

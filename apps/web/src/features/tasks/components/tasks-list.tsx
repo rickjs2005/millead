@@ -11,7 +11,7 @@ import { TASK_STATUS_LABELS, TASK_STATUS_VARIANT } from "@/features/tasks/task-l
 import { formatDate } from "@/utils/format";
 import type { Task } from "@/types/api";
 
-function TaskRow({ task }: { task: Task }) {
+function TaskRow({ task, memberNameById }: { task: Task; memberNameById: Map<string, string> }) {
   const updateTask = useUpdateTask(task.id);
   const deleteTask = useDeleteTask();
   const overdue = task.dueAt && task.status === "PENDING" && new Date(task.dueAt) < new Date();
@@ -35,6 +35,11 @@ function TaskRow({ task }: { task: Task }) {
       {task.dueAt && (
         <Badge variant={overdue ? "destructive" : "outline"}>{formatDate(task.dueAt)}</Badge>
       )}
+      {task.assigneeId && (
+        <Badge variant="outline">
+          {memberNameById.get(task.assigneeId) ?? "Membro indisponível"}
+        </Badge>
+      )}
       <Badge variant={TASK_STATUS_VARIANT[task.status]}>{TASK_STATUS_LABELS[task.status]}</Badge>
       <Button
         variant="ghost"
@@ -48,7 +53,15 @@ function TaskRow({ task }: { task: Task }) {
   );
 }
 
-export function TasksList({ tasks, isLoading }: { tasks: Task[]; isLoading: boolean }) {
+export function TasksList({
+  tasks,
+  isLoading,
+  memberNameById = new Map(),
+}: {
+  tasks: Task[];
+  isLoading: boolean;
+  memberNameById?: Map<string, string>;
+}) {
   if (isLoading) {
     return (
       <div className="flex flex-col gap-2">
@@ -66,7 +79,7 @@ export function TasksList({ tasks, isLoading }: { tasks: Task[]; isLoading: bool
   return (
     <div className="flex flex-col gap-2">
       {tasks.map((task) => (
-        <TaskRow key={task.id} task={task} />
+        <TaskRow key={task.id} task={task} memberNameById={memberNameById} />
       ))}
     </div>
   );

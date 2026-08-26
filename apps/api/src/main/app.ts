@@ -39,6 +39,7 @@ import { createSocialRoutes } from "../interfaces/http/routes/social-routes.js";
 import { publicRateLimit } from "../interfaces/http/middlewares/rate-limit.js";
 import { createTagRoutes } from "../interfaces/http/routes/tag-routes.js";
 import { createTaskRoutes } from "../interfaces/http/routes/task-routes.js";
+import { createPublicTeamRoutes, createTeamRoutes } from "../interfaces/http/routes/team-routes.js";
 import type { Container } from "./container.js";
 
 /**
@@ -116,6 +117,7 @@ export function createApp(container: Container): Express {
     publicRateLimit,
     createPublicProposalRoutes(container.proposalController),
   );
+  app.use("/api/v1/public", publicRateLimit, createPublicTeamRoutes(container.teamController));
   // Webhook do provedor de assinatura (sem login). O ZapSign não assina o
   // webhook, então a autenticidade vem da reconsulta na API do provedor
   // (confirmarAssinado) -- o rate-limit por IP aqui mitiga abuso da rota aberta.
@@ -155,6 +157,7 @@ export function createApp(container: Container): Express {
   );
   app.use("/api/v1/tags", createTagRoutes(container.tagController, container.authenticate));
   app.use("/api/v1/tasks", createTaskRoutes(container.taskController, container.authenticate));
+  app.use("/api/v1/team", createTeamRoutes(container.teamController, container.authenticate));
   app.use(
     "/api/v1/admin/social",
     createSocialRoutes(

@@ -79,6 +79,53 @@ export interface CurrentUserResult {
   role: RoleRef;
 }
 
+// ---------- Equipe ----------
+
+export type MembershipStatus = "INVITED" | "ACTIVE" | "SUSPENDED";
+
+export interface TeamRole extends RoleRef {
+  organizationId: string;
+  description: string | null;
+  isSystem: boolean;
+}
+
+export interface TeamMember {
+  membershipId: string;
+  userId: string;
+  name: string;
+  email: string;
+  avatarUrl: string | null;
+  userIsActive: boolean;
+  lastLoginAt: string | null;
+  status: MembershipStatus;
+  invitedAt: string | null;
+  joinedAt: string | null;
+  createdAt: string;
+  role: TeamRole;
+}
+
+export interface TeamInvitation {
+  id: string;
+  organizationId: string;
+  email: string;
+  role: TeamRole;
+  organization: OrganizationRef;
+  invitedById: string | null;
+  expiresAt: string;
+  acceptedAt: string | null;
+  revokedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface TeamInvitationPreview {
+  email: string;
+  organization: OrganizationRef;
+  role: { id: string; name: string };
+  expiresAt: string;
+  existingAccount: boolean;
+}
+
 // ---------- Integrações (status da plataforma) ----------
 
 export type IntegrationStatusLevel = "connected" | "disabled" | "not_configured";
@@ -98,7 +145,12 @@ export interface IntegrationsStatusResult {
 // ---------- Companies ----------
 
 export type SocialPlatform =
-  "INSTAGRAM" | "FACEBOOK" | "LINKEDIN" | "TIKTOK" | "WHATSAPP" | "OTHER";
+  | "INSTAGRAM"
+  | "FACEBOOK"
+  | "LINKEDIN"
+  | "TIKTOK"
+  | "WHATSAPP"
+  | "OTHER";
 
 export interface Company {
   id: string;
@@ -354,7 +406,12 @@ export interface PublicProposal {
 export type AuditStatus = "QUEUED" | "RUNNING" | "COMPLETED" | "FAILED";
 export type AuditTrigger = "MANUAL" | "AUTOMATIC";
 export type AuditScoreCategory =
-  "PERFORMANCE" | "SEO" | "ACCESSIBILITY" | "SECURITY" | "DESIGN" | "MOBILE";
+  | "PERFORMANCE"
+  | "SEO"
+  | "ACCESSIBILITY"
+  | "SECURITY"
+  | "DESIGN"
+  | "MOBILE";
 
 /** Uma checagem individual dentro de AuditScore.details.checks. */
 export interface AuditCheck {
@@ -553,7 +610,15 @@ export interface LeadFinance {
 
 export type BriefingTemplateKind = "INSTITUCIONAL" | "ECOMMERCE" | "CUSTOM";
 export type BriefingFieldType =
-  "TEXT" | "TEXTAREA" | "EMAIL" | "PHONE" | "URL" | "SELECT" | "MULTI_SELECT" | "FILE" | "GROUP";
+  | "TEXT"
+  | "TEXTAREA"
+  | "EMAIL"
+  | "PHONE"
+  | "URL"
+  | "SELECT"
+  | "MULTI_SELECT"
+  | "FILE"
+  | "GROUP";
 export type BriefingStatus = "PENDING" | "IN_PROGRESS" | "COMPLETED" | "ARCHIVED";
 
 export interface BriefingTemplate {
@@ -684,7 +749,13 @@ export type CostScope = "AGENCY" | "CLIENT";
 export type CostCurrency = "BRL" | "USD";
 export type CostBillingCycle = "MONTHLY" | "YEARLY";
 export type CostCategory =
-  "HOSTING" | "DATABASE" | "AI" | "DOMAIN" | "EMAIL" | "SIGNATURE" | "OTHER";
+  | "HOSTING"
+  | "DATABASE"
+  | "AI"
+  | "DOMAIN"
+  | "EMAIL"
+  | "SIGNATURE"
+  | "OTHER";
 
 export interface CostSubscription {
   id: string;

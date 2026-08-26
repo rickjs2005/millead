@@ -11,7 +11,7 @@ const SETTINGS_NAV = [
   { href: "/settings/profile", label: "Perfil", icon: User },
   { href: "/settings/organization", label: "Empresa & Permissões", icon: Shield },
   { href: "/settings/pipeline", label: "Pipeline", icon: Kanban },
-  { href: "/settings/team", label: "Equipe", icon: Building2, comingSoon: true },
+  { href: "/settings/team", label: "Equipe", icon: Building2 },
   { href: "/settings/integrations", label: "Integrações", icon: Plug },
   { href: "/settings/api-keys", label: "API Keys", icon: Key, comingSoon: true },
 ];

@@ -8,16 +8,15 @@ interface EmptyStateProps {
   title: string;
   description?: string;
   action?: ReactNode;
-  /** Marca a seção como funcionalidade futura (Fase 6/7) em vez de "sem dados ainda". */
+  /** Marca a seção como funcionalidade futura em vez de "sem dados ainda". */
   comingSoon?: boolean;
   className?: string;
 }
 
 /**
  * Usado tanto pra "sem dados ainda" (ex.: nenhum lead cadastrado) quanto
- * pra "funcionalidade ainda não existe" (Auditoria/Mensagens/Equipe --
- * Fases 6/7 do backend). Nunca mostra dado inventado: se não tem API,
- * mostra isso, não um mock.
+ * pra "funcionalidade ainda não existe" (ex.: API Keys). Nunca mostra dado
+ * inventado: se não tem API, mostra isso, não um mock.
  */
 export function EmptyState({
   icon: Icon,
