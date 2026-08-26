@@ -11,7 +11,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { LEAD_STATUS_LABELS } from "@/features/leads/lead-labels";
-import type { LeadStatus, PipelineWithStages } from "@/types/api";
+import type { LeadStatus, PipelineWithStages, TeamMember } from "@/types/api";
+import { useAuthStore } from "@/stores/auth-store";
 
 interface LeadFiltersProps {
   search: string;
@@ -21,6 +22,9 @@ interface LeadFiltersProps {
   stageId: string | "ALL";
   onStageChange: (value: string) => void;
   pipeline: PipelineWithStages | undefined;
+  ownerId: string | "ALL";
+  onOwnerChange: (value: string) => void;
+  members: TeamMember[];
 }
 
 export function LeadFilters({
@@ -31,8 +35,12 @@ export function LeadFilters({
   stageId,
   onStageChange,
   pipeline,
+  ownerId,
+  onOwnerChange,
+  members,
 }: LeadFiltersProps) {
-  const hasFilters = search !== "" || status !== "ALL" || stageId !== "ALL";
+  const currentUserId = useAuthStore((state) => state.user?.id);
+  const hasFilters = search !== "" || status !== "ALL" || stageId !== "ALL" || ownerId !== "ALL";
 
   return (
     <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
@@ -76,6 +84,20 @@ export function LeadFilters({
         </Select>
       )}
 
+      <Select value={ownerId} onValueChange={onOwnerChange}>
+        <SelectTrigger className="w-full sm:w-48">
+          <SelectValue placeholder="Responsável" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="ALL">Todos os responsáveis</SelectItem>
+          {members.map((member) => (
+            <SelectItem key={member.userId} value={member.userId}>
+              {member.userId === currentUserId ? "Meus leads (Você)" : member.name}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+
       {hasFilters && (
         <Button
           variant="ghost"
@@ -84,6 +106,7 @@ export function LeadFilters({
             onSearchChange("");
             onStatusChange("ALL");
             onStageChange("ALL");
+            onOwnerChange("ALL");
           }}
           className="gap-1 text-muted-foreground"
         >

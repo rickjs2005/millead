@@ -57,4 +57,11 @@ export class PrismaMembershipRepository implements MembershipRepository {
     });
     return rows.map(toContext);
   }
+
+  async isActiveMember(userId: string, organizationId: string): Promise<boolean> {
+    const count = await prisma.membership.count({
+      where: { userId, organizationId, status: "ACTIVE", user: { isActive: true } },
+    });
+    return count > 0;
+  }
 }

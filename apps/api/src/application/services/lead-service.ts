@@ -1,4 +1,4 @@
-import { ConflictError, NotFoundError } from "../../domain/errors/app-error.js";
+import { ConflictError, NotFoundError, ValidationError } from "../../domain/errors/app-error.js";
 import type {
   CreateLeadInput,
   LeadFilters,
@@ -6,6 +6,7 @@ import type {
   UpdateLeadInput,
 } from "../../domain/repositories/lead-repository.js";
 import type { PipelineRepository } from "../../domain/repositories/pipeline-repository.js";
+import type { MembershipRepository } from "../../domain/repositories/membership-repository.js";
 import type { PaginationParams } from "../../shared/pagination.js";
 import type { ActivityLogger } from "./activity-logger.js";
 
@@ -14,6 +15,7 @@ export class LeadService {
     private readonly leads: LeadRepository,
     private readonly pipelines: PipelineRepository,
     private readonly activityLogger: ActivityLogger,
+    private readonly memberships: MembershipRepository,
   ) {}
 
   async create(
@@ -21,6 +23,7 @@ export class LeadService {
     userId: string,
     input: Omit<CreateLeadInput, "organizationId">,
   ) {
+    await this.validateOwner(organizationId, input.ownerId);
     let pipelineStageId = input.pipelineStageId ?? null;
     if (pipelineStageId) {
       const stage = await this.pipelines.findStageForOrg(pipelineStageId, organizationId);
@@ -51,9 +54,17 @@ export class LeadService {
   }
 
   async update(organizationId: string, id: string, patch: UpdateLeadInput) {
+    await this.validateOwner(organizationId, patch.ownerId);
     const lead = await this.leads.update(id, organizationId, patch);
     if (!lead) throw new NotFoundError("Lead não encontrado.");
     return lead;
+  }
+
+  private async validateOwner(organizationId: string, ownerId: string | null | undefined) {
+    if (!ownerId) return;
+    if (!(await this.memberships.isActiveMember(ownerId, organizationId))) {
+      throw new ValidationError("O responsável precisa ser um membro ativo desta equipe.");
+    }
   }
 
   async delete(organizationId: string, id: string) {

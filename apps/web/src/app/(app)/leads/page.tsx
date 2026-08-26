@@ -16,6 +16,7 @@ import { useLeads } from "@/features/leads/hooks";
 import { usePipelines } from "@/features/pipeline/hooks";
 import { leadsService } from "@/services/leads";
 import { useDebounce } from "@/hooks/use-debounce";
+import { useTeamDirectory } from "@/features/team/hooks";
 import { exportToCsv } from "@/utils/csv-export";
 import { formatCurrency, formatDate } from "@/utils/format";
 import type { LeadStatus } from "@/types/api";
@@ -31,6 +32,7 @@ export default function LeadsPage() {
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<LeadStatus | "ALL">("ALL");
   const [stageId, setStageId] = useState<string | "ALL">("ALL");
+  const [ownerId, setOwnerId] = useState<string | "ALL">("ALL");
   const [selected, setSelected] = useState<Set<string>>(new Set());
 
   function setView(next: "table" | "kanban") {
@@ -40,6 +42,11 @@ export default function LeadsPage() {
   const debouncedSearch = useDebounce(search, 350);
 
   const { data: pipelines } = usePipelines();
+  const { data: members = [] } = useTeamDirectory();
+  const memberNameById = useMemo(
+    () => new Map(members.map((member) => [member.userId, member.name])),
+    [members],
+  );
   const defaultPipeline = pipelines?.find((p) => p.isDefault) ?? pipelines?.[0];
   const stagesById = useMemo(() => {
     const map = new Map();
@@ -55,6 +62,7 @@ export default function LeadsPage() {
     search: debouncedSearch || undefined,
     status: status === "ALL" ? undefined : status,
     pipelineStageId: stageId === "ALL" ? undefined : stageId,
+    ownerId: ownerId === "ALL" ? undefined : ownerId,
   });
 
   function toggleSelect(id: string) {
@@ -90,6 +98,7 @@ export default function LeadsPage() {
           search: debouncedSearch || undefined,
           status: status === "ALL" ? undefined : status,
           pipelineStageId: stageId === "ALL" ? undefined : stageId,
+          ownerId: ownerId === "ALL" ? undefined : ownerId,
         };
         let current = 1;
         // Teto de 50 páginas x 100 = 5000 leads por export, pra não travar o browser.
@@ -183,6 +192,12 @@ export default function LeadsPage() {
                 setPage(1);
               }}
               pipeline={defaultPipeline}
+              ownerId={ownerId}
+              onOwnerChange={(value) => {
+                setOwnerId(value);
+                setPage(1);
+              }}
+              members={members}
             />
           </Card>
 
@@ -214,6 +229,7 @@ export default function LeadsPage() {
                 selected={selected}
                 onToggleSelect={toggleSelect}
                 onToggleSelectAll={toggleSelectAll}
+                memberNameById={memberNameById}
               />
             </Card>
           )}
