@@ -7,6 +7,7 @@ import {
   Landmark,
   Building2,
   HandCoins,
+  HardDriveDownload,
   ListFilter,
   Receipt,
   RefreshCw,
@@ -44,6 +45,7 @@ const ITEMS: readonly NavItem[] = [
   { href: "/cofre/fornecedores", label: "Fornecedores", icon: Store },
   { href: "/cofre/pessoas", label: "Pessoas", icon: Users },
   { href: "/cofre/regras", label: "Regras", icon: ListFilter },
+  { href: "/cofre/backup", label: "Backup", icon: HardDriveDownload },
 ];
 
 /**
@@ -51,7 +53,7 @@ const ITEMS: readonly NavItem[] = [
  *
  * Vive aqui, e não na barra lateral do app, porque o Cofre não faz parte do
  * CRM — ele é uma área à parte, atrás de outra porta. Rola na horizontal no
- * celular em vez de virar menu sanfonado: são treze destinos curtos, e esconder
+ * celular em vez de virar menu sanfonado: são catorze destinos curtos, e esconder
  * atrás de um toque a mais atrapalharia mais que ocupar espaço.
  */
 export function VaultNav() {

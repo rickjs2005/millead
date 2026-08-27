@@ -16,6 +16,7 @@ import { PersonalAccountService } from "../application/services/personal-account
 import { PersonalCatalogService } from "../application/services/personal-catalog-service.js";
 import { PersonalClassificationService } from "../application/services/personal-classification-service.js";
 import { BusinessExpenseService } from "../application/services/business-expense-service.js";
+import { PersonalBackupService } from "../application/services/personal-backup-service.js";
 import { PersonalBridgeService } from "../application/services/personal-bridge-service.js";
 import { PersonalDebtService } from "../application/services/personal-debt-service.js";
 import { PersonalSubscriptionService } from "../application/services/personal-subscription-service.js";
@@ -91,6 +92,7 @@ import { buildPostSaleOnboardingService } from "./post-sale-factory.js";
 import { PrismaPersonalAccountRepository } from "../infrastructure/prisma/prisma-personal-account-repository.js";
 import { PrismaPersonalCatalogRepository } from "../infrastructure/prisma/prisma-personal-catalog-repository.js";
 import { PrismaBusinessExpenseRepository } from "../infrastructure/prisma/prisma-business-expense-repository.js";
+import { PrismaPersonalBackupRepository } from "../infrastructure/prisma/prisma-personal-backup-repository.js";
 import { PrismaPersonalDebtRepository } from "../infrastructure/prisma/prisma-personal-debt-repository.js";
 import { PrismaPersonalImportRepository } from "../infrastructure/prisma/prisma-personal-import-repository.js";
 import { PrismaPersonalRuleRepository } from "../infrastructure/prisma/prisma-personal-rule-repository.js";
@@ -115,6 +117,7 @@ import { EstimateController } from "../interfaces/http/controllers/estimate-cont
 import { MessageController } from "../interfaces/http/controllers/message-controller.js";
 import { PersonalFinanceController } from "../interfaces/http/controllers/personal-finance-controller.js";
 import { BusinessExpenseController } from "../interfaces/http/controllers/business-expense-controller.js";
+import { PersonalBackupController } from "../interfaces/http/controllers/personal-backup-controller.js";
 import { PersonalBridgeController } from "../interfaces/http/controllers/personal-bridge-controller.js";
 import { PersonalVaultController } from "../interfaces/http/controllers/personal-vault-controller.js";
 import { ReceivableController } from "../interfaces/http/controllers/receivable-controller.js";
@@ -162,6 +165,7 @@ export interface Container {
   requireOwner: RequestHandler;
   personalVaultController: PersonalVaultController;
   personalFinanceController: PersonalFinanceController;
+  personalBackupController: PersonalBackupController;
   /** Exposto pro job de alertas (fase 5) e pro proximo passo. */
   personalSubscriptionService: PersonalSubscriptionService;
   /** Exposto pro próximo passo: as rotas de dados do Cofre (fases seguintes)
@@ -231,6 +235,7 @@ export function buildContainer(): Container {
   const personalSubscriptionRepository = new PrismaPersonalSubscriptionRepository();
   const personalDebtRepository = new PrismaPersonalDebtRepository();
   const businessExpenseRepository = new PrismaBusinessExpenseRepository();
+  const personalBackupRepository = new PrismaPersonalBackupRepository();
   // Criado aqui, e não junto do resto do financeiro lá embaixo, porque a
   // assinatura pessoal depende dele pra conferir o plano de custo apontado.
   const businessExpenseService = new BusinessExpenseService(
@@ -533,6 +538,15 @@ export function buildContainer(): Container {
   );
   const requireOwner = createRequireOwner(userRepository, env.OWNER_EMAIL);
 
+  // Depois do PersonalVaultService: e ele quem implementa a porta de
+  // reautenticacao, e o backup exige a senha de novo antes de entregar (ou
+  // gravar) o Cofre inteiro.
+  const personalBackupService = new PersonalBackupService(
+    personalBackupRepository,
+    personalVaultService,
+    auditLogger,
+  );
+  const personalBackupController = new PersonalBackupController(personalBackupService);
   const personalVaultController = new PersonalVaultController(personalVaultService);
   const personalFinanceController = new PersonalFinanceController(
     personalAccountService,
@@ -574,6 +588,7 @@ export function buildContainer(): Container {
     requireOwner,
     personalVaultController,
     personalFinanceController,
+    personalBackupController,
     personalVaultService,
     personalSubscriptionService,
     requireVault,

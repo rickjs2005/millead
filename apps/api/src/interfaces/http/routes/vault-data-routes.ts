@@ -46,8 +46,14 @@ import {
   updateContactSchema,
   updateDebtSchema,
 } from "../../../application/dto/personal-debt.dto.js";
+import {
+  exportVaultSchema,
+  restoreVaultSchema,
+} from "../../../application/dto/personal-backup.dto.js";
 import { asyncHandler } from "../async-handler.js";
 import type { PersonalFinanceController } from "../controllers/personal-finance-controller.js";
+import type { PersonalBackupController } from "../controllers/personal-backup-controller.js";
+import { vaultExportRateLimit, vaultRestoreRateLimit } from "../middlewares/rate-limit.js";
 import { validateBody, validateQuery } from "../middlewares/validate.js";
 
 /**
@@ -62,6 +68,7 @@ import { validateBody, validateQuery } from "../middlewares/validate.js";
  */
 export function createVaultDataRoutes(
   controller: PersonalFinanceController,
+  backups: PersonalBackupController,
   authenticate: RequestHandler,
   requireVault: RequestHandler,
 ): Router {
@@ -278,6 +285,23 @@ export function createVaultDataRoutes(
     asyncHandler(controller.addDebtPayment),
   );
   router.delete("/debts/:id/payments/:paymentId", asyncHandler(controller.deleteDebtPayment));
+
+  // ----- Backup -----
+  // Contadores SEPARADOS pra exportar e restaurar: um balde só faria uma
+  // sequencia de exportacoes travar a restauracao, que e o que se faz na pior
+  // hora possivel. As duas exigem a senha de novo -- ver PersonalBackupService.
+  router.post(
+    "/backup/export",
+    vaultExportRateLimit,
+    validateBody(exportVaultSchema),
+    asyncHandler(backups.export),
+  );
+  router.post(
+    "/backup/restore",
+    vaultRestoreRateLimit,
+    validateBody(restoreVaultSchema),
+    asyncHandler(backups.restore),
+  );
 
   return router;
 }

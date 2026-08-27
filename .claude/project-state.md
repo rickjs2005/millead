@@ -399,14 +399,62 @@ direita, entao `100.00` voltava como `"100"` -- o mesmo valor aparecia como
 build e as 12 tarefas do turbo limpos. Validacao de ponta a ponta pelo BFF:
 **24/24**, com os dados de teste limpos.
 
+## Trabalho de 27/08/2026 - Cofre Financeiro, Fase 9 (backup e exportacao)
+
+Mesma branch `feat/cofre-financeiro`, **nao mergeada, nao deployada**. Nenhuma
+tabela nova: duas rotas (`POST /vault/backup/export` e `/restore`) e uma tela
+(`/cofre/backup`).
+
+Decisoes:
+
+- **A senha e pedida de novo**, mesmo com o Cofre aberto. A sessao elevada da
+  leitura tela a tela; a exportacao transforma "notebook destravado por tres
+  minutos" em "historico financeiro inteiro num arquivo". A confirmacao usa o
+  MESMO balde de tentativas do desbloqueio -- contador proprio faria da
+  exportacao um oraculo de senha sem penalidade. E nao renova a sessao.
+- **`omit`, nao `select`, no dump.** Com `select`, coluna nova no schema faz o
+  backup sair incompleto em silencio, e so se descobre no dia de restaurar. Com
+  `omit`, ela entra sozinha e o modo de falhar vira "veio coisa demais". Num
+  backup os dois nao sao equivalentes.
+- **Restaurar so em Cofre vazio.** Mesclar duplica dinheiro em silencio (a
+  mesma compra entra duas vezes, com ids diferentes, e nenhum fingerprint pega
+  porque o backup traz os originais); sobrescrever destroi o que esta la.
+  Recusar e a unica resposta que nao perde nem inventa dado.
+- **Versao no envelope**: versao desconhecida e recusada em vez de adivinhada.
+- **CSV com escape de formula.** Excel trata `=`, `+`, `-`, `@` no comeco de
+  campo como formula, e a descricao vem do extrato -- texto de terceiro.
+  `=HYPERLINK(...)` viraria link ativo na planilha de quem abrisse.
+- **Nome do arquivo nao denuncia nada** (`millead-AAAA-MM-DD.json`), resposta
+  com `Cache-Control: no-store`, e POST em vez de GET pra senha nao ir na URL.
+- **Dois contadores de rate limit**, separados: um balde so faria uma sequencia
+  de exportacoes travar a restauracao -- que e o que se faz na pior hora
+  possivel.
+
+**Um bug que so a execucao encontrou**: a planilha respondia 500 enquanto o
+JSON, do MESMO dump, saia normal. O Prisma devolve `Decimal`; `JSON.stringify`
+chama o `toJSON()` dele sozinho, e o CSV faz `.replace()` na string. Corrigido
+convertendo todo Decimal do dump em string de duas casas -- o que tambem
+resolve o corte de zero a direita, o mesmo problema da fase 7.
+
+38 testes novos na API -> **1023 na API, 1298 no monorepo**. type-check, lint,
+build e as 12 tarefas do turbo limpos. Validacao de ponta a ponta pelo BFF:
+**28/28**, incluindo o ciclo completo (exportar -> esvaziar -> restaurar ->
+conferir que rateio, divida, baixa e apelido voltaram ligados).
+
 ## Bloqueios
 
 - Pendências registradas em memória (`millead-pendencias-seguranca`) ainda em aberto: ZapSign não configurado no Render (contratos não são assináveis de verdade em produção), 2 achados baixos de segurança (landing de IA sem sanitização própria, tokens em localStorage), permissões próprias de Contratos/Landing pages pendentes de migração.
 
 ## Próxima ação
 
-**Fase 9 do Cofre**: backup e exportacao (a fase 8 ja esta coberta pelas telas
-antecipadas; falta o painel consolidado).
+**Fase 10 do Cofre** (ultima): revisao final -- painel consolidado (o que
+resta da fase 8), varredura de seguranca do modulo inteiro e fechamento da
+documentacao.
+
+Decisao pendente pro Rick: **apagar o Cofre**. O comentario do schema diz "ver
+a exportacao antes de apagar", mas a exclusao em si nao foi construida -- e uma
+acao destrutiva e irreversivel, e merece decisao propria em vez de entrar de
+carona numa fase.
 
 Antes de usar: definir `VAULT_SESSION_SECRET` no `.env` (ja feito localmente)
 e no Render. Sem ela o modulo inteiro responde 404 de proposito.

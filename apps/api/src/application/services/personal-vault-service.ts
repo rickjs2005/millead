@@ -6,6 +6,10 @@ import type { PasswordHasher } from "../../domain/services/password-hasher.js";
 import type { VaultLocker } from "../../domain/services/vault-locker.js";
 import type { VaultProvisioner } from "../../domain/services/vault-provisioner.js";
 import type { VaultSessionService } from "../../domain/services/vault-session-service.js";
+import type {
+  ReauthContext,
+  VaultReauthenticator,
+} from "../../domain/services/vault-reauthenticator.js";
 import type { AuditContext, AuditLogger } from "./audit-logger.js";
 import { attemptsRemaining, isLocked, lockoutFor } from "./vault-lockout.js";
 
@@ -21,7 +25,7 @@ export interface UnlockedSession {
   expiresInSeconds: number;
 }
 
-export class PersonalVaultService implements VaultLocker {
+export class PersonalVaultService implements VaultLocker, VaultReauthenticator {
   constructor(
     private readonly vaults: PersonalVaultRepository,
     private readonly users: UserRepository,
@@ -83,12 +87,28 @@ export class PersonalVaultService implements VaultLocker {
    * quem está atacando do que quem esqueceu a senha (o dono vê o contador na
    * tela, que consulta `status`).
    */
-  async unlock(userId: string, password: string, ctx: AuditContext): Promise<UnlockedSession> {
+  /**
+   * Confere a senha, com castigo por tentativa errada.
+   *
+   * Extraída do `unlock` porque a exportação precisa exatamente disto — e
+   * precisa do MESMO balde de tentativas. Uma segunda checagem de senha com
+   * contador próprio transformaria a exportação num oráculo: dá pra testar
+   * candidatas ali sem nunca disparar o bloqueio da tela de desbloqueio.
+   *
+   * `event` é o prefixo dos eventos de auditoria (`vault.unlock`,
+   * `vault.export`…), pra que a trilha diga o que estava sendo confirmado.
+   */
+  private async verifyPassword(
+    userId: string,
+    password: string,
+    ctx: AuditContext,
+    event: string,
+  ): Promise<{ vaultId: string; now: Date }> {
     const vault = await this.requireVaultOf(userId);
     const now = new Date();
 
     if (isLocked(vault, now)) {
-      await this.audit.log(this.auditContext(ctx), "vault.unlock_blocked", {
+      await this.audit.log(this.auditContext(ctx), `${event}_blocked`, {
         entityType: "personal_vault",
         entityId: vault.id,
       });
@@ -106,7 +126,7 @@ export class PersonalVaultService implements VaultLocker {
       const lockedUntil = lockoutFor(failed, now);
       if (lockedUntil) await this.vaults.setLockedUntil(userId, lockedUntil);
 
-      await this.audit.log(this.auditContext(ctx), "vault.unlock_failed", {
+      await this.audit.log(this.auditContext(ctx), `${event}_failed`, {
         entityType: "personal_vault",
         entityId: vault.id,
         // Só o contador e se travou -- nenhum valor, descrição ou dado do Cofre.
@@ -115,13 +135,39 @@ export class PersonalVaultService implements VaultLocker {
       throw new UnauthorizedError("Senha incorreta.");
     }
 
+    return { vaultId: vault.id, now };
+  }
+
+  /**
+   * Porta `VaultReauthenticator`. Diferente do `unlock`: **não emite sessão
+   * nova nem estende a atual**. Confirmar a senha pra exportar não é motivo
+   * pra ganhar mais 15 minutos de Cofre aberto.
+   */
+  async confirmPassword(
+    context: ReauthContext,
+    password: string,
+    action: string,
+  ): Promise<string> {
+    const ctx: AuditContext = {
+      organizationId: null,
+      userId: context.userId,
+      ipAddress: context.ipAddress ?? null,
+      userAgent: context.userAgent ?? null,
+    };
+    const { vaultId } = await this.verifyPassword(context.userId, password, ctx, action);
+    return vaultId;
+  }
+
+  async unlock(userId: string, password: string, ctx: AuditContext): Promise<UnlockedSession> {
+    const { vaultId, now } = await this.verifyPassword(userId, password, ctx, "vault.unlock");
+
     await this.vaults.registerSuccessfulUnlock(userId, now);
     await this.audit.log(this.auditContext(ctx), "vault.unlocked", {
       entityType: "personal_vault",
-      entityId: vault.id,
+      entityId: vaultId,
     });
 
-    return this.sessions.sign({ ownerUserId: userId, vaultId: vault.id });
+    return this.sessions.sign({ ownerUserId: userId, vaultId });
   }
 
   /**

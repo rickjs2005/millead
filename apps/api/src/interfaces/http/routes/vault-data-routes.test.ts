@@ -4,6 +4,7 @@ import express from "express";
 import type { NextFunction, Request, RequestHandler, Response } from "express";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { VaultLockedError } from "../../../domain/errors/app-error.js";
+import type { PersonalBackupController } from "../controllers/personal-backup-controller.js";
 import type { PersonalFinanceController } from "../controllers/personal-finance-controller.js";
 import { errorHandler } from "../middlewares/error-handler.js";
 import { createVaultDataRoutes } from "./vault-data-routes.js";
@@ -85,6 +86,8 @@ const ROTAS: ReadonlyArray<{ method: "get" | "post" | "patch" | "put" | "delete"
     { method: "delete", path: "/debts/abc" },
     { method: "post", path: "/debts/abc/payments" },
     { method: "delete", path: "/debts/abc/payments/def" },
+    { method: "post", path: "/backup/export" },
+    { method: "post", path: "/backup/restore" },
   ];
 
 function fakeAuthenticate(): RequestHandler {
@@ -123,6 +126,18 @@ async function listen(app: express.Express): Promise<string> {
 }
 
 /** Controller que só registra quem foi chamado — nenhuma lógica de negócio. */
+/** Controller de backup: os dois métodos, sem lógica. */
+function stubBackupController(called: string[]) {
+  const handler = (name: string) => async (_req: Request, res: Response) => {
+    called.push(name);
+    res.status(200).json({ ok: true });
+  };
+  return {
+    export: handler("exportVault"),
+    restore: handler("restoreVault"),
+  } as unknown as PersonalBackupController;
+}
+
 function stubController() {
   const called: string[] = [];
   const handler = (name: string) => async (_req: Request, res: Response) => {
@@ -182,7 +197,10 @@ function buildApp(requireVault: RequestHandler) {
   const { controller, called } = stubController();
   const app = express();
   app.use(express.json());
-  app.use("/api/v1/vault", createVaultDataRoutes(controller, fakeAuthenticate(), requireVault));
+  app.use(
+    "/api/v1/vault",
+    createVaultDataRoutes(controller, stubBackupController(called), fakeAuthenticate(), requireVault),
+  );
   app.use(errorHandler);
   return { app, called };
 }
@@ -257,8 +275,13 @@ describe("createVaultDataRoutes — ordem das rotas", () => {
 
 describe("cobertura da lista de rotas", () => {
   it("a lista acima cobre todas as rotas registradas", async () => {
-    const { controller } = stubController();
-    const router = createVaultDataRoutes(controller, fakeAuthenticate(), vaultOpen);
+    const { controller, called } = stubController();
+    const router = createVaultDataRoutes(
+      controller,
+      stubBackupController(called),
+      fakeAuthenticate(),
+      vaultOpen,
+    );
 
     // `router.stack` é interno do Express, e normalmente inspecioná-lo é um
     // cheiro. Aqui é o ponto: se alguém adicionar uma rota nova e não puser na

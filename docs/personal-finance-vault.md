@@ -899,6 +899,139 @@ despesa.
 
 Telas: `/cofre/milweb` e a seção "Realizado no mês" em `/costs`.
 
+## Backup e exportação (fase 9)
+
+Levar o Cofre embora, e trazer de volta. Duas rotas, uma tela, nenhuma tabela
+nova.
+
+### A senha é pedida de novo
+
+Mesmo com o Cofre aberto. A sessão elevada dá leitura tela a tela; a exportação
+é diferente **em grau**, e o grau importa: ela transforma "alguém pegou o
+notebook destravado por três minutos" em "alguém tem o histórico financeiro
+inteiro num arquivo". Um campo a mais fecha essa janela.
+
+A confirmação usa o **mesmo balde de tentativas** do desbloqueio. Um contador
+próprio faria da exportação um oráculo de senha: dá pra testar candidatas ali
+em volume sem nunca disparar o bloqueio da tela de desbloqueio. Por isso a
+checagem foi extraída do `unlock` para `verifyPassword`, e exposta pela porta
+`VaultReauthenticator`.
+
+Confirmar a senha **não renova a sessão** — quem exporta não ganha mais quinze
+minutos de Cofre aberto de brinde.
+
+### `omit`, não `select`
+
+O dump é montado com `omit: { vaultId: true }`, e não enumerando colunas. A
+diferença decide se o backup continua completo com o tempo: com `select`,
+acrescentar uma coluna ao schema e esquecer de acrescentá-la no dump faz o
+backup sair **incompleto em silêncio**, e a pessoa descobre no dia em que
+restaura — quando o dado já não existe.
+
+Com `omit`, coluna nova entra sozinha e o modo de falhar vira "veio coisa
+demais". Num backup, os dois não são equivalentes.
+
+O preço é tipagem fraca no contrato (`Record<string, unknown>`). Ela é
+recuperada onde paga: a planilha declara exatamente os campos que lê
+(`CsvTransaction`), e a validação confere formato e versão antes de qualquer
+escrita.
+
+### O que não vai no arquivo
+
+- **`vaultId`.** O arquivo é seu; carimbar o id do dono em toda linha não ajuda
+  a restaurar nada e transforma o backup num documento que identifica você
+  mesmo depois de renomeado.
+- **Estado de sessão** (tentativas erradas, castigo, corte de sessões). É o
+  cadeado, não o dado — restaurar isso reimportaria um bloqueio que já passou.
+- **O conteúdo dos extratos.** Nunca foi guardado; vai só o registro da
+  importação.
+- **As despesas da MilWeb.** O outro lado da ponte é dado da empresa. Os envios
+  saem como informação e a restauração **não os recria** — recriar metade do
+  vínculo apontaria pra uma despesa que não está no arquivo. A contagem de
+  ignorados aparece no resultado.
+
+O **nome do arquivo** é `millead-AAAA-MM-DD.json`: sem "cofre", sem
+"financeiro", sem o nome de quem baixou. O nome é a única parte que aparece sem
+abrir — na pasta de downloads, no backup de nuvem, num anexo.
+
+### A restauração só entra em Cofre vazio
+
+Esta é a decisão central da fase. Não existe mesclar nem sobrescrever:
+
+- **Mesclar** duplica dinheiro em silêncio. A mesma compra entra duas vezes,
+  com ids diferentes, e nenhum fingerprint pega — porque o backup traz os
+  originais.
+- **Sobrescrever** destrói o que está lá.
+
+Recusar é a única resposta que não perde nem inventa dado, e ela diz o que
+fazer. A validação de formato vem **antes** da checagem de vazio: quem mandou o
+arquivo errado precisa saber que é o arquivo errado, não que o Cofre está
+cheio.
+
+Tudo numa transação de banco só. Uma restauração pela metade deixaria
+movimentações apontando pra contas que não entraram, e o estrago seria pior que
+a falha original.
+
+### Versão no envelope
+
+O arquivo carrega `formato`, `versao` e um `resumo` com as contagens no topo —
+pra conferir de bater o olho se ele veio inteiro antes de confiar nele.
+
+Uma restauração que encontra versão desconhecida **recusa**, em vez de
+adivinhar. Um backup lido pela metade por um leitor antigo é pior que um backup
+recusado: o segundo você resolve, o primeiro você descobre meses depois com
+metade da história faltando.
+
+### A planilha, e a fórmula que vem do banco
+
+O CSV usa `;` e decimal com vírgula, com BOM UTF-8. Não é o CSV do RFC — é o
+que o Excel em português abre sem perguntar nada. Um arquivo tecnicamente
+correto que abre tudo numa coluna só não serve pro que ele existe.
+
+E há uma armadilha de segurança de verdade: o Excel trata `=`, `+`, `-` e `@`
+no começo de um campo como **fórmula**. A descrição vem do extrato, que vem do
+nome que o estabelecimento cadastrou — texto de terceiro. Uma descrição
+`=HYPERLINK("http://...")` viraria um link ativo na planilha de quem abrisse o
+arquivo. Todo campo com esse começo sai prefixado por apóstrofo.
+
+### Dois limites, não um
+
+Exportar e restaurar têm contadores **separados**. Um balde só faria uma
+sequência de exportações travar a restauração — e restaurar é o que se faz na
+pior hora possível, provavelmente logo depois de exportar o que sobrou.
+Bloquear ali seria bloquear no único momento em que não dá pra esperar uma
+hora.
+
+Vinte exportações e dez restaurações por hora. Os números limitam volume, não
+racionam backup: a defesa contra adivinhar senha é o balde compartilhado com o
+desbloqueio, que bloqueia o Cofre inteiro.
+
+### Um bug que só a execução encontrou
+
+A planilha respondia **500** enquanto o JSON, do mesmo dump, saía normalmente.
+
+O Prisma devolve `Decimal`, não string. `JSON.stringify` chama o `toJSON()` do
+Decimal sozinho, então o JSON passava; o CSV faz `.replace()` na string e
+estourava. O mesmo dump quebrava num formato e funcionava no outro — o tipo de
+diferença que teste unitário sobre dados montados à mão nunca mostra.
+
+A correção converte todo `Decimal` do dump em string de duas casas, o que
+também resolve o corte de zero à direita (`100.00` virava `"100"`) — o mesmo
+problema da fase 7, agora num arquivo guardado por anos.
+
+### API
+
+| Rota                         | O que faz                                         |
+| ---------------------------- | ------------------------------------------------- |
+| `POST /vault/backup/export`  | Baixa o Cofre em JSON (backup) ou CSV (planilha). |
+| `POST /vault/backup/restore` | Restaura um backup — só em Cofre vazio.           |
+
+`POST` também para exportar: a senha vai no corpo, e um `GET` a carregaria na
+URL, que vai parar em log de servidor, histórico do navegador e `Referer`. A
+resposta sai com `Cache-Control: no-store`.
+
+Tela: `/cofre/backup`.
+
 ## Telas (antecipadas da fase 8)
 
 Dez telas sob `/cofre`, puxadas para antes das fases 6, 7 e 9 — cinco fases de
@@ -991,7 +1124,7 @@ Gere o segredo com `openssl rand -base64 48`.
 
 ## Testes
 
-519 testes cobrem as sete fases e as telas, todos sem banco e sem HTTP real (exceto os
+557 testes cobrem as oito fases e as telas, todos sem banco e sem HTTP real (exceto os
 de rota, que sobem Express numa porta efêmera).
 
 **Fase 1 — segurança:**
@@ -1064,6 +1197,15 @@ de rota, que sobem Express numa porta efêmera).
 | `business-expense-service.test.ts` | Valor de despesa do Cofre nao e editavel pelo financeiro; apagar de la desfaz o envio; plano de outra organizacao e recusado.                           |
 | `vault-bridge-routes.test.ts`      | **A ponte nao e atalho pro RBAC**: sem permissao no financeiro e 403; sem Cofre aberto e 401; quem so le nao envia.                                     |
 
+**Fase 9 - backup e exportacao:**
+
+| Arquivo                                     | O que prova                                                                                                                                                                    |
+| ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `vault-export.test.ts`                      | Envelope versionado; **coluna desconhecida viaja junto**; versao futura e recusada; **formula do extrato e neutralizada**; separador e aspas escapados; BOM; data sem deslize. |
+| `personal-backup-service.test.ts`           | Senha exigida mesmo com o Cofre aberto; **auditoria com contagens e nenhum dado**; so restaura em Cofre vazio; arquivo errado e recusado antes; datas voltam ao tipo certo.    |
+| `prisma-personal-backup-repository.test.ts` | O bug do 500 na planilha: `Decimal` vira string de duas casas, sem cortar zero, sem estragar data.                                                                             |
+| `personal-vault-service.test.ts`            | A confirmacao de senha usa o **mesmo balde de tentativas** do desbloqueio, respeita o castigo e **nao emite sessao nova**.                                                     |
+
 ## Roadmap
 
 | #   | Fase                                                                   | Estado |
@@ -1076,5 +1218,5 @@ de rota, que sobem Express numa porta efêmera).
 | 6   | Dívidas e pagamentos                                                   | ✓      |
 | 7   | Ponte com o financeiro da MilWeb (`BusinessExpense`)                   | ✓      |
 | 8   | Telas (antecipadas) · dashboard e drill-down completos                 | ◐      |
-| 9   | Backup e exportação                                                    | ○      |
+| 9   | Backup e exportação                                                    | ✓      |
 | 10  | Testes finais, documentação e revisão                                  | ○      |

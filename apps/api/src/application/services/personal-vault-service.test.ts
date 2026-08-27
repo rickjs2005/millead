@@ -23,9 +23,17 @@ function makeVault(over: Partial<PersonalVault> = {}): PersonalVault {
 }
 
 function setup(
-  opts: { vault?: PersonalVault | null; passwordOk?: boolean; attempts?: number } = {},
+  opts: {
+    vault?: PersonalVault | null;
+    passwordOk?: boolean;
+    attempts?: number;
+    lockedUntil?: Date | null;
+  } = {},
 ) {
-  const vault = opts.vault === undefined ? makeVault() : opts.vault;
+  const vault =
+    opts.vault === undefined
+      ? makeVault(opts.lockedUntil ? { lockedUntil: opts.lockedUntil } : {})
+      : opts.vault;
   const vaults = {
     findByOwner: vi.fn(async () => vault),
     create: vi.fn<(ownerUserId: string) => Promise<PersonalVault | null>>(async () => makeVault()),
@@ -172,5 +180,47 @@ describe("PersonalVaultService — auditoria", () => {
     expect(call).toBeDefined();
     expect(JSON.stringify(call)).not.toContain("senha-secreta-tentada");
     expect(call![2]?.metadata).toEqual({ failedAttempts: 2, locked: false });
+  });
+});
+
+describe("confirmação de senha (porta VaultReauthenticator)", () => {
+  const REAUTH = { userId: OWNER, ipAddress: "127.0.0.1", userAgent: "teste" };
+
+  it("devolve o vaultId quando a senha confere", async () => {
+    const { service } = setup({ passwordOk: true });
+    await expect(service.confirmPassword(REAUTH, "certa", "vault.export")).resolves.toBeTruthy();
+  });
+
+  it("usa o MESMO balde de tentativas do desbloqueio", async () => {
+    // Sem isto, a exportação viraria um oráculo de senha: dá pra testar
+    // candidatas ali em volume sem nunca disparar o bloqueio da tela de
+    // desbloqueio.
+    const { service, vaults } = setup({ passwordOk: false, attempts: 3 });
+
+    await expect(service.confirmPassword(REAUTH, "errada", "vault.export")).rejects.toThrow(
+      /Senha incorreta/,
+    );
+    expect(vaults.incrementFailedAttempts).toHaveBeenCalledWith(OWNER);
+  });
+
+  it("respeita o castigo em andamento", async () => {
+    const { service } = setup({ passwordOk: true, lockedUntil: new Date(Date.now() + 60_000) });
+    await expect(service.confirmPassword(REAUTH, "certa", "vault.export")).rejects.toThrow(
+      /temporariamente bloqueado/,
+    );
+  });
+
+  it("NÃO emite sessão nova — confirmar pra exportar não estende o Cofre aberto", async () => {
+    const { service, sessions } = setup({ passwordOk: true });
+    await service.confirmPassword(REAUTH, "certa", "vault.export");
+    expect(sessions.sign).not.toHaveBeenCalled();
+  });
+
+  it("a ação entra na trilha, pra dizer o que foi confirmado", async () => {
+    const { service, audit } = setup({ passwordOk: false, attempts: 1 });
+    await expect(service.confirmPassword(REAUTH, "errada", "vault.export")).rejects.toThrow();
+
+    const acoes = audit.log.mock.calls.map(([, action]) => action);
+    expect(acoes).toContain("vault.export_failed");
   });
 });

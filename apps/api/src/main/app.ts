@@ -130,6 +130,7 @@ export function createApp(container: Container): Express {
     "/api/v1/vault",
     createVaultDataRoutes(
       container.personalFinanceController,
+      container.personalBackupController,
       container.authenticate,
       container.requireVault,
     ),
