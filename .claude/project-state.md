@@ -36,8 +36,18 @@ Descobertas relevantes da investigação:
   Foi adicionado só um `GET /settings/members` somente-leitura, necessário pro
   seletor de responsável padrão.
 
-Pendente de decisão do Rick: aplicar a migration
-(`pnpm db:migrate:deploy`) e fazer push/deploy.
+Branch **empurrada** pro GitHub em 26/08/2026; migration aplicada. Falta só
+abrir o PR e fazer merge na `main` (é o merge que dispara Render + Vercel).
+
+**Incidente 26/08/2026 — banco de produção apagado.** Durante a geração do SQL
+da migration, `prisma migrate diff --shadow-database-url` foi rodado com a
+`DATABASE_URL` de produção. Esse flag RESETA o banco apontado (dropa/recria o
+schema `public`): todos os dados do Supabase de produção foram perdidos.
+Supabase Free não tem backup automático, então não houve restore. Recuperação
+feita: baseline das 21 migrations (`migrate resolve --applied`), `ensure-rls`
+e `db:seed`. Produção verificada de pé (`/health/ready` ok, login responde 401
+a senha errada). Perda real assumida pelo Rick: um briefing do KPM USA.
+Armadilha documentada em `docs/DATABASE.md` (seção Workflow).
 
 ## Bloqueios
 - Pendências registradas em memória (`millead-pendencias-seguranca`) ainda em aberto: ZapSign não configurado no Render (contratos não são assináveis de verdade em produção), 2 achados baixos de segurança (landing de IA sem sanitização própria, tokens em localStorage), permissões próprias de Contratos/Landing pages pendentes de migração.

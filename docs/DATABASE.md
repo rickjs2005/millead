@@ -128,6 +128,28 @@ pnpm db:studio         # Prisma Studio (GUI) — alternativa ao Adminer do docke
 Em produção: `pnpm db:migrate:deploy` (aplica migrations existentes, não
 gera novas — nunca rodar `migrate dev` fora do ambiente local).
 
+> ## ⚠️ `--shadow-database-url` APAGA o banco que você apontar
+>
+> `prisma migrate diff --shadow-database-url <URL>` e `prisma migrate dev`
+> **resetam** o banco daquela URL (dropam e recriam o schema `public`) pra
+> replayar as migrations e calcular o estado "from". O nome do flag e o verbo
+> "diff" sugerem leitura; **não é**.
+>
+> Isso já custou caro: em 26/08/2026 esse comando foi rodado com a
+> `DATABASE_URL` de produção como shadow, e apagou todos os dados do banco
+> do Supabase (o schema `public` inteiro; `pgboss`, fora dele, sobreviveu).
+> Free tier **não tem backup automático** — a recuperação foi re-seed, e o
+> que era dado de negócio se perdeu.
+>
+> **Regra:** nenhum comando do Prisma recebe a `DATABASE_URL` de produção
+> como `--shadow-database-url`. Pra gerar o SQL de uma migration nova, use um
+> banco descartável (Postgres local/Docker, ou um projeto Supabase de
+> rascunho) — ou `prisma migrate dev` apontado pra esse banco descartável.
+>
+> Se o histórico do Prisma (`_prisma_migrations`) sumir mas o schema estiver
+> correto, o conserto é baseline, não re-aplicar:
+> `prisma migrate resolve --applied <nome>` para cada migration, em ordem.
+
 O seed cria o usuário `rick@milweb.com.br` com senha definida por
 `SEED_OWNER_PASSWORD` (ou `millead-dev-only` se a env var não estiver
 setada — **trocar antes de rodar contra qualquer banco que não seja
