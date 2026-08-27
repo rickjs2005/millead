@@ -2,23 +2,36 @@
 
 import { CheckSquare } from "lucide-react";
 import Link from "next/link";
+import { useState } from "react";
 import { EmptyState } from "@/components/empty-state";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useTeamDirectory } from "@/features/team/hooks";
+import { useAuthStore } from "@/stores/auth-store";
 import { formatDate } from "@/utils/format";
+import { MineToggle } from "./mine-toggle";
 import { useUpcomingTasks } from "../hooks";
 
 export function UpcomingTasksCard() {
-  const { data, isLoading } = useUpcomingTasks();
+  const userId = useAuthStore((s) => s.user?.id);
+  const { data: team } = useTeamDirectory();
+  // Com uma pessoa só na organização os dois modos mostram a mesma lista --
+  // o toggle seria ruído.
+  const showToggle = (team?.length ?? 0) > 1;
+  const [mine, setMine] = useState(false);
+  const { data, isLoading } = useUpcomingTasks(mine ? userId : undefined);
 
   return (
     <Card>
       <CardHeader className="flex-row items-center justify-between space-y-0">
         <CardTitle>Próximas tarefas</CardTitle>
-        <Link href="/tasks" className="text-xs font-medium text-primary hover:underline">
-          Ver todas
-        </Link>
+        <div className="flex items-center gap-2">
+          {showToggle && <MineToggle mine={mine} onChange={setMine} />}
+          <Link href="/tasks" className="text-xs font-medium text-primary hover:underline">
+            Ver todas
+          </Link>
+        </div>
       </CardHeader>
       <CardContent className="flex flex-col gap-1">
         {isLoading ? (

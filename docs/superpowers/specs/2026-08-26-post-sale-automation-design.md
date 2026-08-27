@@ -263,6 +263,7 @@ o que não concluiu.
 | --- | --- | --- |
 | `GET` | `/api/v1/settings/post-sale-automation` | `settings:manage` |
 | `PATCH` | `/api/v1/settings/post-sale-automation` | `settings:manage` |
+| `GET` | `/api/v1/contracts/post-sale/pending` | `proposals:read` |
 | `GET` | `/api/v1/contracts/:id/post-sale` | `proposals:read` |
 | `POST` | `/api/v1/contracts/:id/post-sale/reprocess` | `proposals:write` |
 
@@ -283,6 +284,10 @@ haveria como desconfigurar um estágio ou template já salvo.
 - **`/settings/automation`** — formulário completo, com aviso do que ainda
   falta configurar (campo `missing` da API) e estados de loading/erro/vazio.
   Sem `settings:manage`, mostra `EmptyState` de permissão.
+- **Painel** — card "Pós-fechamento pendente" (execuções `PENDING`/`PARTIAL`/
+  `FAILED` de toda a organização, com reprocessamento inline) e card "Prazos
+  de projeto" (usa o `dueAt` que esta fase passou a gravar). Os dois ficam
+  acima dos gráficos: o que exige ação vem antes do que é panorama.
 - **Detalhe do contrato** — card "Pós-fechamento" com status, as 5 etapas
   (ícone + detalhe + erro), links pro que foi criado e botão de reprocessar.
   Só aparece em contrato `ASSINADO`. Faz polling enquanto `PENDING`/`RUNNING`

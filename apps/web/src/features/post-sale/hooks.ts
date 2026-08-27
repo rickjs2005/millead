@@ -43,6 +43,14 @@ export function usePostSaleExecution(contractId: string | undefined) {
   });
 }
 
+/** Automações paradas -- card do painel. */
+export function usePendingAutomations() {
+  return useQuery({
+    queryKey: queryKeys.postSale.pending(),
+    queryFn: () => postSaleService.listPending().then((r) => r.items),
+  });
+}
+
 export function useReprocessPostSale(contractId: string) {
   const queryClient = useQueryClient();
   return useMutation({
@@ -51,6 +59,7 @@ export function useReprocessPostSale(contractId: string) {
       // A automação toca lead, recebimentos, briefing, projeto e tarefas --
       // invalidar só a execução deixaria as outras telas desatualizadas.
       queryClient.invalidateQueries({ queryKey: queryKeys.postSale.execution(contractId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.postSale.pending() });
       queryClient.invalidateQueries({ queryKey: ["contracts"] });
       queryClient.invalidateQueries({ queryKey: ["receivables"] });
       queryClient.invalidateQueries({ queryKey: ["briefings"] });

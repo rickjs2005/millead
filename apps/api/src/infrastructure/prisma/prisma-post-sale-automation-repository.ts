@@ -6,6 +6,7 @@ import {
   type AutomationExecution,
   type AutomationExecutionDetail,
   type AutomationStep,
+  type PendingAutomation,
   type PostSaleAutomationSettings,
 } from "../../domain/entities/post-sale-automation.js";
 import type {
@@ -208,6 +209,34 @@ export class PrismaPostSaleAutomationRepository implements PostSaleAutomationRep
     if (result.count === 0) return null;
     const row = await prisma.automationExecution.findUnique({ where: { id: executionId } });
     return row ? toExecution(row) : null;
+  }
+
+  async listPending(organizationId: string, limit: number): Promise<PendingAutomation[]> {
+    const rows = await prisma.automationExecution.findMany({
+      where: { organizationId, status: { in: ["PENDING", "PARTIAL", "FAILED"] } },
+      include: {
+        steps: true,
+        contract: { select: { numero: true, company: { select: { name: true } } } },
+      },
+      orderBy: { updatedAt: "desc" },
+      take: limit,
+    });
+
+    return rows.map((row) => ({
+      executionId: row.id,
+      contractId: row.contractId,
+      contractNumero: row.contract.numero,
+      companyName: row.contract.company?.name ?? null,
+      status: row.status,
+      finishedAt: row.finishedAt,
+      // SKIPPED e SUCCEEDED ficam de fora: o card é sobre o que exige ação.
+      // RUNNING também -- está em andamento, não parada.
+      pendingSteps: sortSteps(
+        row.steps
+          .filter((s) => s.status === "NEEDS_ACTION" || s.status === "FAILED" || s.status === "PENDING")
+          .map(toStep),
+      ).map((s) => ({ key: s.key, status: s.status, detail: s.detail })),
+    }));
   }
 
   async setTrigger(

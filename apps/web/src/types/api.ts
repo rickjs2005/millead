@@ -1333,6 +1333,17 @@ export interface AutomationExecution {
   artifacts: AutomationArtifact[];
 }
 
+export interface PendingAutomation {
+  executionId: string;
+  contractId: string;
+  contractNumero: string;
+  companyName: string | null;
+  status: AutomationExecutionStatus;
+  finishedAt: string | null;
+  /** Só as etapas que exigem ação -- as concluídas não vêm. */
+  pendingSteps: { key: AutomationStepKey; status: AutomationStepStatus; detail: string | null }[];
+}
+
 export interface PostSaleAutomationSettings {
   id: string;
   organizationId: string;

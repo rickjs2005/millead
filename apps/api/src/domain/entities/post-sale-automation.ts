@@ -78,6 +78,21 @@ export interface AutomationExecutionDetail extends AutomationExecution {
   artifacts: AutomationArtifact[];
 }
 
+/**
+ * Uma automação que parou no meio, resumida pro painel: o suficiente pra
+ * decidir se vale abrir o contrato, sem carregar a execução inteira.
+ */
+export interface PendingAutomation {
+  executionId: string;
+  contractId: string;
+  contractNumero: string;
+  companyName: string | null;
+  status: AutomationExecutionStatus;
+  finishedAt: Date | null;
+  /** Só as etapas que exigem ação (NEEDS_ACTION/FAILED) ou que nunca rodaram. */
+  pendingSteps: { key: AutomationStepKey; status: AutomationStepStatus; detail: string | null }[];
+}
+
 /** Ordem em que as etapas rodam -- também a ordem exibida na tela. TASKS é a
  *  última porque as tarefas operacionais dependem do que as anteriores
  *  produziram (só cria "confirmar entrada" se houve plano de recebimento). */

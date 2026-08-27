@@ -2,17 +2,25 @@
 
 import { ShieldAlert } from "lucide-react";
 import Link from "next/link";
+import { useState } from "react";
 import { EmptyState } from "@/components/empty-state";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useTeamDirectory } from "@/features/team/hooks";
+import { useAuthStore } from "@/stores/auth-store";
 import { formatDate } from "@/utils/format";
+import { MineToggle } from "./mine-toggle";
 import { useOverdueTasksList } from "../hooks";
 
 /** Igual a UpcomingTasksCard, mas com acento de alerta -- é a lista que
  * chama atenção pra o que já passou do prazo, não pra o que ainda vem. */
 export function OverdueTasksCard() {
-  const { data, isLoading } = useOverdueTasksList();
+  const userId = useAuthStore((s) => s.user?.id);
+  const { data: team } = useTeamDirectory();
+  const showToggle = (team?.length ?? 0) > 1;
+  const [mine, setMine] = useState(false);
+  const { data, isLoading } = useOverdueTasksList(mine ? userId : undefined);
   const hasOverdue = (data?.items.length ?? 0) > 0;
 
   return (
@@ -22,12 +30,15 @@ export function OverdueTasksCard() {
           <ShieldAlert className="h-4 w-4 text-destructive" />
           Tarefas atrasadas
         </CardTitle>
-        <Link
-          href="/tasks?overdue=true"
-          className="text-xs font-medium text-primary hover:underline"
-        >
-          Ver todas
-        </Link>
+        <div className="flex items-center gap-2">
+          {showToggle && <MineToggle mine={mine} onChange={setMine} />}
+          <Link
+            href="/tasks?overdue=true"
+            className="text-xs font-medium text-primary hover:underline"
+          >
+            Ver todas
+          </Link>
+        </div>
       </CardHeader>
       <CardContent className="flex flex-col gap-1">
         {isLoading ? (

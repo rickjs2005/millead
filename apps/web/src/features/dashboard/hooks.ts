@@ -151,10 +151,12 @@ export function usePipelineFunnel() {
   };
 }
 
-export function useUpcomingTasks() {
+/** `assigneeId` alimenta o filtro "só as minhas" dos cards de tarefa. Entra
+ *  na queryKey pra que alternar o toggle não sirva o cache do outro modo. */
+export function useUpcomingTasks(assigneeId?: string) {
   return useQuery({
-    queryKey: ["dashboard", "tasks", "upcoming"],
-    queryFn: () => tasksService.list({ status: "PENDING", pageSize: 5 }),
+    queryKey: ["dashboard", "tasks", "upcoming", assigneeId ?? "all"],
+    queryFn: () => tasksService.list({ status: "PENDING", pageSize: 5, assigneeId }),
   });
 }
 
@@ -169,10 +171,10 @@ export function useUpcomingMeetings() {
 /** Mesma contagem que `useDashboardCounts().overdueTasks` já busca, mas com
  * a LISTA (pageSize 5) pro card de "Tarefas atrasadas" do dashboard --
  * chave própria pra não colidir com a query de contagem (`pageSize: 1`). */
-export function useOverdueTasksList() {
+export function useOverdueTasksList(assigneeId?: string) {
   return useQuery({
-    queryKey: ["dashboard", "tasks", "overdueList"],
-    queryFn: () => tasksService.list({ overdue: true, pageSize: 5 }),
+    queryKey: ["dashboard", "tasks", "overdueList", assigneeId ?? "all"],
+    queryFn: () => tasksService.list({ overdue: true, pageSize: 5, assigneeId }),
   });
 }
 

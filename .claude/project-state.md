@@ -36,8 +36,16 @@ Descobertas relevantes da investigação:
   Foi adicionado só um `GET /settings/members` somente-leitura, necessário pro
   seletor de responsável padrão.
 
-Branch **empurrada** pro GitHub em 26/08/2026; migration aplicada. Falta só
-abrir o PR e fazer merge na `main` (é o merge que dispara Render + Vercel).
+**Mergeada na `main` e no ar** (commit `922f06f`, verificado em produção:
+`/health` reporta o commit certo, `/health/ready` ok, rotas novas respondem
+401 em vez de 404). Migrations aplicadas (22).
+
+No merge foi preciso integrar com a **gestão de equipe** (PR #2), que entrou
+na main enquanto esta fase era construída: `GET /settings/members` foi
+removido (duplicata de `GET /team/directory`), o formulário passou a usar o
+`MemberSelect` do módulo de equipe, e a execução passou a resolver o
+responsável validando membro ativo — sem isso, um responsável suspenso depois
+de configurado derrubaria a etapa de tarefas inteira.
 
 **Incidente 26/08/2026 — banco de produção apagado.** Durante a geração do SQL
 da migration, `prisma migrate diff --shadow-database-url` foi rodado com a

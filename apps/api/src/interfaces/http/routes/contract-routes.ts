@@ -32,6 +32,10 @@ export function createContractRoutes(
   router.post("/", write, validateBody(createContractSchema), asyncHandler(controller.create));
   router.get("/", read, validateQuery(listContractsQuerySchema), asyncHandler(controller.list));
   router.get("/kpis", read, asyncHandler(controller.kpis));
+  // Antes de "/:id" -- mesma precaução do /kpis acima. (Aqui o caminho tem
+  // dois segmentos, então nem colidiria, mas manter a ordem evita que a
+  // próxima rota literal seja adicionada no lugar errado por imitação.)
+  router.get("/post-sale/pending", read, asyncHandler(postSale.listPending));
   router.get("/:id", read, asyncHandler(controller.get));
   router.get("/:id/pdf", read, asyncHandler(controller.pdf));
   router.patch(

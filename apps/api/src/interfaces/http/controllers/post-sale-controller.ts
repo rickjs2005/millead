@@ -32,6 +32,13 @@ export class PostSaleController {
     res.status(200).json({ execution });
   };
 
+  /** Automações paradas da organização -- alimenta o card do painel. */
+  listPending = async (req: Request, res: Response): Promise<void> => {
+    const auth = requireAuth(req);
+    const items = await this.onboarding.listPending(auth.organizationId);
+    res.status(200).json({ items });
+  };
+
   reprocess = async (req: Request, res: Response): Promise<void> => {
     const auth = requireAuth(req);
     const execution = await this.onboarding.reprocess(

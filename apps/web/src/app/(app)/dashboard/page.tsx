@@ -15,6 +15,8 @@ import { LeadStatusChart } from "@/features/dashboard/components/lead-status-cha
 import { OnboardingChecklist } from "@/features/dashboard/components/onboarding-checklist";
 import { OverdueTasksCard } from "@/features/dashboard/components/overdue-tasks-card";
 import { PipelineFunnelChart } from "@/features/dashboard/components/pipeline-funnel-chart";
+import { PostSalePendingCard } from "@/features/dashboard/components/post-sale-pending-card";
+import { ProjectDeadlinesCard } from "@/features/dashboard/components/project-deadlines-card";
 import { QuickActions } from "@/features/dashboard/components/quick-actions";
 import { RecentActivitiesCard } from "@/features/dashboard/components/recent-activities-card";
 import { RevenueCostChart } from "@/features/dashboard/components/revenue-cost-chart";
@@ -140,6 +142,13 @@ export default function DashboardPage() {
           icon={ClipboardCheck}
           loading={counts.isLoading}
         />
+      </div>
+
+      {/* Acionáveis antes de panorama: estes dois cards dizem o que fazer
+          hoje, os gráficos abaixo dizem como a operação está indo. */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <PostSalePendingCard />
+        <ProjectDeadlinesCard />
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">

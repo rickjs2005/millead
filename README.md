@@ -205,6 +205,11 @@ O card **Pós-fechamento** no detalhe do contrato mostra o status, as 5 etapas,
 o que falhou e links pro que foi criado, com botão de reprocessar
 (`proposals:write`).
 
+No **painel**, o card "Pós-fechamento pendente" lista as automações que
+pararam no meio (de toda a organização, não uma por contrato) com botão de
+reprocessar, e o card "Prazos de projeto" mostra os projetos perto de vencer
+ou já atrasados — o prazo vem do contrato assinado.
+
 Detalhes de design, estados, idempotência e como testar à mão:
 [a spec](./docs/superpowers/specs/2026-08-26-post-sale-automation-design.md).
 
@@ -244,7 +249,7 @@ RBAC. Listagens aceitam `?page=&pageSize=` (paginação) e devolvem
 | Auditorias | `POST /api/v1/audits` (202 -- processa via worker), `GET /api/v1/audits[?companyId=&status=]`, `GET /:id`                                                                               |
 | IA         | `GET /api/v1/ai/status`, `POST /api/v1/ai/leads/:id/score`, `POST .../report`, `POST .../message`, `POST /api/v1/ai/creative-direction` (503 sem `ANTHROPIC_API_KEY`)                   |
 | Mensagens  | `GET /api/v1/messages[?leadId=&status=&channel=]`, `PATCH /:id`, `GET/POST /api/v1/messages/templates`, `PATCH /templates/:id`                                                          |
-| Contratos  | `POST/GET /api/v1/contracts`, `GET /kpis`, `GET /:id[/pdf]`, `PATCH /:id/status`, `POST /:id/reprocess`, `GET /:id/post-sale`, `POST /:id/post-sale/reprocess` -- públicas: `POST /api/v1/public/contracts`, `POST /api/v1/webhooks/signature` |
+| Contratos  | `POST/GET /api/v1/contracts`, `GET /kpis`, `GET /post-sale/pending`, `GET /:id[/pdf]`, `PATCH /:id/status`, `POST /:id/reprocess`, `GET /:id/post-sale`, `POST /:id/post-sale/reprocess` -- públicas: `POST /api/v1/public/contracts`, `POST /api/v1/webhooks/signature` |
 | Equipe     | `GET /api/v1/team/directory`, membros, convites e papéis em `/api/v1/team/*`; públicas: `POST /api/v1/public/team-invitations/preview                                                   | accept` |
 | Configurações | `GET /api/v1/settings/integrations`, `PATCH /profile`, `PATCH /organization`, `GET/PATCH /post-sale-automation`                                                                                                                              |
 

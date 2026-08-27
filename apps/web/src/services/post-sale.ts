@@ -1,6 +1,7 @@
 import { api } from "./api-client";
 import type {
   AutomationExecution,
+  PendingAutomation,
   PostSaleSettingsResult,
   ProjectChecklistType,
 } from "@/types/api";
@@ -33,6 +34,10 @@ export const postSaleService = {
     api.get<{ execution: AutomationExecution | null }>(
       `/api/v1/contracts/${contractId}/post-sale`,
     ),
+
+  /** Automações paradas da organização (painel). */
+  listPending: () =>
+    api.get<{ items: PendingAutomation[] }>("/api/v1/contracts/post-sale/pending"),
 
   reprocess: (contractId: string) =>
     api.post<{ execution: AutomationExecution }>(

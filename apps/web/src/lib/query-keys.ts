@@ -14,6 +14,7 @@ export const queryKeys = {
   },
   postSale: {
     execution: (contractId: string) => ["post-sale", "execution", contractId] as const,
+    pending: () => ["post-sale", "pending"] as const,
   },
   messages: {
     list: (params: object) => ["messages", "list", params] as const,

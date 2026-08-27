@@ -763,6 +763,69 @@ describe("PostSaleOnboardingService — plano de recebimento existente", () => {
   });
 });
 
+describe("PostSaleOnboardingService.listPending — card do painel", () => {
+  it("automacao concluida com sucesso NAO aparece como pendencia", async () => {
+    const h = makeHarness();
+    fullSettings(h.automation);
+    const execution = await triggerAndRun(h);
+    expect(execution.status).toBe("SUCCEEDED");
+
+    expect(await h.service.listPending(ORG)).toEqual([]);
+  });
+
+  it("automacao parcial aparece com so as etapas que exigem acao", async () => {
+    const h = makeHarness();
+    h.automation.seedSettings({
+      organizationId: ORG,
+      enabled: true,
+      wonStageId: WON_STAGE_ID,
+      briefingTemplateKey: null, // BRIEFING vira NEEDS_ACTION
+      projectType: "INSTITUTIONAL",
+      defaultOwnerId: OWNER_ID,
+      installmentCount: 2,
+      entryDueDays: 3,
+      firstInstallmentDueDays: 30,
+    });
+    await triggerAndRun(h);
+
+    const pending = await h.service.listPending(ORG);
+
+    expect(pending).toHaveLength(1);
+    expect(pending[0]!.status).toBe("PARTIAL");
+    expect(pending[0]!.contractNumero).toBe("MILWEB-2026-000001");
+    // Só a etapa pendente -- as concluidas nao poluem o card.
+    expect(pending[0]!.pendingSteps.map((s) => s.key)).toEqual(["BRIEFING"]);
+    expect(pending[0]!.pendingSteps[0]!.status).toBe("NEEDS_ACTION");
+  });
+
+  it("execucao enfileirada e nunca processada conta como pendencia", async () => {
+    const h = makeHarness();
+    fullSettings(h.automation);
+    await h.service.trigger(fakeContract()); // sem rodar o worker
+
+    const pending = await h.service.listPending(ORG);
+
+    expect(pending).toHaveLength(1);
+    expect(pending[0]!.status).toBe("PENDING");
+  });
+
+  it("nao vaza pendencia de outra organizacao", async () => {
+    const h = makeHarness();
+    fullSettings(h.automation);
+    await h.service.trigger(fakeContract());
+
+    expect(await h.service.listPending(OTHER_ORG)).toEqual([]);
+  });
+
+  it("respeita o teto de itens", async () => {
+    const h = makeHarness();
+    fullSettings(h.automation);
+    await h.service.trigger(fakeContract());
+
+    expect(await h.service.listPending(ORG, 0)).toHaveLength(1); // limite <1 vira 1
+  });
+});
+
 describe("PostSaleOnboardingService — notificacoes", () => {
   it("notifica uma vez por MUDANCA de desfecho, nao a cada reprocessamento", async () => {
     const h = makeHarness();

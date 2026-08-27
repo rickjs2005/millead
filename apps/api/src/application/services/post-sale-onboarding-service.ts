@@ -6,6 +6,7 @@ import type {
 import type { Contract } from "../../domain/entities/contract.js";
 import type {
   AutomationExecutionDetail,
+  PendingAutomation,
   PostSaleAutomationSettings,
 } from "../../domain/entities/post-sale-automation.js";
 import { NotFoundError, ValidationError } from "../../domain/errors/app-error.js";
@@ -197,6 +198,13 @@ export class PostSaleOnboardingService {
     contractId: string,
   ): Promise<AutomationExecutionDetail | null> {
     return this.deps.automation.findExecutionByContract(organizationId, contractId);
+  }
+
+  /** Automações paradas, pro card de pendências do painel. O teto existe pra
+   *  o painel nunca puxar uma lista sem limite -- quem quiser ver tudo abre
+   *  os contratos. */
+  listPending(organizationId: string, limit = 5): Promise<PendingAutomation[]> {
+    return this.deps.automation.listPending(organizationId, Math.min(Math.max(limit, 1), 20));
   }
 
   private ensureExecution(

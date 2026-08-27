@@ -11,6 +11,7 @@ import type {
   AutomationExecution,
   AutomationExecutionDetail,
   AutomationStep,
+  PendingAutomation,
   PostSaleAutomationSettings,
 } from "../entities/post-sale-automation.js";
 
@@ -101,6 +102,12 @@ export interface PostSaleAutomationRepository {
     finishedAt: Date,
     error: string | null,
   ): Promise<AutomationExecution | null>;
+  /**
+   * Execuções que pararam no meio (PENDING, PARTIAL ou FAILED), mais recentes
+   * primeiro -- alimenta o card de pendências do painel. SUCCEEDED nunca
+   * aparece: não há o que fazer com ela.
+   */
+  listPending(organizationId: string, limit: number): Promise<PendingAutomation[]>;
   /** Registra quem/como disparou a execução mais recente (reprocessamento). */
   setTrigger(
     executionId: string,

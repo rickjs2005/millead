@@ -9,6 +9,7 @@ import {
   type AutomationExecution,
   type AutomationExecutionDetail,
   type AutomationStep,
+  type PendingAutomation,
   type PostSaleAutomationSettings,
 } from "../../domain/entities/post-sale-automation.js";
 import type {
@@ -152,6 +153,35 @@ export class FakePostSaleAutomationRepository implements PostSaleAutomationRepos
     // sem ele aqui, um teste de vazamento entre tenants passaria de graça.
     if (!found || found.organizationId !== organizationId) return null;
     return this.detail(found);
+  }
+
+  /** Espelha o filtro do repositório real: só execuções paradas, e dentro
+   *  delas só as etapas que exigem ação. */
+  async listPending(organizationId: string, limit: number): Promise<PendingAutomation[]> {
+    return [...this.executions.values()]
+      .filter(
+        (e) =>
+          e.organizationId === organizationId &&
+          (e.status === "PENDING" || e.status === "PARTIAL" || e.status === "FAILED"),
+      )
+      .slice(0, limit)
+      .map((e) => ({
+        executionId: e.id,
+        contractId: e.contractId,
+        contractNumero: (e.payload as { numero?: string } | null)?.numero ?? "",
+        companyName: null,
+        status: e.status,
+        finishedAt: e.finishedAt,
+        pendingSteps: AUTOMATION_STEP_ORDER.map((key) => this.steps.get(`${e.id}::${key}`)!)
+          .filter(
+            (step) =>
+              step &&
+              (step.status === "NEEDS_ACTION" ||
+                step.status === "FAILED" ||
+                step.status === "PENDING"),
+          )
+          .map((step) => ({ key: step.key, status: step.status, detail: step.detail })),
+      }));
   }
 
   async claimExecution(
