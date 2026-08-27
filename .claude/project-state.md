@@ -12,7 +12,7 @@ Fase 05 — Autenticação e autorização   ◐  (seed cria "papéis padrão"; 
 Fase 06 — Frontend                     ✓  (todos os módulos consomem `apps/web/src/services`)
 Fase 07 — Integrações                  ◐  (ZapSign/contratos, IA Claude, Instagram/MilSocial existem; memória registra pendência antiga de bug de e-mail na Autentique/ZapSign — não reverificado)
 Fase 08 — Segurança                    ◐  (JWT + rate-limit presentes; memória cita achados de segurança "baixos" pendentes em millead-pendencias-seguranca.md — não reverificados)
-Fase 09 — Testes                       ◐  (270 testes unitários passando em 08/08 segundo a memória; falta confirmar cobertura de E2E dos fluxos públicos — briefing e fechamento de contrato)
+Fase 09 — Testes                       ◐  (26/08: 465 testes na API + 174 no web + 56 no runner + 21 em video-contracts, todos passando; falta confirmar cobertura de E2E dos fluxos públicos — briefing e fechamento de contrato)
 Fase 10 — Performance                  ○  (não verificado nesta sessão)
 Fase 11 — Observabilidade              ◐  (health checks + logger existem; nenhuma ferramenta de error tracking tipo Sentry identificada — gap real)
 Fase 12 — Infraestrutura               ✓  (Render blueprint p/ API, Vercel p/ web, Supabase, Upstash, CI em .github/workflows/ci.yml)
@@ -21,11 +21,33 @@ Fase 14 — Deploy                       ✓  (millead.milweb.com.br + millead-a
 Fase 15 — SEO para páginas públicas    ◐  (CRM é login-only; confirmar se a tela de login/marketing, se existir, tem noindex — não assumir N/A sem checar)
 Fase 16 — Pós-lançamento               ◐  (keep-api-awake.yml mitiga cold start do free tier; milsocial-sync.yml roda diário; sem monitoramento de erro/uptime de terceiros identificado)
 
+## Trabalho de 26/08/2026 — Automação pós-fechamento
+Implementada de ponta a ponta na branch `feat/post-sale-automation` (commit
+`06a063c`, **não enviado**): contrato ASSINADO dispara lead ganho +
+recebimentos + briefing + projeto + tarefas, via fila pg-boss, idempotente no
+reenvio do webhook. Configuração por organização em Configurações > Automação
+(nasce desligada) e card de acompanhamento no detalhe do contrato.
+Spec: `docs/superpowers/specs/2026-08-26-post-sale-automation-design.md`.
+
+Descobertas relevantes da investigação:
+- A fila é **pg-boss no Postgres**, não BullMQ+Redis (trocada em 21/07/2026).
+  README/ARCHITECTURE/DATABASE ainda descreviam o antigo — corrigidos.
+- **Gestão de equipe realmente não existe** (`settings/team` é EmptyState).
+  Foi adicionado só um `GET /settings/members` somente-leitura, necessário pro
+  seletor de responsável padrão.
+
+Pendente de decisão do Rick: aplicar a migration
+(`pnpm db:migrate:deploy`) e fazer push/deploy.
+
 ## Bloqueios
 - Pendências registradas em memória (`millead-pendencias-seguranca`) ainda em aberto: ZapSign não configurado no Render (contratos não são assináveis de verdade em produção), 2 achados baixos de segurança (landing de IA sem sanitização própria, tokens em localStorage), permissões próprias de Contratos/Landing pages pendentes de migração.
 
 ## Próxima ação
-Fechar RBAC (Fase 05) e Observabilidade (Fase 11), que são os dois gaps concretos sem dependência de decisão externa. As pendências de `millead-pendencias-seguranca` (ZapSign, achados baixos) dependem de decisão do Rick sobre configuração no Render.
+Autorizar o deploy da automação pós-fechamento (migration + push + Render/Vercel)
+e ligá-la em Configurações > Automação. Depois disso, os dois gaps concretos sem
+dependência externa continuam sendo RBAC (Fase 05) e Observabilidade (Fase 11).
+As pendências de `millead-pendencias-seguranca` (ZapSign, achados baixos)
+dependem de decisão do Rick sobre configuração no Render.
 
 ## Notas de N/A
 - (nenhuma até o momento — Fase 15 propositalmente não marcada N/A sem confirmar antes)
