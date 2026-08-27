@@ -60,6 +60,9 @@ export const vaultImportService = {
     api.post<VaultImportPreview>("/api/v1/vault/imports/preview", payload),
   confirm: (payload: ConfirmPayload) =>
     api.post<VaultImportBatch>("/api/v1/vault/imports", payload),
+  /** Desfaz: apaga as movimentações da importação E o registro dela. */
+  undo: (id: string) => api.delete<{ removidas: number }>(`/api/v1/vault/imports/${id}`),
+
   history: (limit = 20) => api.get<VaultImportBatch[]>("/api/v1/vault/imports", { limit }),
 
   listProfiles: () => api.get<VaultImportProfile[]>("/api/v1/vault/imports/profiles"),

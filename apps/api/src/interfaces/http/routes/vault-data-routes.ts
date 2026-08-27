@@ -213,6 +213,9 @@ export function createVaultDataRoutes(
     validateQuery(importHistoryQuerySchema),
     asyncHandler(controller.listImports),
   );
+  // Desfazer: apaga as movimentações do lote E o registro, juntos. Declarada
+  // depois de "/imports/profiles/:id" pra "profiles" não virar um id de lote.
+  router.delete("/imports/:id", asyncHandler(controller.undoImport));
 
   // ----- Classificação e regras -----
   router.get("/rules", listQuery, asyncHandler(controller.listRules));

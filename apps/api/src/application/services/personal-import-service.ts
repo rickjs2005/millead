@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { NotFoundError, ValidationError } from "../../domain/errors/app-error.js";
+import { ConflictError, NotFoundError, ValidationError } from "../../domain/errors/app-error.js";
 import type { PersonalAccountRepository } from "../../domain/repositories/personal-account-repository.js";
 import type {
   CreateImportProfileInput,
@@ -721,8 +721,72 @@ export class PersonalImportService {
 
   // ----- Histórico e perfis -----
 
-  listBatches(vaultId: string, limit: number): Promise<PersonalImportBatch[]> {
-    return this.imports.listBatches(vaultId, limit);
+  /**
+   * Histórico, com quantas movimentações de cada importação ainda existem.
+   *
+   * `importedRows` é fato histórico do dia em que aconteceu e não muda. Se as
+   * movimentações forem apagadas depois, ele continua dizendo 17 e passa a
+   * mentir. `linkedTransactions` é o número de agora — e é ele que diz o que
+   * um "desfazer" levaria junto.
+   */
+  async listBatches(
+    vaultId: string,
+    limit: number,
+  ): Promise<Array<PersonalImportBatch & { linkedTransactions: number }>> {
+    const lotes = await this.imports.listBatches(vaultId, limit);
+    const contagens = await this.imports.countLinkedTransactions(
+      vaultId,
+      lotes.map((l) => l.id),
+    );
+    return lotes.map((lote) => ({
+      ...lote,
+      linkedTransactions: contagens.get(lote.id) ?? 0,
+    }));
+  }
+
+  /**
+   * Desfaz uma importação: apaga as movimentações que vieram dela e o registro.
+   *
+   * ## Por que os dois juntos
+   *
+   * Apagar só o registro deixaria as movimentações órfãs, sem nada dizendo de
+   * onde vieram. Apagar só as movimentações deixaria um registro dizendo "17
+   * de 17 importadas" com zero no Cofre — foi exatamente esse estado que fez
+   * esta função existir.
+   *
+   * A contagem vem antes, na listagem, para você ver o que vai embora. Um lote
+   * com zero movimentações restantes é só um registro velho, e some sem levar
+   * nada junto.
+   *
+   * ## O que ela recusa
+   *
+   * Movimentação que baixa uma dívida ou que já virou despesa da MilWeb tem FK
+   * `Restrict`: o banco recusaria e o erro subiria como 500. A checagem vem
+   * antes e nomeia o que está no caminho — desfazer uma importação não pode
+   * arrastar consigo um lançamento que outro módulo depende.
+   */
+  async undoImport(vaultId: string, batchId: string): Promise<{ removidas: number }> {
+    const lote = await this.imports.findBatch(vaultId, batchId);
+    if (!lote) throw new NotFoundError("Importação não encontrada.");
+
+    const bloqueadas = await this.imports.findBlockedTransactions(vaultId, batchId);
+    if (bloqueadas.length > 0) {
+      const divida = bloqueadas.filter((b) => b.motivo === "divida").length;
+      const milweb = bloqueadas.filter((b) => b.motivo === "milweb").length;
+      const partes = [
+        divida > 0 && `${divida} ${divida === 1 ? "baixa uma dívida" : "baixam dívidas"}`,
+        milweb > 0 &&
+          `${milweb} já ${milweb === 1 ? "virou despesa" : "viraram despesas"} da MilWeb`,
+      ].filter(Boolean);
+
+      throw new ConflictError(
+        `Esta importação não pode ser desfeita: ${partes.join(" e ")}. ` +
+          "Desfaça esses vínculos primeiro — apagar a movimentação deixaria o outro lado sem lastro.",
+      );
+    }
+
+    const removidas = await this.imports.deleteBatchWithTransactions(vaultId, batchId);
+    return { removidas };
   }
 
   listProfiles(vaultId: string): Promise<PersonalImportProfile[]> {

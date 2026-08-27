@@ -7,6 +7,7 @@ import {
   Landmark,
   RefreshCw,
   ShieldAlert,
+  Trash2,
 } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
@@ -37,8 +38,9 @@ import {
   useAnalyzeImport,
   useConfirmImport,
   useImportHistory,
+  useUndoImport,
 } from "@/features/vault/import-hooks";
-import type { VaultAnalyzedRow, VaultImportAnalysis } from "@/types/api";
+import type { VaultAnalyzedRow, VaultImportAnalysis, VaultImportBatch } from "@/types/api";
 import { formatCurrency } from "@/utils/format";
 
 const STATUS_LABELS: Record<string, string> = {
@@ -232,26 +234,7 @@ export default function CofreImportarPage() {
           )}
           <div className="space-y-2">
             {(history.data ?? []).map((batch) => (
-              <div
-                key={batch.id}
-                className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border px-3 py-2 text-sm"
-              >
-                <div className="min-w-0">
-                  <div className="truncate font-medium">{batch.fileName}</div>
-                  <div className="text-xs text-muted-foreground">
-                    {formatVaultDate(batch.createdAt)} · {batch.format} · {batch.importedRows} de{" "}
-                    {batch.totalRows} importadas
-                    {batch.duplicateRows > 0 && ` · ${batch.duplicateRows} duplicadas`}
-                    {batch.ignoredRows > 0 && ` · ${batch.ignoredRows} recusadas`}
-                  </div>
-                </div>
-                <Link
-                  href={`/cofre/movimentacoes?importBatchId=${batch.id}`}
-                  className="text-xs text-muted-foreground hover:underline"
-                >
-                  Ver movimentações
-                </Link>
-              </div>
+              <LinhaDoHistorico key={batch.id} batch={batch} />
             ))}
           </div>
         </CardContent>
@@ -557,5 +540,84 @@ function TabelaPrevia({ rows }: { rows: VaultAnalyzedRow[] }) {
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+/**
+ * Uma importação no histórico.
+ *
+ * Mostra dois números diferentes de propósito: **quantas foram importadas** no
+ * dia (fato histórico, não muda) e **quantas ainda existem** (número de
+ * agora). Quando divergem, a linha diz isso — um registro afirmando "17
+ * importadas" com zero movimentações no Cofre é um registro que mente, e foi
+ * assim que este componente ganhou o botão de desfazer.
+ *
+ * A confirmação fica na própria linha em vez de num diálogo: o que vai
+ * acontecer cabe numa frase, e um modal para "remover um registro vazio" seria
+ * cerimônia desproporcional. Mas ela existe — apagar movimentação é
+ * irreversível, e o número aparece antes de você clicar.
+ */
+function LinhaDoHistorico({ batch }: { batch: VaultImportBatch }) {
+  const [confirmando, setConfirmando] = useState(false);
+  const undo = useUndoImport();
+
+  const sumiram = batch.linkedTransactions < batch.importedRows;
+
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border px-3 py-2 text-sm">
+      <div className="min-w-0">
+        <div className="truncate font-medium">{batch.fileName}</div>
+        <div className="text-xs text-muted-foreground">
+          {formatVaultDate(batch.createdAt)} · {batch.format} · {batch.importedRows} de{" "}
+          {batch.totalRows} importadas
+          {batch.duplicateRows > 0 && ` · ${batch.duplicateRows} duplicadas`}
+          {batch.ignoredRows > 0 && ` · ${batch.ignoredRows} recusadas`}
+        </div>
+        {sumiram && (
+          <div className="text-xs text-amber-600 dark:text-amber-500">
+            {batch.linkedTransactions === 0
+              ? "Nenhuma dessas movimentações existe mais — este é um registro antigo."
+              : `Só ${batch.linkedTransactions} dessas movimentações ainda existem.`}
+          </div>
+        )}
+      </div>
+
+      <div className="flex shrink-0 items-center gap-2">
+        {batch.linkedTransactions > 0 && (
+          <Link
+            href={`/cofre/movimentacoes?importBatchId=${batch.id}`}
+            className="text-xs text-muted-foreground hover:underline"
+          >
+            Ver movimentações
+          </Link>
+        )}
+
+        {confirmando ? (
+          <>
+            <span className="text-xs text-muted-foreground">
+              {batch.linkedTransactions === 0
+                ? "Remover este registro?"
+                : `Apagar ${batch.linkedTransactions} ${batch.linkedTransactions === 1 ? "movimentação" : "movimentações"}?`}
+            </span>
+            <Button
+              size="sm"
+              variant="destructive"
+              disabled={undo.isPending}
+              onClick={() => undo.mutate(batch.id, { onSettled: () => setConfirmando(false) })}
+            >
+              {undo.isPending ? "Desfazendo…" : "Confirmar"}
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => setConfirmando(false)}>
+              Não
+            </Button>
+          </>
+        ) : (
+          <Button size="sm" variant="ghost" onClick={() => setConfirmando(true)}>
+            <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+            {batch.linkedTransactions === 0 ? "Remover registro" : "Desfazer"}
+          </Button>
+        )}
+      </div>
+    </div>
   );
 }

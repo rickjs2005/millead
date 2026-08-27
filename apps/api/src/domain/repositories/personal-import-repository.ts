@@ -71,6 +71,40 @@ export interface PersonalImportRepository {
     },
   ): Promise<PersonalImportBatch | null>;
   listBatches(vaultId: string, limit: number): Promise<PersonalImportBatch[]>;
+
+  /**
+   * Quantas movimentacoes de cada lote AINDA existem.
+   *
+   * O lote guarda "17 de 17 importadas" como fato historico do dia da
+   * importacao. Se as movimentacoes forem apagadas depois, esse numero
+   * continua igual e passa a mentir -- a tela precisa saber quantas restam pra
+   * dizer a verdade e pra avisar o que o "desfazer" vai levar junto.
+   */
+  countLinkedTransactions(
+    vaultId: string,
+    batchIds: readonly string[],
+  ): Promise<Map<string, number>>;
+
+  /**
+   * Movimentacoes do lote que NAO podem ser apagadas, com o motivo.
+   *
+   * Uma que baixa divida ou que ja virou despesa da MilWeb tem FK Restrict: o
+   * banco recusaria, e o erro subiria como 500. Perguntar antes vira uma
+   * recusa que diz o que esta no caminho.
+   */
+  findBlockedTransactions(
+    vaultId: string,
+    batchId: string,
+  ): Promise<Array<{ description: string; motivo: "divida" | "milweb" }>>;
+
+  /**
+   * Desfaz a importacao: apaga as movimentacoes do lote e o proprio lote,
+   * numa transacao de banco so.
+   *
+   * Tudo ou nada: apagar metade deixaria um lote dizendo que importou 17 com
+   * 9 movimentacoes soltas, e ninguem saberia quais faltam.
+   */
+  deleteBatchWithTransactions(vaultId: string, batchId: string): Promise<number>;
   findBatch(vaultId: string, id: string): Promise<PersonalImportBatch | null>;
   /** Já importei este mesmo arquivo nesta origem? Alimenta o aviso da
    *  pré-visualização — não bloqueia, porque a deduplicação por linha já

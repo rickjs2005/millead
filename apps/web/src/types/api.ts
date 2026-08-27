@@ -1522,6 +1522,9 @@ export interface VaultImportBatch {
   status: "COMPLETED" | "PARTIAL" | "FAILED";
   errors: Array<{ line: number; code: string }>;
   createdAt: string;
+  /** Quantas movimentações desta importação AINDA existem. `importedRows` é
+   *  fato do dia em que ela aconteceu e não muda; este é o número de agora. */
+  linkedTransactions: number;
 }
 
 export interface VaultColumnMap {

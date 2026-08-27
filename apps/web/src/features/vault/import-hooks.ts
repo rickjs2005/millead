@@ -71,6 +71,31 @@ export function useImportHistory(limit = 20) {
   });
 }
 
+/**
+ * Desfazer importação.
+ *
+ * Invalida tudo que a importação alimentou: movimentações, histórico, resumo
+ * do mês e alertas. Desfazer mexe nos mesmos números que importar, e um cache
+ * velho mostraria movimentações que já não existem.
+ */
+export function useUndoImport() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => vaultImportService.undo(id),
+    onSuccess: async (r) => {
+      await queryClient.invalidateQueries({ queryKey: ["vault"] });
+      toast.success(
+        r.removidas === 0
+          ? "Registro removido."
+          : `Importação desfeita — ${r.removidas} ${r.removidas === 1 ? "movimentação apagada" : "movimentações apagadas"}.`,
+      );
+    },
+    // A API recusa com 409 quando alguma movimentação baixa dívida ou virou
+    // despesa da MilWeb, e a mensagem dela já nomeia o que está no caminho.
+    onError: (error) => toast.error(apiMessage(error, "Não foi possível desfazer a importação.")),
+  });
+}
+
 export function useImportProfiles() {
   return useQuery({
     queryKey: queryKeys.vault.importProfiles(),

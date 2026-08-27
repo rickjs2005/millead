@@ -48,7 +48,15 @@ const settingsBr: ImportProfileSettings = {
   columnMap: { date: "Data", description: "Histórico", amount: "Valor" },
 };
 
-function makeFakes(over: { institution?: string | null; last4?: string | null } = {}) {
+function makeFakes(
+  over: {
+    institution?: string | null;
+    last4?: string | null;
+    /** Movimentações que não podem ser apagadas — dívida ou MilWeb. */
+    bloqueadas?: Array<{ description: string; motivo: "divida" | "milweb" }>;
+  } = {},
+) {
+  const bloqueadas = over.bloqueadas ?? [];
   const account: PersonalAccount = {
     id: "acc-1",
     vaultId: VAULT,
@@ -194,6 +202,18 @@ function makeFakes(over: { institution?: string | null; last4?: string | null } 
       throw new Error("não usado");
     },
     updateProfile: async () => null,
+    countLinkedTransactions: async (_v: string, ids: readonly string[]) =>
+      new Map(ids.map((id) => [id, transactions.filter((t) => t.importBatchId === id).length])),
+    findBlockedTransactions: async () => bloqueadas,
+    deleteBatchWithTransactions: async (_v: string, batchId: string) => {
+      const antes = transactions.length;
+      for (let i = transactions.length - 1; i >= 0; i--) {
+        if (transactions[i]!.importBatchId === batchId) transactions.splice(i, 1);
+      }
+      const i = batches.findIndex((b) => b.id === batchId);
+      if (i >= 0) batches.splice(i, 1);
+      return antes - transactions.length;
+    },
     deleteProfile: async () => false,
   };
 
@@ -810,5 +830,117 @@ describe("defeitos encontrados usando o fluxo de verdade", () => {
     });
     expect(r.rows).toHaveLength(0);
     expect(r.totals.linhas).toBe(0);
+  });
+});
+
+describe("desfazer uma importação", () => {
+  const OFX = `<OFX><BANKACCTFROM><ACCTID>1111</ACCTID></BANKACCTFROM>
+<STMTTRN><DTPOSTED>20260805<TRNAMT>-120.00<FITID>u1<MEMO>MERCADO</STMTTRN>
+<STMTTRN><DTPOSTED>20260806<TRNAMT>-45.00<FITID>u2<MEMO>PADARIA</STMTTRN>
+</OFX>`;
+
+  async function importar(f: ReturnType<typeof makeFakes>) {
+    const r = await f.service.analyze(VAULT, { fileName: "u.ofx", content: OFX });
+    return f.service.confirm(VAULT, {
+      accountId: "acc-1",
+      cardId: null,
+      fileName: r.fileName,
+      fileHash: r.fileHash,
+      format: r.format,
+      rows: r.rows.map((row) => ({
+        line: row.line,
+        date: row.date!.toISOString().slice(0, 10),
+        description: row.description,
+        amount: row.amount!,
+        direction: row.direction!,
+        externalId: row.externalId,
+      })),
+      ignored: [],
+    });
+  }
+
+  it("apaga as movimentações e o registro, juntos", async () => {
+    // Separados, os dois estados mentem: registro sem movimentações diz "2
+    // importadas" com zero no Cofre; movimentações sem registro não sabem de
+    // onde vieram.
+    const f = makeFakes({ last4: "1111" });
+    const lote = await importar(f);
+    expect(f.transactions).toHaveLength(2);
+
+    const r = await f.service.undoImport(VAULT, lote.id);
+
+    expect(r.removidas).toBe(2);
+    expect(f.transactions).toHaveLength(0);
+    expect(f.batches.find((b) => b.id === lote.id)).toBeUndefined();
+  });
+
+  it("registro órfão some sem levar nada junto", async () => {
+    // O caso que fez esta função existir: o lote diz "2 importadas" e as
+    // movimentações já não existem.
+    const f = makeFakes({ last4: "1111" });
+    const lote = await importar(f);
+    f.transactions.length = 0;
+
+    const r = await f.service.undoImport(VAULT, lote.id);
+    expect(r.removidas).toBe(0);
+    expect(f.batches).toHaveLength(0);
+  });
+
+  it("o histórico diz quantas AINDA existem, não quantas entraram", async () => {
+    const f = makeFakes({ last4: "1111" });
+    await importar(f);
+
+    const antes = await f.service.listBatches(VAULT, 10);
+    expect(antes[0]).toMatchObject({ importedRows: 2, linkedTransactions: 2 });
+
+    f.transactions.length = 0;
+    const depois = await f.service.listBatches(VAULT, 10);
+    // `importedRows` é fato do dia da importação e não muda; o que muda é o
+    // número de agora — e é ele que impede a tela de mentir.
+    expect(depois[0]).toMatchObject({ importedRows: 2, linkedTransactions: 0 });
+  });
+
+  it("recusa quando alguma movimentação baixa uma dívida", async () => {
+    // FK Restrict: o banco recusaria e o erro subiria como 500. E desfazer uma
+    // importação não pode arrastar consigo o que outro módulo depende.
+    const f = makeFakes({
+      last4: "1111",
+      bloqueadas: [{ description: "PIX BRUNO", motivo: "divida" }],
+    });
+    const lote = await importar(f);
+
+    await expect(f.service.undoImport(VAULT, lote.id)).rejects.toThrow(/baixa uma dívida/);
+    expect(f.transactions).toHaveLength(2);
+  });
+
+  it("recusa quando alguma já virou despesa da MilWeb", async () => {
+    const f = makeFakes({
+      last4: "1111",
+      bloqueadas: [{ description: "CLAUDE", motivo: "milweb" }],
+    });
+    const lote = await importar(f);
+
+    await expect(f.service.undoImport(VAULT, lote.id)).rejects.toThrow(/despesa da MilWeb/);
+  });
+
+  it("a mensagem soma os dois motivos quando há os dois", async () => {
+    const f = makeFakes({
+      last4: "1111",
+      bloqueadas: [
+        { description: "A", motivo: "divida" },
+        { description: "B", motivo: "milweb" },
+        { description: "C", motivo: "milweb" },
+      ],
+    });
+    const lote = await importar(f);
+
+    await expect(f.service.undoImport(VAULT, lote.id)).rejects.toThrow(
+      /1 baixa uma dívida e 2 já viraram despesas da MilWeb/,
+    );
+  });
+
+  it("importação que não existe é 404", async () => {
+    const f = makeFakes();
+    await expect(f.service.undoImport(VAULT, "nao-existe")).rejects.toThrow(/não encontrada/);
   });
 });

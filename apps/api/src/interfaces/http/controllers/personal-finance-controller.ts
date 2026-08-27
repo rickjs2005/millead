@@ -299,6 +299,18 @@ export class PersonalFinanceController {
     res.status(201).json(await this.imports.confirm(vaultId, req.body as ConfirmImportBody));
   };
 
+  /**
+   * Desfaz uma importação: apaga as movimentações que vieram dela e o registro.
+   *
+   * Uma ação só, porque separar deixaria estados que mentem: registro sem
+   * movimentações diz "17 importadas" com zero no Cofre; movimentações sem
+   * registro não sabem de onde vieram.
+   */
+  undoImport = async (req: Request, res: Response): Promise<void> => {
+    const { vaultId } = requireVaultContext(req);
+    res.json(await this.imports.undoImport(vaultId, req.params.id!));
+  };
+
   listImports = async (req: Request, res: Response): Promise<void> => {
     const { vaultId } = requireVaultContext(req);
     const { limit } = req.validatedQuery as ImportHistoryQuery;
@@ -421,14 +433,12 @@ export class PersonalFinanceController {
     const { vaultId } = requireVaultContext(req);
     const body = req.body as CreateSubscriptionBody;
     const { expectedAmount, ...rest } = body;
-    res
-      .status(201)
-      .json(
-        await this.subscriptions.create(vaultId, requireAuth(req).organizationId, {
-          ...rest,
-          expectedCents: parseMoney(expectedAmount),
-        }),
-      );
+    res.status(201).json(
+      await this.subscriptions.create(vaultId, requireAuth(req).organizationId, {
+        ...rest,
+        expectedCents: parseMoney(expectedAmount),
+      }),
+    );
   };
 
   updateSubscription = async (req: Request, res: Response): Promise<void> => {

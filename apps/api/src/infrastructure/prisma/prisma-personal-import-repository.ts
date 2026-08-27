@@ -81,6 +81,65 @@ export class PrismaPersonalImportRepository implements PersonalImportRepository 
     return this.findBatch(vaultId, id);
   }
 
+  async countLinkedTransactions(
+    vaultId: string,
+    batchIds: readonly string[],
+  ): Promise<Map<string, number>> {
+    if (batchIds.length === 0) return new Map();
+
+    // Um `groupBy` só, e não uma contagem por lote: a tela lista vinte
+    // importações, e vinte consultas seriam vinte idas ao banco remoto.
+    const grupos = await prisma.personalTransaction.groupBy({
+      by: ["importBatchId"],
+      where: { vaultId, importBatchId: { in: [...batchIds] } },
+      _count: { _all: true },
+    });
+
+    const mapa = new Map<string, number>();
+    for (const id of batchIds) mapa.set(id, 0);
+    for (const grupo of grupos) {
+      if (grupo.importBatchId) mapa.set(grupo.importBatchId, grupo._count._all);
+    }
+    return mapa;
+  }
+
+  async findBlockedTransactions(
+    vaultId: string,
+    batchId: string,
+  ): Promise<Array<{ description: string; motivo: "divida" | "milweb" }>> {
+    const rows = await prisma.personalTransaction.findMany({
+      where: {
+        vaultId,
+        importBatchId: batchId,
+        // As duas FKs com Restrict que apontam pra movimentação.
+        OR: [{ debtSettlement: { isNot: null } }, { businessAllocation: { isNot: null } }],
+      },
+      select: {
+        originalDescription: true,
+        debtSettlement: { select: { id: true } },
+      },
+      take: 20,
+    });
+
+    return rows.map((row) => ({
+      description: row.originalDescription,
+      motivo: row.debtSettlement ? ("divida" as const) : ("milweb" as const),
+    }));
+  }
+
+  async deleteBatchWithTransactions(vaultId: string, batchId: string): Promise<number> {
+    return prisma.$transaction(async (tx) => {
+      // As movimentações primeiro: a FK delas pro lote é SetNull, então apagar
+      // o lote antes as deixaria órfãs e a segunda parte não teria mais como
+      // encontrá-las.
+      const { count } = await tx.personalTransaction.deleteMany({
+        where: { vaultId, importBatchId: batchId },
+      });
+      await tx.personalImportBatch.deleteMany({ where: { id: batchId, vaultId } });
+      return count;
+    });
+  }
+
   async listBatches(vaultId: string, limit: number): Promise<PersonalImportBatch[]> {
     const rows = await prisma.personalImportBatch.findMany({
       where: { vaultId },
