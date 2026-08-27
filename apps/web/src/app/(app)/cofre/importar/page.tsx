@@ -120,9 +120,19 @@ export default function CofreImportarPage() {
     setOrigemEscolhida("");
   };
 
-  const origemId = analise?.match.selectedId ?? null;
-  const origemKind = analise?.match.kind ?? null;
-  const podeImportar = Boolean(origemId) && (analise?.totals.novas ?? 0) > 0;
+  // A escolha da tela é a fonte mais confiável do TIPO da origem: ela veio de
+  // um item do seletor, que já diz se é conta ou cartão. O `match` do servidor
+  // é o segundo em fila, para o caso do casamento automático.
+  //
+  // Depender só do `match` era o bug: num CSV o arquivo não diz se é conta ou
+  // cartão, então `kind` vinha nulo, `accountId` e `cardId` saíam os dois
+  // nulos, e a confirmação respondia "Informe exatamente uma origem" logo
+  // depois de a origem ter sido informada.
+  const [tipoEscolhido, idEscolhido] = origemEscolhida.split(":");
+  const origemKind =
+    (tipoEscolhido as "account" | "card" | undefined) ?? analise?.match.kind ?? null;
+  const origemId = idEscolhido ?? analise?.match.selectedId ?? null;
+  const podeImportar = Boolean(origemId) && Boolean(origemKind) && (analise?.totals.novas ?? 0) > 0;
 
   const importar = () => {
     if (!analise || !origemId) return;

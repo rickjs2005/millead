@@ -115,9 +115,78 @@ const RUIDOS: readonly RegExp[] = [
   /\b\d{6,}\b/g, // códigos de autorização e afins
 ];
 
-/** Verbos de transferência que precedem o nome de uma pessoa. */
-const PIX_PESSOA =
-  /^(?:PIX|TED|DOC|TRANSFERENCIA|TRANSF)\s*(?:RECEBIDO|ENVIADO|CREDITO|DEBITO|REC|ENV)?\s*(?:DE|PARA|P\/)?\s*(.+)$/;
+/**
+ * Extração do nome numa transferência.
+ *
+ * ## Por que não é uma regex só
+ *
+ * A primeira versão era, e quebrou no formato real do Nubank. Ela tinha `REC`
+ * como alternativa de verbo, e `REC` casou DENTRO de "RECEBIDA": "Transferência
+ * recebida pelo Pix - JOAO SILVA" virava "Ebida Pelo Pix - Joao Silva". Duas
+ * lições numa: alternativa curta sem fronteira de palavra come o começo da
+ * palavra seguinte, e minha lista só tinha as formas masculinas — o Nubank
+ * escreve "recebida".
+ *
+ * Os formatos que aparecem de verdade:
+ *
+ * - `PIX RECEBIDO JOAO SILVA`
+ * - `Transferência recebida pelo Pix - JOAO SILVA`   (Nubank)
+ * - `Transferência enviada pelo Pix - JOAO SILVA`
+ * - `TED RECEBIDA - JOAO`
+ * - `PIX ENVIADO PARA JOAO`
+ *
+ * Duas regras cobrem todos: quando há ` - `, o nome é o que vem depois do
+ * último; sem hífen, é o que sobra depois de tirar as palavras de serviço da
+ * frente.
+ */
+const TEM_TRANSFERENCIA = /\b(PIX|TED|DOC|TRANSFERENCIA|TRANSF)\b/;
+
+/** Palavras de serviço que antecedem o nome. Removidas da frente, em ordem. */
+const PALAVRAS_DE_SERVICO = new Set([
+  "PIX",
+  "TED",
+  "DOC",
+  "TRANSFERENCIA",
+  "TRANSF",
+  "RECEBIDO",
+  "RECEBIDA",
+  "ENVIADO",
+  "ENVIADA",
+  "CREDITO",
+  "DEBITO",
+  "PAGAMENTO",
+  "PELO",
+  "PELA",
+  "POR",
+  "DE",
+  "DA",
+  "DO",
+  "PARA",
+  "P/",
+  "EM",
+  "NA",
+  "NO",
+]);
+
+function extrairPessoa(normalizada: string): string | null {
+  if (!TEM_TRANSFERENCIA.test(normalizada)) return null;
+
+  // Com hífen, o nome é o que vem depois do último -- é onde os bancos o põem.
+  const hifen = normalizada.lastIndexOf(" - ");
+  if (hifen >= 0) {
+    const depois = limpar(normalizada.slice(hifen + 3));
+    return depois && /[A-Z]{3}/.test(depois) ? depois : null;
+  }
+
+  // Sem hífen, tira as palavras de serviço da frente, uma a uma. Comparação
+  // por palavra INTEIRA -- foi o casamento parcial que produziu "Ebida".
+  const palavras = normalizada.split(/\s+/).filter(Boolean);
+  let i = 0;
+  while (i < palavras.length && PALAVRAS_DE_SERVICO.has(palavras[i]!)) i++;
+
+  const resto = limpar(palavras.slice(i).join(" "));
+  return resto && /[A-Z]{3}/.test(resto) ? resto : null;
+}
 
 export function describeMerchant(raw: string): MerchantDisplay {
   const normalizada = normalizeDescription(raw);
@@ -145,22 +214,20 @@ export function describeMerchant(raw: string): MerchantDisplay {
     };
   }
 
-  // 2. Pix/TED com nome de pessoa: o nome vira sugestão de pessoa, não de
-  //    fornecedor -- pessoa entra em dívidas, fornecedor entra no catálogo.
-  const pessoa = PIX_PESSOA.exec(normalizada);
+  // 2. Pix/TED com nome: vira sugestão de PESSOA, não de fornecedor -- pessoa
+  //    entra em dívidas, fornecedor entra no catálogo, e confundir os dois
+  //    encheria o catálogo com nomes de gente.
+  const pessoa = extrairPessoa(normalizada);
   if (pessoa) {
-    const nome = limpar(pessoa[1]!);
-    if (nome && /[A-Z]{3}/.test(nome)) {
-      return {
-        name: titleCase(nome),
-        merchantHint: null,
-        personHint: titleCase(nome),
-        // Média: o extrato nomeia, mas "PIX ENVIADO MERCADO X" também casa aqui
-        // e não é pessoa. Quem confirma é a tela.
-        confidence: "media",
-        installment,
-      };
-    }
+    return {
+      name: titleCase(pessoa),
+      merchantHint: null,
+      personHint: titleCase(pessoa),
+      // Média: o extrato nomeia, mas "PIX ENVIADO MERCADO X" também casa aqui
+      // e não é pessoa. Quem confirma é a tela.
+      confidence: "media",
+      installment,
+    };
   }
 
   // 3. Sem reconhecer: limpa o ruído e devolve legível, com confiança baixa.

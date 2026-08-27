@@ -944,3 +944,90 @@ describe("desfazer uma importação", () => {
     await expect(f.service.undoImport(VAULT, "nao-existe")).rejects.toThrow(/não encontrada/);
   });
 });
+
+describe("escolher a origem na tela", () => {
+  const CSV = `Data;Histórico;Valor
+05/08/2026;MERCADO;-120,50
+15/08/2026;SALARIO;5000,00`;
+
+  it("CSV não diz se é conta ou cartão — e é por isso que a escolha importa", async () => {
+    const f = makeFakes();
+    const r = await f.service.analyze(VAULT, { fileName: "e.csv", content: CSV });
+
+    expect(r.identity.kind).toBeNull();
+    expect(r.match.kind).toBeNull();
+    expect(r.match.reason).toMatch(/não diz se é conta ou cartão/i);
+  });
+
+  it("escolher uma CONTA define o tipo", async () => {
+    // O bug: sobrescrever só `selectedId` deixava `kind` nulo, a tela mandava
+    // accountId e cardId os dois nulos, e a confirmação respondia "Informe
+    // exatamente uma origem" logo depois de a pessoa ter informado.
+    const f = makeFakes();
+    const r = await f.service.analyze(VAULT, {
+      fileName: "e.csv",
+      content: CSV,
+      accountId: "acc-1",
+    });
+
+    expect(r.match.kind).toBe("account");
+    expect(r.match.selectedId).toBe("acc-1");
+    expect(r.match.level).toBe("exata");
+  });
+
+  it("escolher um CARTÃO define o tipo como cartão", async () => {
+    const f = makeFakes();
+    const r = await f.service.analyze(VAULT, {
+      fileName: "e.csv",
+      content: CSV,
+      cardId: "card-1",
+    });
+
+    expect(r.match.kind).toBe("card");
+    expect(r.match.selectedId).toBe("card-1");
+  });
+
+  it("e o texto de apoio para de pedir uma escolha já feita", async () => {
+    const f = makeFakes();
+    const r = await f.service.analyze(VAULT, {
+      fileName: "e.csv",
+      content: CSV,
+      accountId: "acc-1",
+    });
+
+    expect(r.match.reason).not.toMatch(/não diz se é conta ou cartão/i);
+    expect(r.match.reason).toMatch(/Você escolheu a conta "Conta"/);
+  });
+
+  it("com a origem escolhida, a deduplicação passa a valer", async () => {
+    // A chave inclui a conta: sem escolher, ela não existe.
+    const f = makeFakes();
+    const semConta = await f.service.analyze(VAULT, { fileName: "e.csv", content: CSV });
+    const comConta = await f.service.analyze(VAULT, {
+      fileName: "e.csv",
+      content: CSV,
+      accountId: "acc-1",
+    });
+
+    expect(semConta.rows.every((r) => r.fingerprint === null)).toBe(true);
+    expect(comConta.rows.every((r) => r.fingerprint !== null)).toBe(true);
+  });
+
+  it("a escolha ganha até de um casamento automático diferente", async () => {
+    // O OFX diz uma conta; a pessoa escolhe outra. Quem manda é ela.
+    const f = makeFakes({ last4: "1111" });
+    const ofx = `<OFX><BANKACCTFROM><ACCTID>1111</ACCTID></BANKACCTFROM>
+<STMTTRN><DTPOSTED>20260805<TRNAMT>-10.00<FITID>x<MEMO>X</STMTTRN></OFX>`;
+
+    const auto = await f.service.analyze(VAULT, { fileName: "e.ofx", content: ofx });
+    expect(auto.match.selectedId).toBe("acc-1");
+
+    const manual = await f.service.analyze(VAULT, {
+      fileName: "e.ofx",
+      content: ofx,
+      cardId: "card-1",
+    });
+    expect(manual.match.kind).toBe("card");
+    expect(manual.match.selectedId).toBe("card-1");
+  });
+});

@@ -273,7 +273,12 @@ export class PersonalImportService {
       fileHash,
       fileName,
       identity,
-      match: escolhida ? { ...match, selectedId: escolhida, level: "exata" } : match,
+      match: escolhida
+        ? escolhaExplicita(escolhida, input.accountId ? "account" : "card", [
+            ...candidatos(accounts),
+            ...candidatos(cards),
+          ])
+        : match,
       suggestion: match.level === "nenhuma" ? suggestOrigin(identity) : null,
       detection: lido.detection,
       headers: lido.headers,
@@ -1044,4 +1049,41 @@ function assertLegivel(rows: readonly MappedRow[]): void {
     "Nenhuma linha deste arquivo pôde ser lida como movimentação. Confira se é mesmo um " +
       "extrato, ou ajuste o mapeamento das colunas.",
   );
+}
+
+/**
+ * O casamento quando a pessoa escolhe a origem na tela.
+ *
+ * Sobrescrever só `selectedId` no resultado automático deixava `kind` como
+ * veio — e num CSV ele vem `null`, porque o arquivo não diz se é conta ou
+ * cartão. A tela usava esse `kind` para montar `accountId`/`cardId`, os dois
+ * saíam nulos, e a confirmação respondia "Informe exatamente uma origem" logo
+ * depois de a pessoa ter informado. O texto de apoio também continuava
+ * pedindo uma escolha já feita.
+ *
+ * Aqui o `kind` vem de qual campo a pessoa preencheu, que é a informação
+ * definitiva: ela escolheu no seletor, não há o que inferir.
+ */
+export function escolhaExplicita(
+  id: string,
+  kind: "account" | "card",
+  candidatos: ReadonlyArray<{
+    id: string;
+    name: string;
+    institution: string | null;
+    last4: string | null;
+  }>,
+): OriginMatch {
+  const escolhido = candidatos.find((c) => c.id === id);
+  const rotulo = kind === "card" ? "cartão" : "conta";
+
+  return {
+    level: "exata",
+    kind,
+    selectedId: id,
+    candidates: escolhido ? [escolhido] : [],
+    reason: escolhido
+      ? `Você escolheu ${rotulo === "conta" ? "a conta" : "o cartão"} "${escolhido.name}".`
+      : `Você escolheu ${rotulo === "conta" ? "uma conta" : "um cartão"}.`,
+  };
 }

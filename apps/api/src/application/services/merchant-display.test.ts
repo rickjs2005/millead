@@ -39,6 +39,26 @@ describe("Pix e TED com nome de pessoa", () => {
     expect(describeMerchant("TED PARA CARLOS ANDRADE").personHint).toBe("Carlos Andrade");
     expect(describeMerchant("TRANSFERENCIA DE ANA LIMA").personHint).toBe("Ana Lima");
   });
+
+  it("lê o formato do Nubank, com hífen e verbo no feminino", () => {
+    // O bug real: `REC` era alternativa de verbo e casou DENTRO de "RECEBIDA",
+    // devolvendo "Ebida Pelo Pix - Joao Silva". Alternativa curta sem fronteira
+    // de palavra come o começo da seguinte -- e a lista só tinha as formas
+    // masculinas, enquanto o Nubank escreve "recebida".
+    expect(describeMerchant("Transferência recebida pelo Pix - JOAO SILVA").personHint).toBe(
+      "Joao Silva",
+    );
+    expect(describeMerchant("Transferência enviada pelo Pix - MARIA SOUZA").personHint).toBe(
+      "Maria Souza",
+    );
+    expect(describeMerchant("TED RECEBIDA - CARLOS ANDRADE").personHint).toBe("Carlos Andrade");
+  });
+
+  it("não confunde compra com transferência", () => {
+    // Sem verbo de transferência, não há pessoa a extrair.
+    const r = describeMerchant("Compra no débito - MERCADO BOM PRECO");
+    expect(r.personHint).toBeNull();
+  });
 });
 
 describe("limpeza de ruído", () => {
