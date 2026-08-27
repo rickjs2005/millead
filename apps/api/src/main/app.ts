@@ -10,6 +10,7 @@ import { errorHandler } from "../interfaces/http/middlewares/error-handler.js";
 import { createAiRoutes } from "../interfaces/http/routes/ai-routes.js";
 import { createAuditRoutes } from "../interfaces/http/routes/audit-routes.js";
 import { createNotificationRoutes } from "../interfaces/http/routes/notification-routes.js";
+import { createVaultRoutes } from "../interfaces/http/routes/vault-routes.js";
 import { createAuthRoutes } from "../interfaces/http/routes/auth-routes.js";
 import {
   createBriefingRoutes,
@@ -103,6 +104,16 @@ export function createApp(container: Container): Express {
     createBriefingRoutes(container.briefingController, container.authenticate),
   );
   app.use("/api/v1/notifications", createNotificationRoutes(container.authenticate));
+  // Cofre Financeiro (finanças pessoais do dono da conta). Sem RBAC: a
+  // autorização é posse do Cofre + sessão elevada -- ver vault-routes.ts.
+  app.use(
+    "/api/v1/vault",
+    createVaultRoutes(
+      container.personalVaultController,
+      container.authenticate,
+      container.requireVault,
+    ),
+  );
   // Formulário público de fechamento (rate-limit por IP, sem login).
   app.use(
     "/api/v1/public",

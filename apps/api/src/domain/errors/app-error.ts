@@ -35,6 +35,21 @@ export class UnauthorizedError extends AppError {
   readonly code = "UNAUTHORIZED";
 }
 
+/**
+ * Sessão do Cofre ausente, expirada ou revogada -- com o Cofre existindo e
+ * pertencendo a quem pediu. Código próprio (não o UNAUTHORIZED genérico)
+ * porque o front precisa distinguir "sua sessão caiu, faça login" de
+ * "reabra o Cofre com a sua senha": a primeira desloga, a segunda não.
+ *
+ * Só é lançado depois de a posse do Cofre estar confirmada. Quem não é dono
+ * recebe NotFoundError antes de chegar aqui -- este erro nunca revela a
+ * existência de um Cofre a quem não tem um.
+ */
+export class VaultLockedError extends AppError {
+  readonly statusCode = 401;
+  readonly code = "VAULT_LOCKED";
+}
+
 export class ForbiddenError extends AppError {
   readonly statusCode = 403;
   readonly code = "FORBIDDEN";

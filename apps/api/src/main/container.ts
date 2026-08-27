@@ -12,6 +12,7 @@ import { EstimateService } from "../application/services/estimate-service.js";
 import { MessageService } from "../application/services/message-service.js";
 import { PostSaleSettingsService } from "../application/services/post-sale-settings-service.js";
 import { ProjectChecklistService } from "../application/services/project-checklist-service.js";
+import { PersonalVaultService } from "../application/services/personal-vault-service.js";
 import { ReceivableService } from "../application/services/receivable-service.js";
 import { CompanyService } from "../application/services/company-service.js";
 import { LeadService } from "../application/services/lead-service.js";
@@ -36,6 +37,7 @@ import { PERMISSIONS } from "@millead/database/permissions";
 import { env } from "../config/env.js";
 import { BcryptPasswordHasher } from "../infrastructure/auth/bcrypt-password-hasher.js";
 import { JwtAccessTokenService } from "../infrastructure/auth/jwt-access-token-service.js";
+import { JwtVaultSessionService } from "../infrastructure/auth/jwt-vault-session-service.js";
 import { ClaudeCreativeDirector } from "../infrastructure/ai/claude-creative-director.js";
 import { ClaudeLeadAi } from "../infrastructure/ai/claude-lead-ai.js";
 import { ClaudeSocialAnalyst } from "../infrastructure/ai/claude-social-analyst.js";
@@ -77,12 +79,14 @@ import { PrismaSocialRepository } from "../infrastructure/prisma/prisma-social-r
 import { PrismaTagRepository } from "../infrastructure/prisma/prisma-tag-repository.js";
 import { PrismaTaskRepository } from "../infrastructure/prisma/prisma-task-repository.js";
 import { buildPostSaleOnboardingService } from "./post-sale-factory.js";
+import { PrismaPersonalVaultRepository } from "../infrastructure/prisma/prisma-personal-vault-repository.js";
 import { PrismaUserRepository } from "../infrastructure/prisma/prisma-user-repository.js";
 import { PrismaTeamRepository } from "../infrastructure/prisma/prisma-team-repository.js";
 import { DefaultTeamInvitationNotifier } from "../infrastructure/team/default-team-invitation-notifier.js";
 import { apiKeyOrSession } from "../interfaces/http/middlewares/api-key-or-session.js";
 import { createAuthenticateMiddleware } from "../interfaces/http/middlewares/authenticate.js";
 import { createRequireOwner } from "../interfaces/http/middlewares/require-owner.js";
+import { createRequireVault } from "../interfaces/http/middlewares/require-vault.js";
 import { AiController } from "../interfaces/http/controllers/ai-controller.js";
 import { AuditController } from "../interfaces/http/controllers/audit-controller.js";
 import { AuthController } from "../interfaces/http/controllers/auth-controller.js";
@@ -91,6 +95,7 @@ import { ContractController } from "../interfaces/http/controllers/contract-cont
 import { CostController } from "../interfaces/http/controllers/cost-controller.js";
 import { EstimateController } from "../interfaces/http/controllers/estimate-controller.js";
 import { MessageController } from "../interfaces/http/controllers/message-controller.js";
+import { PersonalVaultController } from "../interfaces/http/controllers/personal-vault-controller.js";
 import { ReceivableController } from "../interfaces/http/controllers/receivable-controller.js";
 import { CompanyController } from "../interfaces/http/controllers/company-controller.js";
 import { LeadController } from "../interfaces/http/controllers/lead-controller.js";
@@ -132,6 +137,11 @@ export interface Container {
   teamController: TeamController;
   authenticate: RequestHandler;
   requireOwner: RequestHandler;
+  personalVaultController: PersonalVaultController;
+  /** Exposto pro próximo passo: as rotas de dados do Cofre (fases seguintes)
+   *  montam sob este middleware, nunca sob `requirePermission`. */
+  requireVault: RequestHandler;
+  personalVaultService: PersonalVaultService;
   membershipRepository: MembershipRepository;
   auditLogger: AuditLogger;
 }
@@ -184,7 +194,21 @@ export function buildContainer(): Container {
   // ---- Serviços ----
   const passwordHasher = new BcryptPasswordHasher();
   const accessTokenService = new JwtAccessTokenService();
+  const vaultSessionService = new JwtVaultSessionService();
+  const personalVaultRepository = new PrismaPersonalVaultRepository();
   const auditLogger = new AuditLogger(auditLogRepository);
+
+  // Cofre Financeiro. Criado aqui, antes dos use-cases de auth, porque
+  // logout e troca de senha dependem dele (pela porta VaultLocker) pra
+  // fechar as sessões elevadas. Note que NÃO passa por `requirePermission`
+  // em lugar nenhum -- ver o comentário em routes/vault-routes.ts.
+  const personalVaultService = new PersonalVaultService(
+    personalVaultRepository,
+    userRepository,
+    passwordHasher,
+    vaultSessionService,
+    auditLogger,
+  );
   const activityLogger = new ActivityLogger(activityRepository);
   const sessionIssuer = new SessionIssuer(accessTokenService, refreshTokenRepository);
   const companyService = new CompanyService(companyRepository);
@@ -352,13 +376,18 @@ export function buildContainer(): Container {
     sessionIssuer,
     auditLogger,
   );
-  const logoutUseCase = new LogoutUseCase(refreshTokenRepository, auditLogger);
+  const logoutUseCase = new LogoutUseCase(
+    refreshTokenRepository,
+    auditLogger,
+    personalVaultService,
+  );
   const getCurrentUserUseCase = new GetCurrentUserUseCase(userRepository, membershipRepository);
   const changePasswordUseCase = new ChangePasswordUseCase(
     userRepository,
     passwordHasher,
     refreshTokenRepository,
     auditLogger,
+    personalVaultService,
   );
 
   // ---- Controllers & middlewares ----
@@ -407,6 +436,9 @@ export function buildContainer(): Container {
   );
   const requireOwner = createRequireOwner(userRepository, env.OWNER_EMAIL);
 
+  const personalVaultController = new PersonalVaultController(personalVaultService);
+  const requireVault = createRequireVault(personalVaultRepository, vaultSessionService);
+
   return {
     aiController,
     auditController,
@@ -432,6 +464,9 @@ export function buildContainer(): Container {
     teamController,
     authenticate,
     requireOwner,
+    personalVaultController,
+    personalVaultService,
+    requireVault,
     membershipRepository,
     auditLogger,
   };

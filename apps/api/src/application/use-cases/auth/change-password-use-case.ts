@@ -2,6 +2,7 @@ import { UnauthorizedError, ValidationError } from "../../../domain/errors/app-e
 import type { RefreshTokenRepository } from "../../../domain/repositories/refresh-token-repository.js";
 import type { UserRepository } from "../../../domain/repositories/user-repository.js";
 import type { PasswordHasher } from "../../../domain/services/password-hasher.js";
+import type { VaultLocker } from "../../../domain/services/vault-locker.js";
 import type { ChangePasswordInput } from "../../dto/auth.dto.js";
 import type { AuditLogger } from "../../services/audit-logger.js";
 import type { RequestMeta } from "../../services/session-issuer.js";
@@ -12,6 +13,7 @@ export class ChangePasswordUseCase {
     private readonly passwordHasher: PasswordHasher,
     private readonly refreshTokenRepository: RefreshTokenRepository,
     private readonly auditLogger: AuditLogger,
+    private readonly vaultLocker: VaultLocker,
   ) {}
 
   async execute(
@@ -46,6 +48,10 @@ export class ChangePasswordUseCase {
     // O access token atual (stateless) ainda vale ≤15min; no próximo refresh o
     // client é deslogado. O front força o re-login após sucesso.
     await this.refreshTokenRepository.revokeAllForUser(userId);
+    // O Cofre reautentica com a senha DA CONTA, então trocar a senha tem que
+    // fechar as sessões elevadas junto -- senão a senha antiga, já
+    // comprometida, teria deixado um Cofre aberto que a troca não alcança.
+    await this.vaultLocker.lockOnLogout(userId);
 
     await this.auditLogger.log({ organizationId, userId, ...meta }, "auth.password_changed", {
       entityType: "User",

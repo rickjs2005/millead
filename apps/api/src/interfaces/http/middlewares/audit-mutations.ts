@@ -48,6 +48,13 @@ export function createAuditMutationsMiddleware(auditLogger: AuditLogger): Reques
 
       const path = req.originalUrl.split("?")[0] ?? req.path;
       if (path.startsWith("/api/v1/auth")) return;
+      // Cofre Financeiro: excluído porque esta trilha é da ORGANIZAÇÃO
+      // (grava `auth.organizationId`), e atividade do Cofre não pertence à
+      // empresa -- registrá-la aqui colocaria a vida financeira pessoal do
+      // dono num log de escopo corporativo. O módulo audita por conta
+      // própria, com `organizationId: null` e sem nenhum valor
+      // (PersonalVaultService.auditContext).
+      if (path.startsWith("/api/v1/vault")) return;
 
       const resource = resourceFromPath(path);
       const verb = VERB_BY_METHOD[req.method] ?? req.method.toLowerCase();

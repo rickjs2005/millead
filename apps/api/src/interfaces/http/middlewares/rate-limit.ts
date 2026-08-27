@@ -79,3 +79,28 @@ export const aiRateLimit = rateLimit({
     },
   },
 });
+
+/**
+ * Desbloqueio do Cofre. Chave por USUÁRIO (não por IP): o dono é um só, e
+ * limitar por IP puniria ele por trocar de rede enquanto deixaria um
+ * atacante distribuído girar o balde à vontade.
+ *
+ * É a segunda trava, não a principal -- o lockout escalonado gravado em
+ * `personal_vaults` é quem realmente segura o ataque, porque sobrevive ao
+ * restart do processo (o MemoryStore daqui não sobrevive, e no Render free o
+ * processo dorme). Esta existe pra cortar volume antes de chegar ao bcrypt,
+ * inclusive de contas que não têm Cofre e portanto não têm contador.
+ */
+export const vaultUnlockRateLimit = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: authUserKey,
+  message: {
+    error: {
+      code: "TOO_MANY_REQUESTS",
+      message: "Muitas tentativas. Tente novamente mais tarde.",
+    },
+  },
+});

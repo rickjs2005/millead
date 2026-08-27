@@ -61,6 +61,7 @@ model User {
   sentTeamInvitations       TeamInvitation[]             @relation("TeamInvitationInviter")
   postSaleDefaultOwnerOf    PostSaleAutomationSettings[] @relation("PostSaleDefaultOwner")
   automationExecutionsFired AutomationExecution[]        @relation("AutomationTriggeredBy")
+  personalVault             PersonalVault?
 
   @@map("users")
 }
@@ -1973,4 +1974,55 @@ model SocialConfig {
   accessToken    String
   tokenExpiresAt DateTime
   updatedAt      DateTime @updatedAt
+}
+
+// ===================================================================
+// COFRE FINANCEIRO — finanças pessoais do dono da conta
+// ===================================================================
+//
+// Estes modelos quebram, de propósito, a convenção multi-tenant do resto do
+// schema: NÃO carregam `organizationId`. O dono é o usuário
+// (`ownerUserId`), e é por ele que toda query filtra.
+//
+// Não é descuido nem atalho: `organizationId` aqui significaria "este dado
+// pertence à organização", e é justamente disso que o Cofre precisa não
+// participar. Com a coluna, qualquer repositório que filtrasse por tenant
+// (o padrão da casa) devolveria dado financeiro pessoal pra quem tem papel
+// na organização -- que é exatamente o que o módulo existe pra impedir. A
+// autorização do Cofre é posse + sessão elevada, nunca RBAC: ver
+// docs/personal-finance-vault.md.
+
+/// Um Cofre por usuário (`ownerUserId` é unique). Não existe "o" Cofre do
+/// sistema: existe o SEU. Quem não tem um recebe 404 em toda rota do módulo,
+/// igual a quem não é dono do Cofre alheio -- a resposta não distingue os
+/// dois casos de propósito.
+model PersonalVault {
+  id          String  @id @default(cuid())
+  ownerUserId String  @unique @map("owner_user_id")
+  /// Desligar o Cofre mantém os dados e fecha o acesso (as rotas voltam a
+  /// responder 404). Não é exclusão -- ver a exportação antes de apagar.
+  enabled     Boolean @default(true)
+
+  /// Tentativas de desbloqueio erradas desde o último acerto. Persistido no
+  /// banco, e não num contador em memória, porque a API roda no Render free:
+  /// o processo dorme e reinicia sozinho, e um balde em memória devolveria
+  /// tentativas de graça a cada cold start -- exatamente quando um atacante
+  /// paciente estaria tentando.
+  failedAttempts Int       @default(0) @map("failed_attempts")
+  lockedUntil    DateTime? @map("locked_until")
+  lastUnlockedAt DateTime? @map("last_unlocked_at")
+
+  /// Corte de sessões elevadas: todo token emitido ANTES deste instante é
+  /// recusado. É o que faz "Bloquear agora" e o logout serem revogação de
+  /// verdade -- sem isso, um token roubado continuaria válido pelos 15
+  /// minutos restantes, e o botão seria só cosmético (limpar o cookie do
+  /// navegador não invalida nada no servidor).
+  sessionsInvalidatedAt DateTime? @map("sessions_invalidated_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  owner User @relation(fields: [ownerUserId], references: [id], onDelete: Cascade)
+
+  @@map("personal_vaults")
 }
