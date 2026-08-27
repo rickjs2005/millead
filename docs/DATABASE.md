@@ -47,7 +47,7 @@ snake_case no Postgres real (via `@@map`/`@map`) — legível dos dois lados.
 
 `Audit` · `AuditReport` · `AuditScore`
 
-Schema modelado agora conforme pedido na Fase 2, lógica (fila BullMQ,
+Schema modelado agora conforme pedido na Fase 2, lógica (fila `audit-site`,
 scraping, scoring) só entra na Fase 6.
 
 ### 4. Mensageria (Fase 7)
@@ -57,7 +57,51 @@ scraping, scoring) só entra na Fase 6.
 `Message.status` guarda o estado atual; `MessageLog` guarda o histórico
 completo de eventos de entrega reportados pelo provedor (webhook).
 
-### 5. Billing
+### 5. Automação pós-fechamento
+
+`PostSaleAutomationSettings` · `AutomationExecution` · `AutomationStep` ·
+`AutomationArtifact`
+
+Contrato assinado dispara lead ganho + recebimentos + briefing + projeto +
+tarefas. Design completo em
+[a spec](./superpowers/specs/2026-08-26-post-sale-automation-design.md).
+
+- **Três tabelas de execução, não uma.** Cada uma responde a uma pergunta
+  diferente e carrega uma trava de unicidade diferente — e é a trava, não a
+  leitura, que faz o reenvio do webhook ser seguro:
+
+  | Tabela | Unique | Pergunta |
+  | --- | --- | --- |
+  | `automation_executions` | `(organizationId, eventType, contractId)` | "este contrato já disparou?" |
+  | `automation_steps` | `(executionId, key)` | "esta etapa já rodou?" |
+  | `automation_artifacts` | `(executionId, key)` | "este artefato já foi criado?" |
+
+  Um `result Json` no step cobriria a leitura mas não daria trava nenhuma.
+- `AutomationArtifact.refId` **não é FK**: aponta pra tabelas diferentes
+  conforme o `type` (lead, briefing, projeto, tarefa, plano). Se a entidade
+  for apagada, o link na tela some — em vez de FK quebrada ou cascata
+  surpresa.
+- **Campos financeiros anuláveis SEM default** (`installmentCount`,
+  `entryDueDays`, `firstInstallmentDueDays`): é decisão do dono, não do
+  sistema. Nulo faz a etapa de recebimentos virar pendência com tarefa, nunca
+  um chute. `enabled` nasce `false` — a migration não muda o comportamento de
+  nenhuma organização existente.
+- Colunas aditivas em tabelas existentes:
+  - `briefings.contract_id` — **não** é unique: um contrato pode render mais
+    de um briefing (duplicar/reenviar). A trava contra duplicata da automação
+    é o artefato.
+  - `project_checklists.contract_id` — **é UNIQUE**. Postgres aceita N nulos
+    num unique de coluna anulável, então checklists manuais (contrato nulo)
+    convivem sem colidir, e "projeto duplicado por contrato" fica impossível
+    no banco.
+  - `project_checklists.lead_id`, `started_at`, `due_at` — vínculo com o CRM
+    e prazo derivado de dado confiável do contrato (`assinadoEm` +
+    `prazoEntregaDias`).
+- **`tasks` NÃO ganhou `contract_id`** de propósito: é tabela quente usada por
+  todo o CRM, e o vínculo forte já vive em `automation_artifacts`. A
+  referência ao contrato vai na descrição da tarefa (com link).
+
+### 6. Billing
 
 `Subscription` — genérico o bastante pra qualquer provedor de pagamento
 (Stripe ou não); nenhuma integração escolhida ainda.
@@ -83,6 +127,28 @@ pnpm db:studio         # Prisma Studio (GUI) — alternativa ao Adminer do docke
 
 Em produção: `pnpm db:migrate:deploy` (aplica migrations existentes, não
 gera novas — nunca rodar `migrate dev` fora do ambiente local).
+
+> ## ⚠️ `--shadow-database-url` APAGA o banco que você apontar
+>
+> `prisma migrate diff --shadow-database-url <URL>` e `prisma migrate dev`
+> **resetam** o banco daquela URL (dropam e recriam o schema `public`) pra
+> replayar as migrations e calcular o estado "from". O nome do flag e o verbo
+> "diff" sugerem leitura; **não é**.
+>
+> Isso já custou caro: em 26/08/2026 esse comando foi rodado com a
+> `DATABASE_URL` de produção como shadow, e apagou todos os dados do banco
+> do Supabase (o schema `public` inteiro; `pgboss`, fora dele, sobreviveu).
+> Free tier **não tem backup automático** — a recuperação foi re-seed, e o
+> que era dado de negócio se perdeu.
+>
+> **Regra:** nenhum comando do Prisma recebe a `DATABASE_URL` de produção
+> como `--shadow-database-url`. Pra gerar o SQL de uma migration nova, use um
+> banco descartável (Postgres local/Docker, ou um projeto Supabase de
+> rascunho) — ou `prisma migrate dev` apontado pra esse banco descartável.
+>
+> Se o histórico do Prisma (`_prisma_migrations`) sumir mas o schema estiver
+> correto, o conserto é baseline, não re-aplicar:
+> `prisma migrate resolve --applied <nome>` para cada migration, em ordem.
 
 O seed cria o usuário `rick@milweb.com.br` com senha definida por
 `SEED_OWNER_PASSWORD` (ou `millead-dev-only` se a env var não estiver

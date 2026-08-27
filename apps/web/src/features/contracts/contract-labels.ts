@@ -51,6 +51,14 @@ export const CONTRACT_EVENT_LABELS: Record<string, string> = {
   STATUS_CANCELADO: "Cancelado manualmente",
   STATUS_EXPIRADO: "Marcado como expirado",
   STATUS_AGUARDANDO_ASSINATURA: "Reaberto pra assinatura",
+  // Automação pós-fechamento
+  AUTOMACAO_ENFILEIRADA: "Pós-fechamento na fila",
+  AUTOMACAO_INICIADA: "Pós-fechamento iniciado",
+  AUTOMACAO_CONCLUIDA: "Pós-fechamento concluído",
+  AUTOMACAO_PARCIAL: "Pós-fechamento com pendências",
+  AUTOMACAO_FALHOU: "Pós-fechamento falhou",
+  AUTOMACAO_REPROCESSADA: "Pós-fechamento reprocessado",
+  AUTOMACAO_FALHA_DISPARO: "Falha ao disparar o pós-fechamento",
 };
 
 /** Status em que o worker ainda está trabalhando (a UI faz polling). */

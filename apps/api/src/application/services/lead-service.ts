@@ -89,7 +89,15 @@ export class LeadService {
     return this.activityLogger.listRecent(organizationId, limit);
   }
 
-  async moveStage(organizationId: string, userId: string, leadId: string, pipelineStageId: string) {
+  /** `userId` aceita null: a automação pós-fechamento move o lead sem um
+   *  usuário por trás, e `Activity.userId` já é anulável -- passar um id
+   *  inventado só pra satisfazer o tipo atribuiria a ação a quem não a fez. */
+  async moveStage(
+    organizationId: string,
+    userId: string | null,
+    leadId: string,
+    pipelineStageId: string,
+  ) {
     const stage = await this.pipelines.findStageForOrg(pipelineStageId, organizationId);
     if (!stage) throw new NotFoundError("Estágio de pipeline não encontrado.");
 

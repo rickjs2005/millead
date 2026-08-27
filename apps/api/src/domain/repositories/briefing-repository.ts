@@ -7,6 +7,8 @@ export interface CreateBriefingInput {
   templateId: string;
   leadId?: string | null;
   companyId?: string | null;
+  /** Contrato assinado que originou o briefing (automação pós-fechamento). */
+  contractId?: string | null;
   createdById?: string | null;
   /** Token público já gerado pela camada de aplicação (aleatório, curto). */
   token: string;
@@ -35,6 +37,9 @@ export interface BriefingRepository {
   /** Cria o Briefing e seu BriefingLink numa transação; grava histórico "CRIADO". */
   create(input: CreateBriefingInput): Promise<Briefing & { link: BriefingLink }>;
   findByIdForOrg(id: string, organizationId: string): Promise<BriefingDetail | null>;
+  /** Briefing mais antigo gerado a partir deste contrato -- segunda barreira
+   *  contra duplicata na automação (a primeira é o AutomationArtifact). */
+  findFirstByContractId(organizationId: string, contractId: string): Promise<Briefing | null>;
   /** Resolve pelo token do link público -- null se não existe OU revogado.
    * NUNCA aceitar briefingId cru vindo do formulário público; só o token. */
   findByToken(token: string): Promise<BriefingDetail | null>;

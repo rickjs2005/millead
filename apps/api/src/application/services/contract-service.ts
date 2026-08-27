@@ -24,6 +24,7 @@ import type {
   WebhookHeaders,
 } from "../../domain/services/contract-signature.js";
 import type { PaginationParams } from "../../shared/pagination.js";
+import type { PostSaleOnboardingService } from "./post-sale-onboarding-service.js";
 
 /** Entrada de `createDraftFromProposal` -- dados já resolvidos pelo chamador
  *  (Task 4) pra não acoplar este service aos repositórios de lead/estimate. */
@@ -75,6 +76,11 @@ export class ContractService {
     private readonly queue: ContractQueue,
     private readonly gateway: ContractSignatureGateway,
     private readonly notifier: ContractNotifier,
+    /** Automação pós-fechamento. Injetada como dependência opcional porque o
+     *  worker de contratos monta um ContractService próprio (sem ela) só pra
+     *  gerar PDF/assinatura -- e porque a assinatura NÃO pode depender de a
+     *  automação existir. */
+    private readonly postSale?: PostSaleOnboardingService,
   ) {}
 
   private contractedSnapshot(orgName: string): ContractedSnapshot {
@@ -317,8 +323,31 @@ export class ContractService {
       : resultado.assinadoEm
         ? new Date(resultado.assinadoEm)
         : new Date();
-    await this.contracts.markSigned(contract.id, assinadoEm, pdfAssinado);
+    const signed = await this.contracts.markSigned(contract.id, assinadoEm, pdfAssinado);
     await this.contracts.addEvent(contract.id, contract.organizationId, "ASSINADO", "WEBHOOK");
+
+    // Automação pós-fechamento. Só ACONTECE depois de a assinatura estar
+    // persistida (markSigned acima). Um `await` (não fire-and-forget) porque
+    // enfileirar é rápido e queremos o evento na timeline antes de responder
+    // 200 ao provedor; o trabalho pesado roda no worker.
+    //
+    // O try/catch é redundante com o best-effort de dentro do `trigger` --
+    // e é assim de propósito. Um 500 aqui faria o provedor reenviar o
+    // webhook, e o reenvio sai cedo no `status === "ASSINADO"` lá em cima:
+    // o cliente NUNCA receberia a notificação de contrato assinado por causa
+    // de uma falha de automação. Esta rede não pode depender de um detalhe
+    // interno de outro service continuar verdadeiro.
+    if (this.postSale) {
+      try {
+        await this.postSale.trigger(signed ?? contract);
+      } catch (err) {
+        console.error("webhook: automação pós-fechamento falhou (assinatura preservada)", {
+          contractId: contract.id,
+          organizationId: contract.organizationId,
+          err,
+        });
+      }
+    }
 
     const contractor = contract.contractorSnapshot as ContractorSnapshot;
     void this.notifier.contratoAssinado({

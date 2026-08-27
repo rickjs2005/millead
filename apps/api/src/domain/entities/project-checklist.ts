@@ -6,7 +6,15 @@ export interface ProjectChecklist {
   name: string;
   type: ProjectChecklistType;
   companyId: string | null;
+  /** Lead e contrato de origem: só a automação pós-fechamento preenche;
+   *  checklists criados à mão continuam com os dois nulos. */
+  leadId: string | null;
+  contractId: string | null;
   localFolder: string | null;
+  /** Início e prazo estimado -- derivados do contrato assinado
+   *  (assinadoEm + prazoEntregaDias), nunca chutados. */
+  startedAt: Date | null;
+  dueAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }

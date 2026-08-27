@@ -14,13 +14,13 @@ millead/
 │   ├── database/        Schema Prisma + client singleton + catálogo de permissões
 │   ├── typescript-config/  tsconfig base compartilhado
 │   └── eslint-config/    eslint flat config compartilhado
-├── docker-compose.yml    Postgres + Redis + Adminer (dev local)
+├── docker-compose.yml    Postgres + Adminer (dev local alternativo)
 └── docs/                 este diretório
 ```
 
 pnpm workspaces + Turborepo, mesma convenção usada no outro monorepo do
-autor (`milsaca`) — mas aqui o backend é Express + Prisma + Postgres +
-Redis + BullMQ, não Supabase.
+autor (`milsaca`) — mas aqui o backend é Express + Prisma + Postgres, com a
+fila de jobs no próprio Postgres (pg-boss), não Supabase.
 
 ## Camadas do `apps/api` (Clean Architecture)
 
@@ -31,13 +31,13 @@ application/ (use-cases, DTOs, serviços de orquestração) │
                                                         │ depende de
 domain/      (entidades, contratos de repositório/serviço) ← não depende de nada
                                                         ▲
-infrastructure/ (Prisma, JWT, bcrypt, Redis, BullMQ) ───┘ implementa os contratos do domain
+infrastructure/ (Prisma, JWT, bcrypt, pg-boss) ─────────┘ implementa os contratos do domain
 ```
 
 Regra de dependência: **domain não importa nada de fora**. `application`
 depende só de `domain` (via interfaces/ports). `infrastructure` implementa
 essas interfaces. `interfaces/http` e `main` (composition root) são quem
-liga tudo — é o único lugar que sabe que existe Express, Prisma ou Redis
+liga tudo — é o único lugar que sabe que existe Express, Prisma ou pg-boss
 simultaneamente.
 
 - `domain/errors` — `AppError` e subclasses (`NotFoundError`,
@@ -170,33 +170,38 @@ Dois conceitos com nomes parecidos, domínios diferentes:
 - **`Audit` / `AuditReport` / `AuditScore`** (schema Prisma) — feature de
   **produto** da Fase 6: auditoria automatizada de sites de prospects.
   Implementada: `POST /api/v1/audits` cria o registro como `QUEUED` e
-  enfileira um job BullMQ (`audit-site`); o worker
+  enfileira um job pg-boss (`audit-site`); o worker
   (`interfaces/jobs/audit.worker.ts`) roda o `AuditRunner`, que usa o
   motor `infrastructure/audit/http-site-auditor.ts` (fetch do site +
   análise de HTML/headers com cheerio, sem API externa) e grava report +
   scores 0-100 em 6 categorias, cada uma com a lista de checks no
   `details` (explicável na UI). A aplicação enfileira através da porta
   `domain/services/audit-queue.ts` — só o composition root e o worker
-  conhecem BullMQ. `saveResult`/`markFailed` são idempotentes (upsert)
+  conhecem pg-boss. `saveResult`/`markFailed` são idempotentes (upsert)
   porque o job tem retry.
 
-## Redis / BullMQ
+## Filas (pg-boss, no próprio Postgres)
 
-- `infrastructure/redis/redis-client.ts` — conexão genérica (cache,
-  rate-limit futuro).
-- `infrastructure/queue/connection.ts` — conexão **separada**, porque
-  BullMQ exige `maxRetriesPerRequest: null`, incompatível com a conexão
-  genérica.
-- `infrastructure/queue/queues.ts` — fila `ping` de exemplo, `audit-site`
-  (Fase 6, jobId = auditId pra deduplicar), `contract-process` (Fase 9) e
-  `briefing-process` (Fase 10). Envio real de mensagem (provedor externo)
-  ganharia fila própria no futuro.
+> **BullMQ + Redis foi removido em 21/07/2026**, depois que a cota do Upstash
+> free estourou (`ERR max requests limit exceeded`) e derrubou a API em
+> produção por 23h. Menções a "BullMQ" que ainda apareçam em nomes de env var
+> (`START_WORKERS`) ou comentários antigos são resíduo — a fila é pg-boss.
+
+- `infrastructure/queue/boss.ts` — instância única do pg-boss (schema
+  `pgboss`, criado sozinho no primeiro start). Tem listener de `error`
+  registrado de propósito: sem ele, um erro de infra vira `'error'` não
+  tratado e derruba o processo — exatamente o bug do Redis.
+- `infrastructure/queue/queues.ts` — nomes e formatos de job: `audit-site`
+  (Fase 6), `contract-process` (Fase 9), `briefing-process` (Fase 10) e
+  `post-sale-onboarding` (automação pós-fechamento).
+- Cada fila tem uma porta em `domain/services/*-queue.ts` e uma implementação
+  `pg-*-queue.ts` — só o composition root e os workers conhecem pg-boss.
 - Workers rodam como **processo separado** do servidor HTTP
   (`pnpm dev:worker` / `pnpm start:worker`, entrypoint
-  `interfaces/jobs/index.ts` que importa todos os workers) — prática
-  padrão do BullMQ, pra não competir por CPU/memória com quem serve
-  requisições. Atenção no Upstash free (500k comandos/mês): worker parado
-  não consome; evite deixá-lo rodando sem necessidade.
+  `interfaces/jobs/index.ts` que importa todos os workers), pra não competir
+  por CPU/memória com quem serve requisições. Em deploy econômico (Render
+  free, um serviço só) `START_WORKERS=true` sobe os workers no mesmo
+  processo da API.
 
 ## IA (Fase 7)
 
@@ -214,7 +219,8 @@ Dois conceitos com nomes parecidos, domínios diferentes:
   reiniciar a API liga tudo.
 - Chamadas são **síncronas** (o usuário espera segundos pelo resultado na
   UI) -- deliberado: fila só entraria pra processamento em lote, e cada
-  worker BullMQ extra consome a cota do Upstash free.
+  worker extra é mais um processo a manter de pé por um ganho que a UI
+  não tem (o usuário espera o resultado na tela de qualquer jeito).
 - Não há envio automático de mensagem: a IA gera rascunho (`Message` com
   status `DRAFT`), o usuário revisa/copia/envia por fora e marca como
   enviada (registra `MESSAGE_SENT` na timeline). Envio real via provedor
@@ -272,6 +278,41 @@ Dois conceitos com nomes parecidos, domínios diferentes:
   podem ser portados sob a mesma porta.
 - Permissões reusam `proposals:read/write` (contrato é o desfecho da
   proposta; permissão própria exigiria re-seed do RBAC).
+
+## Automação pós-fechamento
+
+Primeira etapa da costura dos módulos num fluxo único: contrato `ASSINADO` ->
+lead ganho -> recebimentos -> briefing -> projeto -> tarefas. Design completo
+em [a spec](./superpowers/specs/2026-08-26-post-sale-automation-design.md);
+o que importa pra arquitetura:
+
+- **Orquestrador**: `application/services/post-sale-onboarding-service.ts`.
+  É um Service (não N use-cases) pelo mesmo critério do `LeadService.moveStage`
+  — um agregado, operações do mesmo ciclo de vida. Recebe as dependências
+  num objeto (`PostSaleOnboardingDeps`) em vez de 15 parâmetros posicionais.
+- **Gatilho**: `ContractService.handleSignatureWebhook` chama `trigger()`
+  DEPOIS de `markSigned`. A assinatura é fato consumado: `trigger` engole
+  qualquer erro por dentro **e** o chamador tem `try/catch` por fora. A
+  redundância é deliberada — um 500 no webhook faria o provedor reenviar, e
+  o reenvio sai cedo no `status === "ASSINADO"`, então o cliente nunca
+  receberia a notificação de contrato assinado por causa da automação.
+- **Execução**: fila `post-sale-onboarding` -> `interfaces/jobs/post-sale.worker.ts`.
+  O trabalho pesado nunca roda dentro da requisição do webhook.
+- **Composition root duplo**: `main/post-sale-factory.ts` monta o grafo uma
+  vez e é usado pelo `container.ts` (API) e pelo worker. Sem isso, o worker
+  recriaria à mão a mesma dúzia de repositórios e a próxima dependência nova
+  entraria em um dos dois lugares e não no outro.
+- **Idempotência em três camadas de banco** (`automation_executions`,
+  `automation_steps`, `automation_artifacts`, cada uma com o seu unique) mais
+  um compare-and-swap de status. Reenviar o webhook N vezes não duplica lead
+  movido, plano, briefing, projeto nem tarefa. Ver
+  [DATABASE.md](./DATABASE.md#8-automação-pós-fechamento).
+- **Nada é adivinhado**: faltando configuração obrigatória a etapa registra
+  `NEEDS_ACTION` e cria uma tarefa acionável, em vez de escolher um valor
+  plausível. Por isso os campos financeiros da configuração são anuláveis
+  **sem default no banco**.
+- Permissões reusadas: `settings:manage` pra configurar,
+  `proposals:read/write` pra ver/reprocessar a execução no contrato.
 
 ## Uma dívida técnica assumida conscientemente: `tsx` em produção
 

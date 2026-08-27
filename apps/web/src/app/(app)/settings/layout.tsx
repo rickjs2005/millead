@@ -1,6 +1,6 @@
 "use client";
 
-import { Building2, Kanban, Key, Plug, Shield, User } from "lucide-react";
+import { Building2, Kanban, Key, Plug, Shield, User, Workflow } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
@@ -11,6 +11,7 @@ const SETTINGS_NAV = [
   { href: "/settings/profile", label: "Perfil", icon: User },
   { href: "/settings/organization", label: "Empresa & Permissões", icon: Shield },
   { href: "/settings/pipeline", label: "Pipeline", icon: Kanban },
+  { href: "/settings/automation", label: "Automação", icon: Workflow },
   { href: "/settings/team", label: "Equipe", icon: Building2 },
   { href: "/settings/integrations", label: "Integrações", icon: Plug },
   { href: "/settings/api-keys", label: "API Keys", icon: Key, comingSoon: true },

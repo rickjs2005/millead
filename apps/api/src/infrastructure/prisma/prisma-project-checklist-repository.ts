@@ -18,7 +18,11 @@ function toDomainChecklist(row: {
   name: string;
   type: ProjectChecklist["type"];
   companyId: string | null;
+  leadId: string | null;
+  contractId: string | null;
   localFolder: string | null;
+  startedAt: Date | null;
+  dueAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }): ProjectChecklist {
@@ -48,6 +52,10 @@ export class PrismaProjectChecklistRepository implements ProjectChecklistReposit
         name: input.name,
         type: input.type,
         companyId: input.companyId ?? null,
+        leadId: input.leadId ?? null,
+        contractId: input.contractId ?? null,
+        startedAt: input.startedAt ?? null,
+        dueAt: input.dueAt ?? null,
         localFolder: input.localFolder ?? null,
         phases: {
           create: phaseNames.map((phaseName, index) => ({
@@ -71,6 +79,24 @@ export class PrismaProjectChecklistRepository implements ProjectChecklistReposit
   async findByIdForOrg(id: string, organizationId: string): Promise<ProjectChecklistDetail | null> {
     const row = await prisma.projectChecklist.findFirst({
       where: { id, organizationId },
+      include: { phases: { orderBy: { phaseNumber: "asc" } } },
+    });
+    if (!row) return null;
+    const { phases, ...checklist } = row;
+    const domainPhases = phases.map(toDomainPhase);
+    return {
+      ...toDomainChecklist(checklist),
+      phases: domainPhases,
+      progressPercent: computeProgressPercent(domainPhases),
+    };
+  }
+
+  async findByContractId(
+    organizationId: string,
+    contractId: string,
+  ): Promise<ProjectChecklistDetail | null> {
+    const row = await prisma.projectChecklist.findFirst({
+      where: { organizationId, contractId },
       include: { phases: { orderBy: { phaseNumber: "asc" } } },
     });
     if (!row) return null;

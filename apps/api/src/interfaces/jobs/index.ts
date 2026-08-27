@@ -9,3 +9,4 @@
 import "./audit.worker.js";
 import "./contract.worker.js";
 import "./briefing.worker.js";
+import "./post-sale.worker.js";

@@ -10,6 +10,7 @@ import { ContractService } from "../application/services/contract-service.js";
 import { CostService } from "../application/services/cost-service.js";
 import { EstimateService } from "../application/services/estimate-service.js";
 import { MessageService } from "../application/services/message-service.js";
+import { PostSaleSettingsService } from "../application/services/post-sale-settings-service.js";
 import { ProjectChecklistService } from "../application/services/project-checklist-service.js";
 import { ReceivableService } from "../application/services/receivable-service.js";
 import { CompanyService } from "../application/services/company-service.js";
@@ -67,6 +68,7 @@ import { PrismaMessageTemplateRepository } from "../infrastructure/prisma/prisma
 import { PrismaMembershipRepository } from "../infrastructure/prisma/prisma-membership-repository.js";
 import { PrismaOrganizationRepository } from "../infrastructure/prisma/prisma-organization-repository.js";
 import { PrismaPipelineRepository } from "../infrastructure/prisma/prisma-pipeline-repository.js";
+import { PrismaPostSaleAutomationRepository } from "../infrastructure/prisma/prisma-post-sale-automation-repository.js";
 import { PrismaProjectChecklistRepository } from "../infrastructure/prisma/prisma-project-checklist-repository.js";
 import { PrismaProposalRepository } from "../infrastructure/prisma/prisma-proposal-repository.js";
 import { PrismaRefreshTokenRepository } from "../infrastructure/prisma/prisma-refresh-token-repository.js";
@@ -74,6 +76,7 @@ import { PrismaRoleRepository } from "../infrastructure/prisma/prisma-role-repos
 import { PrismaSocialRepository } from "../infrastructure/prisma/prisma-social-repository.js";
 import { PrismaTagRepository } from "../infrastructure/prisma/prisma-tag-repository.js";
 import { PrismaTaskRepository } from "../infrastructure/prisma/prisma-task-repository.js";
+import { buildPostSaleOnboardingService } from "./post-sale-factory.js";
 import { PrismaUserRepository } from "../infrastructure/prisma/prisma-user-repository.js";
 import { PrismaTeamRepository } from "../infrastructure/prisma/prisma-team-repository.js";
 import { DefaultTeamInvitationNotifier } from "../infrastructure/team/default-team-invitation-notifier.js";
@@ -93,6 +96,7 @@ import { CompanyController } from "../interfaces/http/controllers/company-contro
 import { LeadController } from "../interfaces/http/controllers/lead-controller.js";
 import { MeetingController } from "../interfaces/http/controllers/meeting-controller.js";
 import { PipelineController } from "../interfaces/http/controllers/pipeline-controller.js";
+import { PostSaleController } from "../interfaces/http/controllers/post-sale-controller.js";
 import { ProjectChecklistController } from "../interfaces/http/controllers/project-checklist-controller.js";
 import { ProposalController } from "../interfaces/http/controllers/proposal-controller.js";
 import { SettingsController } from "../interfaces/http/controllers/settings-controller.js";
@@ -116,6 +120,7 @@ export interface Container {
   leadController: LeadController;
   meetingController: MeetingController;
   pipelineController: PipelineController;
+  postSaleController: PostSaleController;
   projectChecklistController: ProjectChecklistController;
   projectChecklistAuthenticate: RequestHandler;
   proposalController: ProposalController;
@@ -153,6 +158,7 @@ export function buildContainer(): Container {
   const activityRepository = new PrismaActivityRepository();
   const pipelineRepository = new PrismaPipelineRepository();
   const projectChecklistRepository = new PrismaProjectChecklistRepository();
+  const postSaleAutomationRepository = new PrismaPostSaleAutomationRepository();
   const tagRepository = new PrismaTagRepository();
   const leadRepository = new PrismaLeadRepository();
   const taskRepository = new PrismaTaskRepository();
@@ -192,6 +198,8 @@ export function buildContainer(): Container {
   const projectChecklistService = new ProjectChecklistService(
     projectChecklistRepository,
     companyRepository,
+    leadRepository,
+    contractRepository,
   );
   const tagService = new TagService(tagRepository);
   const taskService = new TaskService(taskRepository, membershipRepository);
@@ -228,6 +236,9 @@ export function buildContainer(): Container {
   const creativeDirector = env.ANTHROPIC_API_KEY
     ? new ClaudeCreativeDirector(env.ANTHROPIC_API_KEY, env.AI_MODEL)
     : null;
+  // A automação pós-fechamento é montada pela fábrica compartilhada com o
+  // worker (main/post-sale-factory.ts) -- um grafo só, dois processos.
+  const postSaleOnboardingService = buildPostSaleOnboardingService();
   const contractService = new ContractService(
     contractRepository,
     companyRepository,
@@ -235,6 +246,13 @@ export function buildContainer(): Container {
     new PgBossContractQueue(),
     createSignatureGateway(),
     new DefaultContractNotifier(),
+    postSaleOnboardingService,
+  );
+  const postSaleSettingsService = new PostSaleSettingsService(
+    postSaleAutomationRepository,
+    pipelineRepository,
+    briefingTemplateRepository,
+    membershipRepository,
   );
   const proposalPublicService = new ProposalPublicService(
     proposalRepository,
@@ -377,6 +395,10 @@ export function buildContainer(): Container {
   const socialController = new SocialController(socialService);
   const authenticate = createAuthenticateMiddleware(accessTokenService, membershipRepository);
   const projectChecklistController = new ProjectChecklistController(projectChecklistService);
+  const postSaleController = new PostSaleController(
+    postSaleSettingsService,
+    postSaleOnboardingService,
+  );
   const projectChecklistAuthenticate = apiKeyOrSession(
     env.AUTOMATION_API_KEY,
     env.AUTOMATION_ORGANIZATION_ID,
@@ -398,6 +420,7 @@ export function buildContainer(): Container {
     leadController,
     meetingController,
     pipelineController,
+    postSaleController,
     projectChecklistController,
     projectChecklistAuthenticate,
     proposalController,

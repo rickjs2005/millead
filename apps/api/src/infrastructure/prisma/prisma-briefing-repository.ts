@@ -26,6 +26,7 @@ const baseSelect = {
   templateId: true,
   leadId: true,
   companyId: true,
+  contractId: true,
   createdById: true,
   status: true,
   progressPercent: true,
@@ -104,6 +105,7 @@ export class PrismaBriefingRepository implements BriefingRepository {
           templateId: input.templateId,
           leadId: input.leadId ?? null,
           companyId: input.companyId ?? null,
+          contractId: input.contractId ?? null,
           createdById: input.createdById ?? null,
         },
         select: baseSelect,
@@ -202,6 +204,18 @@ export class PrismaBriefingRepository implements BriefingRepository {
     if (count === 0) return null;
     const row = await prisma.briefing.findUniqueOrThrow({ where: { id }, select: baseSelect });
     return toDomain(row);
+  }
+
+  async findFirstByContractId(
+    organizationId: string,
+    contractId: string,
+  ): Promise<Briefing | null> {
+    const row = await prisma.briefing.findFirst({
+      where: { organizationId, contractId },
+      orderBy: { createdAt: "asc" },
+      select: baseSelect,
+    });
+    return row ? toDomain(row) : null;
   }
 
   async linkCompany(id: string, companyId: string): Promise<void> {

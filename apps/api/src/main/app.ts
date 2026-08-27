@@ -83,7 +83,11 @@ export function createApp(container: Container): Express {
   );
   app.use(
     "/api/v1/contracts",
-    createContractRoutes(container.contractController, container.authenticate),
+    createContractRoutes(
+      container.contractController,
+      container.postSaleController,
+      container.authenticate,
+    ),
   );
   app.use("/api/v1/costs", createCostRoutes(container.costController, container.authenticate));
   app.use(
@@ -153,7 +157,11 @@ export function createApp(container: Container): Express {
   );
   app.use(
     "/api/v1/settings",
-    createSettingsRoutes(container.settingsController, container.authenticate),
+    createSettingsRoutes(
+      container.settingsController,
+      container.postSaleController,
+      container.authenticate,
+    ),
   );
   app.use("/api/v1/tags", createTagRoutes(container.tagController, container.authenticate));
   app.use("/api/v1/tasks", createTaskRoutes(container.taskController, container.authenticate));
