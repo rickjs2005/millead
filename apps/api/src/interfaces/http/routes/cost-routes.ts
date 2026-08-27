@@ -8,7 +8,14 @@ import {
   usageQuerySchema,
   usageSeriesQuerySchema,
 } from "../../../application/dto/cost.dto.js";
+import {
+  createExpenseSchema,
+  expenseQuerySchema,
+  expenseSummaryQuerySchema,
+  updateExpenseSchema,
+} from "../../../application/dto/business-expense.dto.js";
 import { asyncHandler } from "../async-handler.js";
+import type { BusinessExpenseController } from "../controllers/business-expense-controller.js";
 import type { CostController } from "../controllers/cost-controller.js";
 import { requirePermission } from "../middlewares/require-permission.js";
 import { validateBody, validateQuery } from "../middlewares/validate.js";
@@ -16,7 +23,11 @@ import { validateBody, validateQuery } from "../middlewares/validate.js";
 // Centro de Custos reusa proposals:* (decisão da spec do módulo Financeiro):
 // quem gerencia propostas gerencia custos -- evita crescer o catálogo de
 // permissões e re-seed em produção (mesmo atalho de Contratos/Briefings).
-export function createCostRoutes(controller: CostController, authenticate: RequestHandler): Router {
+export function createCostRoutes(
+  controller: CostController,
+  expenses: BusinessExpenseController,
+  authenticate: RequestHandler,
+): Router {
   const router = Router();
   router.use(authenticate);
 
@@ -56,6 +67,26 @@ export function createCostRoutes(controller: CostController, authenticate: Reque
     asyncHandler(controller.createUsage),
   );
   router.delete("/usage/:id", write, asyncHandler(controller.removeUsage));
+
+  // Despesas REALIZADAS. Vizinhas dos planos, mas nunca somadas com eles --
+  // ver expense-summary.ts. Declaradas antes de "/:id" pra "expenses" não
+  // virar um id de assinatura.
+  router.get(
+    "/expenses/summary",
+    read,
+    validateQuery(expenseSummaryQuerySchema),
+    asyncHandler(expenses.summary),
+  );
+  router.get("/expenses", read, validateQuery(expenseQuerySchema), asyncHandler(expenses.list));
+  router.post("/expenses", write, validateBody(createExpenseSchema), asyncHandler(expenses.create));
+  router.get("/expenses/:id", read, asyncHandler(expenses.get));
+  router.patch(
+    "/expenses/:id",
+    write,
+    validateBody(updateExpenseSchema),
+    asyncHandler(expenses.update),
+  );
+  router.delete("/expenses/:id", write, asyncHandler(expenses.remove));
 
   router.get("/", read, asyncHandler(controller.list));
   router.post(

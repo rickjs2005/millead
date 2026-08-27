@@ -349,15 +349,64 @@ build e as 12 tarefas do turbo limpos. Validacao de ponta a ponta pelo BFF
 (mesmo caminho do navegador): **19/19**, incluindo a regressao do 409 e a
 limpeza dos dados de teste (Cofre voltou a zero).
 
+## Trabalho de 27/08/2026 - Cofre Financeiro, Fase 7 (ponte com o financeiro)
+
+Mesma branch `feat/cofre-financeiro`, **nao mergeada, nao deployada**. Duas
+tabelas (`business_expenses`, `personal_business_allocations`), migration
+aditiva `20260828100000_add_business_expense_bridge` aplicada, uma tela nova
+(`/cofre/milweb`) e uma secao nova no Centro de Custos ("Realizado no mes").
+
+O problema: uma compra pessoal pode ter uma parte da empresa (o Claude no
+cartao pessoal). Essa parte precisa entrar no custo da MilWeb sem que o
+financeiro enxergue o resto da sua vida.
+
+Decisoes:
+
+- **A despesa empresarial NAO tem coluna apontando pro Cofre.** Quem guarda o
+  elo e a `PersonalBusinessAllocation`, lida so pelo Cofre. Quem ve o
+  financeiro le "Claude Pro - R$120 - origem: Cofre pessoal" e nao chega em
+  mais nada. Que a despesa saiu do bolso do dono e fato contabil legitimo; o
+  que MAIS tinha naquela fatura nao e.
+- **Vai so a parte da empresa**, nunca o valor da compra. Mandar R$300 quando
+  so R$100 e da MilWeb cobraria dela um dinheiro que ela nao deve -- e o numero
+  seria plausivel demais pra alguem notar no fechamento.
+- **Planejado x realizado nunca somam.** `CostSubscription` e o plano e continua
+  sozinho em `computeSummary`; `BusinessExpense` e o realizado e tem resumo
+  proprio, com a diferenca sendo SUBTRACAO. Somar daria dois Claudes. Ha teste
+  varrendo os campos do resumo pra garantir que nenhum e a soma dos dois.
+- **UNIQUE na movimentacao, nao na divisao.** As divisoes sao substituidas em
+  bloco: corrigir o rateio troca o id da divisao, e uma chave baseada nela
+  deixaria a mesma compra ser enviada de novo. Segundo envio e 409; se o rateio
+  mudou, sincroniza (atualiza) ou desfaz.
+- **Divergencia nao e corrigida sozinha**: aparece como "desatualizada" com os
+  dois numeros a vista. Reescrever a contabilidade da empresa sem ninguem pedir
+  e pior -- o mes pode ja ter fechado com o numero antigo.
+- **O UNICO pedaco do Cofre com RBAC.** Escrever no financeiro e escrever dado
+  da organizacao; sem checar permissao, a ponte seria atalho pra contornar o
+  RBAC do Centro de Custos. Router separado (`vault-bridge-routes.ts`) com tres
+  camadas: authenticate + requireVault + requirePermission. Usa a permissao que
+  ja existe (`proposals:*`), nao uma chave nova -- chave nova entraria sozinha
+  em `ADMIN_PERMISSIONS`.
+
+**Lacuna da fase 5 fechada**: `personal_subscriptions.cost_subscription_id` era
+aceito sem conferir nada; agora passa pela porta `CostSubscriptionVerifier`.
+
+**Uma inconsistencia real corrigida**: o `Decimal` do Prisma corta zero a
+direita, entao `100.00` voltava como `"100"` -- o mesmo valor aparecia como
+"R$ 100" no financeiro e "R$ 100,00" no Cofre. Encontrada rodando o app.
+
+52 testes novos na API -> **985 na API, 1260 no monorepo**. type-check, lint,
+build e as 12 tarefas do turbo limpos. Validacao de ponta a ponta pelo BFF:
+**24/24**, com os dados de teste limpos.
+
 ## Bloqueios
 
 - Pendências registradas em memória (`millead-pendencias-seguranca`) ainda em aberto: ZapSign não configurado no Render (contratos não são assináveis de verdade em produção), 2 achados baixos de segurança (landing de IA sem sanitização própria, tokens em localStorage), permissões próprias de Contratos/Landing pages pendentes de migração.
 
 ## Próxima ação
 
-**Fase 7 do Cofre**: ponte com o financeiro da MilWeb (`BusinessExpense`,
-`PersonalBusinessAllocation`), pra que a divisao empresarial de uma compra
-pessoal vire despesa da empresa sem contagem dupla.
+**Fase 9 do Cofre**: backup e exportacao (a fase 8 ja esta coberta pelas telas
+antecipadas; falta o painel consolidado).
 
 Antes de usar: definir `VAULT_SESSION_SECRET` no `.env` (ja feito localmente)
 e no Render. Sem ela o modulo inteiro responde 404 de proposito.

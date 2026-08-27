@@ -26,6 +26,8 @@ export const queryKeys = {
     contacts: (includeInactive: boolean) => ["vault", "contacts", includeInactive] as const,
     debts: (filters: object) => ["vault", "debts", filters] as const,
     debtSummary: () => ["vault", "debt-summary"] as const,
+    bridge: (filters: object) => ["vault", "bridge", filters] as const,
+    bridgePlans: () => ["vault", "bridge-plans"] as const,
   },
   settings: {
     integrations: () => ["settings", "integrations"] as const,

@@ -10,6 +10,7 @@ import type {
   SubscriptionStatus,
   UpdateSubscriptionInput,
 } from "../../domain/repositories/personal-subscription-repository.js";
+import type { CostSubscriptionVerifier } from "../../domain/services/cost-subscription-verifier.js";
 import type { PushSender } from "../../domain/services/push-sender.js";
 import { detectRecurrence } from "./subscription-detection.js";
 import {
@@ -53,6 +54,10 @@ export class PersonalSubscriptionService {
     private readonly subscriptions: PersonalSubscriptionRepository,
     private readonly catalog: PersonalCatalogRepository,
     private readonly push: PushSender,
+    /** Fecha a lacuna da fase 5: `costSubscriptionId` era aceito sem conferir
+     *  nada, e um id de outra organização passaria batido. Não há FK entre os
+     *  dois mundos que faça isso por nós — ver `CostSubscriptionVerifier`. */
+    private readonly costPlans: CostSubscriptionVerifier,
   ) {}
 
   // ----- CRUD -----
@@ -67,8 +72,12 @@ export class PersonalSubscriptionService {
     return subscription;
   }
 
-  async create(vaultId: string, input: CreateSubscriptionInput): Promise<PersonalSubscription> {
-    await this.assertReferences(vaultId, input);
+  async create(
+    vaultId: string,
+    organizationId: string,
+    input: CreateSubscriptionInput,
+  ): Promise<PersonalSubscription> {
+    await this.assertReferences(vaultId, organizationId, input);
 
     // Quem informa a última cobrança já sabe quando renova; quem não informa,
     // descobre na primeira cobrança que aparecer no extrato.
@@ -87,11 +96,12 @@ export class PersonalSubscriptionService {
 
   async update(
     vaultId: string,
+    organizationId: string,
     id: string,
     patch: UpdateSubscriptionInput,
   ): Promise<PersonalSubscription> {
     const current = await this.get(vaultId, id);
-    await this.assertReferences(vaultId, { ...current, ...patch });
+    await this.assertReferences(vaultId, organizationId, { ...current, ...patch });
 
     // Mudar a periodicidade sem recalcular deixaria a próxima renovação no
     // ritmo antigo, e o alerta chegaria no dia errado sem nada denunciando.
@@ -289,6 +299,7 @@ export class PersonalSubscriptionService {
 
   private async assertReferences(
     vaultId: string,
+    organizationId: string,
     input: Partial<CreateSubscriptionInput>,
   ): Promise<void> {
     if (input.period === "CUSTOM" && !input.customIntervalDays) {
@@ -304,6 +315,15 @@ export class PersonalSubscriptionService {
     if (input.merchantId) {
       const merchant = await this.catalog.findMerchant(vaultId, input.merchantId);
       if (!merchant) throw new ValidationError("Fornecedor não encontrado neste Cofre.");
+    }
+    if (input.costSubscriptionId) {
+      const existe = await this.costPlans.costSubscriptionExists(
+        organizationId,
+        input.costSubscriptionId,
+      );
+      if (!existe) {
+        throw new ValidationError("Assinatura de custo não encontrada nesta organização.");
+      }
     }
   }
 }

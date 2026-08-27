@@ -30,7 +30,7 @@ const VAULT = "vault-1";
  * total, que rateio) sem banco. Mocks com `mockResolvedValue` provariam só que
  * o service chama métodos — não que a conta fecha.
  */
-function makeFakes(debtLink: string | null = null) {
+function makeFakes(debtLink: string | null = null, businessLink: string | null = null) {
   const accounts: PersonalAccount[] = [
     account("acc-1", "Conta principal"),
     account("acc-2", "Carteira"),
@@ -152,6 +152,7 @@ function makeFakes(debtLink: string | null = null) {
     listClassificationHistory: async () => [],
     findExistingFingerprints: async (_v, fingerprints) =>
       new Set(fingerprints.filter((fp) => transactions.some((t) => t.fingerprint === fp))),
+    listWithBusinessSplits: async () => [],
     sumByStatement: async (_v, statementId) =>
       String(
         sumMoney(
@@ -202,11 +203,13 @@ function makeFakes(debtLink: string | null = null) {
 
   // Sem dívida vinculada por padrão; o teste que exercita o bloqueio troca isto.
   const debtLinks = { describeDebtLink: async () => debtLink };
+  const businessLinks = { describeBusinessLink: async () => businessLink };
   const service = new PersonalTransactionService(
     transactionRepo,
     accountRepo,
     statementRepo,
     debtLinks,
+    businessLinks,
   );
   return { service, transactions, splits, statements };
 }
@@ -376,6 +379,25 @@ describe("movimentação que baixa dívida", () => {
 
     await fakes.service.delete(VAULT, created.id);
     expect(fakes.transactions).toHaveLength(0);
+  });
+});
+
+describe("compra que virou despesa da MilWeb", () => {
+  it("recusa apagar — a despesa da empresa ficaria sem lastro", async () => {
+    const fakes = makeFakes(null, "Claude Pro (R$ 100,00)");
+    const created = await fakes.service.create(VAULT, manual({ amount: "300.00" }));
+
+    await expect(fakes.service.delete(VAULT, created.id)).rejects.toThrow(/Desfaça o envio/);
+    expect(fakes.transactions).toHaveLength(1);
+  });
+
+  it("a checagem do financeiro vem antes da de dívida", async () => {
+    // Quando os dois elos existem, a mensagem tem de ser a do financeiro: é a
+    // que atravessa a fronteira entre os dois mundos.
+    const fakes = makeFakes("Dívida do Bruno", "Claude Pro (R$ 100,00)");
+    const created = await fakes.service.create(VAULT, manual({ amount: "300.00" }));
+
+    await expect(fakes.service.delete(VAULT, created.id)).rejects.toThrow(/despesa da MilWeb/);
   });
 });
 

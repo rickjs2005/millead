@@ -275,3 +275,39 @@ O seed cria o usuário `rick@milweb.com.br` com senha definida por
 `SEED_OWNER_PASSWORD` (ou `millead-dev-only` se a env var não estiver
 setada — **trocar antes de rodar contra qualquer banco que não seja
 local**).
+
+### 7. Ponte entre o Cofre e o financeiro (fase 7)
+
+Duas tabelas ligam os dois mundos sem que nenhum enxergue o outro por inteiro:
+
+- **`business_expenses`** e o REALIZADO da empresa (o que de fato saiu, com
+  data). Vive no mundo multi-tenant, com `organization_id`. Nao confundir com
+  `cost_subscriptions`, que e o PLANEJADO, nem com `cost_usage_entries`, que
+  mede consumo de credito dentro de um plano ja contratado -- reusar aquela
+  tabela obrigaria toda despesa a pendurar numa assinatura e a virar uma
+  quantidade de creditos.
+- **`personal_business_allocations`** e o elo. E a UNICA tabela que sabe os dois
+  lados, e por isso e a unica que o financeiro nao le.
+
+Tres decisoes que valem registro:
+
+- **`business_expenses` nao tem coluna nenhuma apontando pro Cofre.** Quem tem
+  permissao no financeiro ve valor, data e a descricao que o dono escreveu --
+  e nao chega na movimentacao pessoal, na conta, no cartao nem nas outras
+  divisoes daquela compra.
+- **`personal_business_allocations.transaction_id` e UNIQUE.** E a chave de
+  idempotencia da ponte: uma compra gera no maximo uma despesa. A chave e a
+  movimentacao, e nao a divisao, porque as divisoes sao substituidas em bloco
+  -- corrigir o rateio troca o id da divisao, e a mesma compra seria enviada de
+  novo, dobrando o custo da empresa.
+- **A FK pro Cofre e Restrict; a FK pra despesa e Cascade.** Apagar a compra com
+  envio ativo deixaria uma despesa empresarial sem lastro (o servico recusa
+  antes, com 409). Apagar a despesa pelo financeiro, ao contrario, desfaz o
+  envio: o elo cai junto e o Cofre volta a mostrar "nao enviada", que e a
+  verdade.
+
+Nao existe FK entre `personal_subscriptions.cost_subscription_id` (ou
+`business_expenses.cost_subscription_id` visto do Cofre) e o mundo
+multi-tenant, de proposito -- uma chave estrangeira ali obrigaria o banco a
+conhecer os dois donos ao mesmo tempo. O preco e que a verificacao de posse vira
+responsabilidade de quem grava, e ela existe: `CostSubscriptionVerifier`.

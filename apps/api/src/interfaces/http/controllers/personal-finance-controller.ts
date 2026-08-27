@@ -57,6 +57,7 @@ import type { PersonalCatalogService } from "../../../application/services/perso
 import type { PersonalDebtService } from "../../../application/services/personal-debt-service.js";
 import type { PersonalTransactionService } from "../../../application/services/personal-transaction-service.js";
 import { parseMoney } from "../../../application/services/vault-money.js";
+import { requireAuth } from "../require-auth.js";
 import { requireVaultContext } from "../require-vault-context.js";
 
 /**
@@ -411,7 +412,7 @@ export class PersonalFinanceController {
     res
       .status(201)
       .json(
-        await this.subscriptions.create(vaultId, {
+        await this.subscriptions.create(vaultId, requireAuth(req).organizationId, {
           ...rest,
           expectedCents: parseMoney(expectedAmount),
         }),
@@ -422,7 +423,7 @@ export class PersonalFinanceController {
     const { vaultId } = requireVaultContext(req);
     const { expectedAmount, ...rest } = req.body as UpdateSubscriptionBody;
     res.json(
-      await this.subscriptions.update(vaultId, req.params.id!, {
+      await this.subscriptions.update(vaultId, requireAuth(req).organizationId, req.params.id!, {
         ...rest,
         ...(expectedAmount !== undefined ? { expectedCents: parseMoney(expectedAmount) } : {}),
       }),

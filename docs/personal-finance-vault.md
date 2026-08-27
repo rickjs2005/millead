@@ -773,6 +773,132 @@ a pessoa nem sabia que ele estava aqui.
 
 Telas: `/cofre/dividas` e `/cofre/pessoas`.
 
+## Ponte com o financeiro da MilWeb (fase 7)
+
+Uma compra pessoal pode ter uma parte que é da empresa — o Claude que você paga
+no cartão pessoal e usa pra trabalhar. Essa parte precisa aparecer no custo da
+MilWeb **sem que o financeiro da empresa enxergue o resto da sua vida**.
+
+### O que atravessa, e o que não
+
+Atravessa: valor, data, categoria, o plano que aquilo realiza (opcional) e **a
+descrição que você escreve**. A descrição ser obrigatória é uma decisão: a
+alternativa seria copiar `originalDescription`, e aí a linha crua do banco
+apareceria no financeiro da empresa sem ninguém ter decidido isso.
+
+Não atravessa: o id da movimentação, a conta, o cartão, a fatura e as outras
+divisões daquela compra.
+
+A `BusinessExpense` **não tem nenhuma coluna apontando pro Cofre**. Quem guarda
+o elo é a `PersonalBusinessAllocation`, e só o Cofre a lê. Alguém com permissão
+no financeiro vê "Claude Pro — R$120 — 05/08 — origem: Cofre pessoal" e não
+chega a mais nada. Saber que a despesa saiu do bolso do dono é um fato contábil
+legítimo (a empresa deve isso a ele); saber o que mais tinha naquela fatura não
+é.
+
+### Vai só a parte da empresa
+
+O valor enviado é a **soma das divisões BUSINESS**, nunca o valor da compra.
+Mandar os R$300 do jantar quando só R$100 é da MilWeb cobraria da empresa um
+dinheiro que ela não deve — e o número seria plausível o bastante pra passar
+despercebido no fechamento do mês.
+
+### Planejado x realizado nunca somam
+
+`CostSubscription` é o **plano** ("o Claude custa US$20/mês"), e é ele que entra
+em `computeSummary`. `BusinessExpense` é o **realizado** ("no dia 05/08 saíram
+R$120"). Os dois descrevem o mesmo Claude: somar daria R$230/mês, o custo da
+agência dobraria da noite pro dia, e o número errado seria plausível demais pra
+alguém desconfiar.
+
+Por isso:
+
+- A despesa realizada **não entra** em `computeSummary` — o resumo de custos
+  continua sendo uma previsão.
+- `summarizeExpenses` devolve `planejadoBrl` e `realizadoBrl` separados, mais
+  `diferencaBrl`, que é **subtração** (positivo = estourou). Nenhuma função
+  devolve a soma dos dois, e há teste varrendo os campos do resumo pra garantir
+  que nenhum deles é essa soma.
+- Na tela, os dois vivem em blocos separados, um rotulado "previsto" e o outro
+  "realizado".
+
+### Enviar duas vezes não dobra nada
+
+O elo tem **UNIQUE na movimentação** — não na divisão. As divisões são
+substituídas em bloco: corrigir o rateio troca o id da divisão empresarial, e
+uma chave baseada nela deixaria a mesma compra ser enviada de novo.
+
+Um segundo envio é recusado com 409. Se o rateio mudou depois, os caminhos são
+**sincronizar** (atualiza o valor lá) ou **desfazer** — nunca somar um segundo
+lançamento.
+
+E a correção não é automática: quando o rateio diverge do que foi enviado, a
+compra aparece como **desatualizada**, com os dois números à vista. Reescrever a
+contabilidade da empresa sem ninguém pedir é pior que mostrar a diferença — o
+mês pode já ter fechado com o número antigo, e quem fechou precisa saber.
+
+### O único pedaço do Cofre com RBAC
+
+O Cofre não tem `requirePermission` em lugar nenhum: seus dados não são da
+organização, e a autorização é posse do Cofre mais sessão elevada.
+
+Mas **escrever no financeiro da empresa é escrever dado da organização**. Sem
+checar permissão ali, a ponte seria um caminho para contornar o RBAC do módulo
+de custos — quem não pode lançar custo pelo Centro de Custos lançaria pelo
+Cofre.
+
+Por isso as rotas da ponte vivem num router separado (`vault-bridge-routes.ts`)
+com três camadas somadas: `authenticate` · `requireVault` · `requirePermission`.
+Ficam fora de `vault-data-routes.ts` de propósito — lá a invariante "nenhuma
+rota tem RBAC" é testada, e misturar as duas transformaria o teste numa lista de
+exceções que cresce sem ninguém notar.
+
+A permissão usada é a mesma do módulo de custos (`proposals:read/write`), não
+uma chave nova: chave nova entraria automaticamente em `ADMIN_PERMISSIONS` e
+daria a todo Admin de toda organização um poder que ninguém decidiu conceder.
+
+### Sempre em reais
+
+Despesa vinda do Cofre é sempre BRL. O Cofre já sabe o que de fato saiu da conta
+em reais, com IOF e spread do dia; reconverter pela cotação de hoje reescreveria
+o passado a cada oscilação do dólar — o mesmo motivo pelo qual `unitPriceBrl` é
+congelado no `CostUsageEntry`.
+
+### Quem manda no valor
+
+O valor de uma despesa vinda do Cofre **não é editável pelo financeiro**. Ele é
+governado pelo rateio da compra; editar lá criaria duas versões da mesma verdade
+e a próxima sincronização desfaria a edição sem avisar. Descrição, categoria e
+plano continuam editáveis.
+
+Apagar pelo financeiro, ao contrário, **é permitido** e desfaz o envio: o elo cai
+por Cascade e a compra volta a aparecer como "não enviada" no Cofre, que é a
+verdade. Recusar com 409 apontando pra um Cofre que quem está no financeiro nem
+pode ver seria um erro impossível de resolver de onde a pessoa está.
+
+### Uma lacuna da fase 5, fechada
+
+`personal_subscriptions.cost_subscription_id` era aceito sem conferir nada — um
+id de outra organização passava batido. Não há FK entre os dois mundos que faça
+isso (de propósito: uma chave estrangeira obrigaria o banco a conhecer os dois
+donos ao mesmo tempo), então a verificação virou uma porta,
+`CostSubscriptionVerifier`, usada tanto pela assinatura pessoal quanto pela
+despesa.
+
+### API
+
+| Rota                                        | O que faz                                         |
+| ------------------------------------------- | ------------------------------------------------- |
+| `GET /vault/business/allocations`           | Compras com parte empresarial e o estado de cada. |
+| `GET /vault/business/plans`                 | Planos de custo da organização, pro seletor.      |
+| `POST /vault/business/allocations/:id`      | Envia a parte da empresa.                         |
+| `POST /vault/business/allocations/:id/sync` | Alinha o valor lá com o rateio de cá.             |
+| `DELETE /vault/business/allocations/:id`    | Desfaz o envio.                                   |
+| `GET/POST/PATCH/DELETE /costs/expenses`     | Despesas realizadas (lado empresarial).           |
+| `GET /costs/expenses/summary`               | Previsto x realizado do período.                  |
+
+Telas: `/cofre/milweb` e a seção "Realizado no mês" em `/costs`.
+
 ## Telas (antecipadas da fase 8)
 
 Dez telas sob `/cofre`, puxadas para antes das fases 6, 7 e 9 — cinco fases de
@@ -865,7 +991,7 @@ Gere o segredo com `openssl rand -base64 48`.
 
 ## Testes
 
-467 testes cobrem as seis fases e as telas, todos sem banco e sem HTTP real (exceto os
+519 testes cobrem as sete fases e as telas, todos sem banco e sem HTTP real (exceto os
 de rota, que sobem Express numa porta efêmera).
 
 **Fase 1 — segurança:**
@@ -929,6 +1055,15 @@ de rota, que sobem Express numa porta efêmera).
 | `cash-flow-kind.test.ts`        | **Pix que quita não é renda**; pagar dívida não é despesa nova; transferência continua fora; ordem não decide nada.                                                       |
 | `personal-debt-service.test.ts` | As duas direções; parcial e total; atraso no resumo; a mesma movimentação não baixa duas dívidas; **reembolsável tira do consumo pessoal** e preserva o rateio existente. |
 
+**Fase 7 - ponte com o financeiro:**
+
+| Arquivo                            | O que prova                                                                                                                                             |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `expense-summary.test.ts`          | **Nenhum campo do resumo e planejado + realizado**; criar despesa nao mexe no custo previsto; plano sem cobranca aparece com zero; dolar convertido.    |
+| `personal-bridge-service.test.ts`  | Vai **so a parte da empresa**; descricao e a que a pessoa escreveu; a despesa nao leva de volta ao Cofre; segundo envio e 409; sincronizar nao duplica. |
+| `business-expense-service.test.ts` | Valor de despesa do Cofre nao e editavel pelo financeiro; apagar de la desfaz o envio; plano de outra organizacao e recusado.                           |
+| `vault-bridge-routes.test.ts`      | **A ponte nao e atalho pro RBAC**: sem permissao no financeiro e 403; sem Cofre aberto e 401; quem so le nao envia.                                     |
+
 ## Roadmap
 
 | #   | Fase                                                                   | Estado |
@@ -939,7 +1074,7 @@ de rota, que sobem Express numa porta efêmera).
 | 4   | Classificação e regras determinísticas                                 | ✓      |
 | 5   | Assinaturas e alertas                                                  | ✓      |
 | 6   | Dívidas e pagamentos                                                   | ✓      |
-| 7   | Ponte com o financeiro da MilWeb (`BusinessExpense`)                   | ○      |
+| 7   | Ponte com o financeiro da MilWeb (`BusinessExpense`)                   | ✓      |
 | 8   | Telas (antecipadas) · dashboard e drill-down completos                 | ◐      |
 | 9   | Backup e exportação                                                    | ○      |
 | 10  | Testes finais, documentação e revisão                                  | ○      |

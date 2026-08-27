@@ -1,5 +1,7 @@
 import { api } from "./api-client";
 import type {
+  BusinessExpense,
+  BusinessExpenseSummary,
   CostServiceCatalogItem,
   CostSubscription,
   CostSubscriptionPayload,
@@ -33,4 +35,23 @@ export const costsService = {
     api.get<UsageSummary>("/api/v1/costs/usage/summary", month ? { month } : undefined),
   usageSeries: (months?: number) =>
     api.get<CostUsageSeries>("/api/v1/costs/usage/series", months ? { months } : undefined),
+};
+
+/**
+ * Despesas REALIZADAS da MilWeb.
+ *
+ * Vizinhas dos planos, e nunca somadas com eles: o resumo devolve
+ * `planejadoBrl` e `realizadoBrl` separados, mais a diferenca. Somar os dois
+ * daria dois Claudes.
+ */
+export const businessExpenseService = {
+  list: (params: Record<string, string> = {}) =>
+    api.get<BusinessExpense[]>("/api/v1/costs/expenses", params),
+  summary: (from: string, to: string) =>
+    api.get<BusinessExpenseSummary>("/api/v1/costs/expenses/summary", { from, to }),
+  create: (payload: Record<string, unknown>) =>
+    api.post<BusinessExpense>("/api/v1/costs/expenses", payload),
+  update: (id: string, payload: Record<string, unknown>) =>
+    api.patch<BusinessExpense>(`/api/v1/costs/expenses/${id}`, payload),
+  remove: (id: string) => api.delete<void>(`/api/v1/costs/expenses/${id}`),
 };

@@ -1679,3 +1679,64 @@ export interface VaultDebtSummary {
   atrasadasReceber: number;
   atrasadasPagar: number;
 }
+
+// ----- Ponte Cofre <-> financeiro da MilWeb -----
+
+export type BridgeState = "NAO_ENVIADA" | "ENVIADA" | "DESATUALIZADA";
+export type BusinessExpenseSource = "MANUAL" | "PERSONAL_VAULT";
+
+/** Uma compra pessoal com parte empresarial, e o estado dela na ponte. */
+export interface VaultBridgeItem {
+  transactionId: string;
+  transactionDate: string;
+  /** A linha do extrato. Visível só dentro do Cofre — não é o que vai pro
+   *  financeiro; lá vai a descrição que a pessoa escreve. */
+  originalDescription: string;
+  amountBrl: string;
+  businessAmount: string;
+  state: BridgeState;
+  expenseId: string | null;
+  sentAmount: string | null;
+  sentDescription: string | null;
+  organizationId: string | null;
+}
+
+export interface CostPlanOption {
+  id: string;
+  name: string;
+  amount: string;
+  currency: "BRL" | "USD";
+  billingCycle: "MONTHLY" | "YEARLY";
+}
+
+export interface BusinessExpense {
+  id: string;
+  description: string;
+  amount: string;
+  currency: "BRL" | "USD";
+  incurredAt: string;
+  category: CostCategory;
+  costSubscriptionId: string | null;
+  companyId: string | null;
+  source: BusinessExpenseSource;
+  notes: string | null;
+}
+
+export interface ExpensePlanComparison {
+  costSubscriptionId: string;
+  name: string;
+  planejadoBrl: number;
+  realizadoBrl: number;
+  /** `realizado − planejado`. Nunca a soma dos dois — ver expense-summary.ts. */
+  diferencaBrl: number;
+  lancamentos: number;
+}
+
+export interface BusinessExpenseSummary {
+  realizadoBrl: number;
+  planejadoBrl: number;
+  /** Quanto do realizado saiu do bolso do dono — é o que a empresa deve a ele. */
+  doCofreBrl: number;
+  porPlano: ExpensePlanComparison[];
+  semPlano: { realizadoBrl: number; lancamentos: number };
+}

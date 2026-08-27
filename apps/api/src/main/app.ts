@@ -10,6 +10,7 @@ import { errorHandler } from "../interfaces/http/middlewares/error-handler.js";
 import { createAiRoutes } from "../interfaces/http/routes/ai-routes.js";
 import { createAuditRoutes } from "../interfaces/http/routes/audit-routes.js";
 import { createNotificationRoutes } from "../interfaces/http/routes/notification-routes.js";
+import { createVaultBridgeRoutes } from "../interfaces/http/routes/vault-bridge-routes.js";
 import { createVaultDataRoutes } from "../interfaces/http/routes/vault-data-routes.js";
 import { createVaultRoutes } from "../interfaces/http/routes/vault-routes.js";
 import { createAuthRoutes } from "../interfaces/http/routes/auth-routes.js";
@@ -91,7 +92,14 @@ export function createApp(container: Container): Express {
       container.authenticate,
     ),
   );
-  app.use("/api/v1/costs", createCostRoutes(container.costController, container.authenticate));
+  app.use(
+    "/api/v1/costs",
+    createCostRoutes(
+      container.costController,
+      container.businessExpenseController,
+      container.authenticate,
+    ),
+  );
   app.use(
     "/api/v1/receivables",
     createReceivableRoutes(container.receivableController, container.authenticate),
@@ -122,6 +130,18 @@ export function createApp(container: Container): Express {
     "/api/v1/vault",
     createVaultDataRoutes(
       container.personalFinanceController,
+      container.authenticate,
+      container.requireVault,
+    ),
+  );
+  // A ponte com o financeiro da MilWeb. Router à parte porque é o ÚNICO
+  // pedaço do Cofre com RBAC -- escrever no financeiro é escrever dado da
+  // organização, e aí vale a permissão normal do módulo de custos. Ver o
+  // comentário de vault-bridge-routes.ts.
+  app.use(
+    "/api/v1/vault",
+    createVaultBridgeRoutes(
+      container.personalBridgeController,
       container.authenticate,
       container.requireVault,
     ),

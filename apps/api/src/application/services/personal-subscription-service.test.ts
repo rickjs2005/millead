@@ -14,6 +14,7 @@ import { PersonalSubscriptionService } from "./personal-subscription-service.js"
 import { formatUtcDate, utcDate } from "./vault-date.js";
 
 const VAULT = "vault-1";
+const ORG = "org-1";
 const HOJE = utcDate(2026, 8, 20);
 const MERCHANT_CLAUDE = "m-claude";
 
@@ -54,8 +55,15 @@ function charge(over: Partial<SubscriptionChargeCandidate> = {}): SubscriptionCh
 }
 
 function makeFakes(
-  options: { subs?: PersonalSubscription[]; charges?: SubscriptionChargeCandidate[] } = {},
+  options: {
+    subs?: PersonalSubscription[];
+    charges?: SubscriptionChargeCandidate[];
+    /** Plano de custo existe na organização? O teste da lacuna da fase 5
+     *  passa `false` — antes dela, qualquer id era aceito. */
+    planoExiste?: boolean;
+  } = {},
 ) {
+  const planoExiste = options.planoExiste ?? true;
   const subs = options.subs ?? [subscription()];
   const unlinked = options.charges ?? [];
   const alerts: PersonalAlert[] = [];
@@ -143,7 +151,9 @@ function makeFakes(
     sendToUser: vi.fn(async () => undefined),
   };
 
-  const service = new PersonalSubscriptionService(repo, catalog, push);
+  // Plano de custo existe por padrão; o teste da lacuna da fase 5 troca isto.
+  const costPlans = { costSubscriptionExists: async () => planoExiste };
+  const service = new PersonalSubscriptionService(repo, catalog, push, costPlans);
   return { service, subs, alerts, linked, push };
 }
 
@@ -154,7 +164,7 @@ beforeEach(() => {
 
 describe("criação", () => {
   it("calcula a próxima renovação a partir da última cobrança", async () => {
-    const criada = await f.service.create(VAULT, {
+    const criada = await f.service.create(VAULT, ORG, {
       ...subscription({ nextRenewalAt: null, lastChargeAt: utcDate(2026, 8, 5) }),
       id: undefined,
       vaultId: undefined,
@@ -163,7 +173,7 @@ describe("criação", () => {
   });
 
   it("sem última cobrança, a renovação fica em aberto até a primeira aparecer", async () => {
-    const criada = await f.service.create(VAULT, {
+    const criada = await f.service.create(VAULT, ORG, {
       ...subscription({ nextRenewalAt: null, lastChargeAt: null }),
       id: undefined,
       vaultId: undefined,
@@ -173,7 +183,7 @@ describe("criação", () => {
 
   it("periodicidade personalizada exige o intervalo", async () => {
     await expect(
-      f.service.create(VAULT, {
+      f.service.create(VAULT, ORG, {
         ...subscription({ period: "CUSTOM", customIntervalDays: null }),
         id: undefined,
         vaultId: undefined,
@@ -183,7 +193,7 @@ describe("criação", () => {
 
   it("intervalo em dias só vale pra periodicidade personalizada", async () => {
     await expect(
-      f.service.create(VAULT, {
+      f.service.create(VAULT, ORG, {
         ...subscription({ period: "MONTHLY", customIntervalDays: 30 }),
         id: undefined,
         vaultId: undefined,
@@ -196,12 +206,12 @@ describe("edição", () => {
   it("mudar a periodicidade recalcula a próxima renovação", async () => {
     // Sem recalcular, o alerta continuaria no ritmo antigo e chegaria no dia
     // errado sem nada denunciando.
-    const atualizada = await f.service.update(VAULT, "sub-claude", { period: "YEARLY" });
+    const atualizada = await f.service.update(VAULT, ORG, "sub-claude", { period: "YEARLY" });
     expect(formatUtcDate(atualizada.nextRenewalAt!)).toBe("2027-07-21");
   });
 
   it("informar a renovação à mão vence o recálculo", async () => {
-    const atualizada = await f.service.update(VAULT, "sub-claude", {
+    const atualizada = await f.service.update(VAULT, ORG, "sub-claude", {
       period: "YEARLY",
       nextRenewalAt: utcDate(2026, 12, 1),
     });
@@ -209,7 +219,7 @@ describe("edição", () => {
   });
 
   it("assinatura inexistente é 404", async () => {
-    await expect(f.service.update(VAULT, "nao-existe", { name: "X" })).rejects.toBeInstanceOf(
+    await expect(f.service.update(VAULT, ORG, "nao-existe", { name: "X" })).rejects.toBeInstanceOf(
       NotFoundError,
     );
   });
@@ -398,5 +408,33 @@ describe("assinatura pausada", () => {
     f = makeFakes({ subs: [subscription({ status: "PAUSED" })] });
     const resultado = await f.service.refresh(VAULT, HOJE);
     expect(resultado.novosAlertas).toBe(0);
+  });
+});
+
+describe("vínculo com o plano de custo da MilWeb", () => {
+  it("recusa apontar para uma assinatura de custo de outra organização", async () => {
+    // Lacuna aberta na fase 5: `costSubscriptionId` era gravado sem conferir
+    // nada, e um id de outra organização passava batido. Não há FK entre os
+    // dois mundos que impeça isso — a checagem é o que faz esse papel.
+    const f = makeFakes({ planoExiste: false });
+
+    await expect(
+      f.service.create(VAULT, ORG, {
+        ...subscription({ costSubscriptionId: "plan-de-outra-org" }),
+        id: undefined,
+        vaultId: undefined,
+      } as never),
+    ).rejects.toThrow(/não encontrada nesta organização/);
+    expect(f.subs).toHaveLength(1); // só a que o fake já trazia
+  });
+
+  it("aceita quando o plano é da organização", async () => {
+    const f = makeFakes({ planoExiste: true });
+    const criada = await f.service.create(VAULT, ORG, {
+      ...subscription({ costSubscriptionId: "plan-claude" }),
+      id: undefined,
+      vaultId: undefined,
+    } as never);
+    expect(criada.costSubscriptionId).toBe("plan-claude");
   });
 });

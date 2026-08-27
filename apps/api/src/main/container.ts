@@ -15,6 +15,8 @@ import { ProjectChecklistService } from "../application/services/project-checkli
 import { PersonalAccountService } from "../application/services/personal-account-service.js";
 import { PersonalCatalogService } from "../application/services/personal-catalog-service.js";
 import { PersonalClassificationService } from "../application/services/personal-classification-service.js";
+import { BusinessExpenseService } from "../application/services/business-expense-service.js";
+import { PersonalBridgeService } from "../application/services/personal-bridge-service.js";
 import { PersonalDebtService } from "../application/services/personal-debt-service.js";
 import { PersonalSubscriptionService } from "../application/services/personal-subscription-service.js";
 import { PersonalImportService } from "../application/services/personal-import-service.js";
@@ -88,6 +90,7 @@ import { PrismaTaskRepository } from "../infrastructure/prisma/prisma-task-repos
 import { buildPostSaleOnboardingService } from "./post-sale-factory.js";
 import { PrismaPersonalAccountRepository } from "../infrastructure/prisma/prisma-personal-account-repository.js";
 import { PrismaPersonalCatalogRepository } from "../infrastructure/prisma/prisma-personal-catalog-repository.js";
+import { PrismaBusinessExpenseRepository } from "../infrastructure/prisma/prisma-business-expense-repository.js";
 import { PrismaPersonalDebtRepository } from "../infrastructure/prisma/prisma-personal-debt-repository.js";
 import { PrismaPersonalImportRepository } from "../infrastructure/prisma/prisma-personal-import-repository.js";
 import { PrismaPersonalRuleRepository } from "../infrastructure/prisma/prisma-personal-rule-repository.js";
@@ -111,6 +114,8 @@ import { CostController } from "../interfaces/http/controllers/cost-controller.j
 import { EstimateController } from "../interfaces/http/controllers/estimate-controller.js";
 import { MessageController } from "../interfaces/http/controllers/message-controller.js";
 import { PersonalFinanceController } from "../interfaces/http/controllers/personal-finance-controller.js";
+import { BusinessExpenseController } from "../interfaces/http/controllers/business-expense-controller.js";
+import { PersonalBridgeController } from "../interfaces/http/controllers/personal-bridge-controller.js";
 import { PersonalVaultController } from "../interfaces/http/controllers/personal-vault-controller.js";
 import { ReceivableController } from "../interfaces/http/controllers/receivable-controller.js";
 import { CompanyController } from "../interfaces/http/controllers/company-controller.js";
@@ -136,6 +141,8 @@ export interface Container {
   companyController: CompanyController;
   contractController: ContractController;
   costController: CostController;
+  businessExpenseController: BusinessExpenseController;
+  personalBridgeController: PersonalBridgeController;
   estimateController: EstimateController;
   messageController: MessageController;
   leadController: LeadController;
@@ -223,6 +230,13 @@ export function buildContainer(): Container {
   const personalRuleRepository = new PrismaPersonalRuleRepository();
   const personalSubscriptionRepository = new PrismaPersonalSubscriptionRepository();
   const personalDebtRepository = new PrismaPersonalDebtRepository();
+  const businessExpenseRepository = new PrismaBusinessExpenseRepository();
+  // Criado aqui, e não junto do resto do financeiro lá embaixo, porque a
+  // assinatura pessoal depende dele pra conferir o plano de custo apontado.
+  const businessExpenseService = new BusinessExpenseService(
+    businessExpenseRepository,
+    costRepository,
+  );
   // Instancia propria do push: os alertas do Cofre usam `sendToUser`, nunca
   // `sendToOrg` -- ver o comentario na porta PushSender.
   const vaultPushSender = new WebPushSender();
@@ -242,11 +256,19 @@ export function buildContainer(): Container {
     personalDebtRepository,
     personalTransactionRepository,
   );
+  // A ponte com o financeiro da MilWeb. Como o serviço de dívidas, entra ANTES
+  // do de movimentações: as duas portas de exclusão (dívida e despesa) são
+  // consultadas antes de apagar uma movimentação.
+  const personalBridgeService = new PersonalBridgeService(
+    businessExpenseRepository,
+    personalTransactionRepository,
+  );
   const personalTransactionService = new PersonalTransactionService(
     personalTransactionRepository,
     personalAccountRepository,
     personalStatementRepository,
     personalDebtService,
+    personalBridgeService,
   );
   // A classificacao e criada antes da importacao: a importacao dispara uma
   // passada de classificacao no que acabou de gravar, pela porta estreita
@@ -261,6 +283,9 @@ export function buildContainer(): Container {
     personalSubscriptionRepository,
     personalCatalogRepository,
     vaultPushSender,
+    // Fecha a lacuna da fase 5: confere que o plano de custo apontado existe
+    // NESTA organização. Não há FK entre os dois mundos que faça isso.
+    businessExpenseService,
   );
   const personalImportService = new PersonalImportService(
     personalImportRepository,
@@ -483,6 +508,8 @@ export function buildContainer(): Container {
   const messageController = new MessageController(messageService);
   const contractController = new ContractController(contractService);
   const costController = new CostController(costService);
+  const businessExpenseController = new BusinessExpenseController(businessExpenseService);
+  const personalBridgeController = new PersonalBridgeController(personalBridgeService, costService);
   const estimateController = new EstimateController(estimateService);
   const receivableController = new ReceivableController(receivableService);
   const briefingController = new BriefingController(
@@ -525,6 +552,8 @@ export function buildContainer(): Container {
     briefingController,
     contractController,
     costController,
+    businessExpenseController,
+    personalBridgeController,
     estimateController,
     messageController,
     companyController,

@@ -159,6 +159,7 @@ function makeFakes() {
     findExistingFingerprints: async () => new Set(),
     findClassificationByExternalId: async () => null,
     listClassificationHistory: async () => [],
+    listWithBusinessSplits: async () => [],
     sumByStatement: async () => "0",
   };
 

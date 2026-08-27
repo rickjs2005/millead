@@ -175,4 +175,15 @@ export interface PersonalTransactionRepository {
   /** Soma dos valores em BRL das movimentações de uma fatura (recalcula o
    *  total sem confiar num acumulador que pode dessincronizar). */
   sumByStatement(vaultId: string, statementId: string): Promise<string>;
+
+  /** Compras que têm parte empresarial, com a soma dessa parte já calculada.
+   *
+   *  Consulta própria em vez de listar tudo e filtrar em memória: a tela da
+   *  ponte pergunta exatamente isto ("o que ainda pode ir pro financeiro"), e
+   *  varrer a paginação inteira pra achar as poucas com divisão BUSINESS
+   *  cresceria com o extrato, não com a resposta. */
+  listWithBusinessSplits(
+    vaultId: string,
+    range: { from: Date | null; to: Date | null },
+  ): Promise<Array<{ transaction: PersonalTransaction; businessAmount: string }>>;
 }

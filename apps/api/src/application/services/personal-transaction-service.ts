@@ -6,6 +6,7 @@ import type {
 import { ConflictError, NotFoundError, ValidationError } from "../../domain/errors/app-error.js";
 import type { PersonalAccountRepository } from "../../domain/repositories/personal-account-repository.js";
 import type { PersonalStatementRepository } from "../../domain/repositories/personal-statement-repository.js";
+import type { BusinessLinkChecker } from "../../domain/services/business-link-checker.js";
 import type { DebtLinkChecker } from "../../domain/services/debt-link-checker.js";
 import type {
   PersonalTransactionRepository,
@@ -78,6 +79,9 @@ export class PersonalTransactionService {
     /** Só uma pergunta: "isto baixa alguma dívida?". Ver `DebtLinkChecker`
      *  sobre por que uma porta, e não o serviço de dívidas inteiro. */
     private readonly debtLinks: DebtLinkChecker,
+    /** A segunda pergunta: "isto já virou despesa da MilWeb?". Ver
+     *  `BusinessLinkChecker` sobre por que duas portas, e não uma genérica. */
+    private readonly businessLinks: BusinessLinkChecker,
   ) {}
 
   // ----- Leitura -----
@@ -182,12 +186,27 @@ export class PersonalTransactionService {
    *
    * A FK da baixa é `ON DELETE RESTRICT`, e um erro de constraint sobe como
    * 500 — foi assim que a exclusão de conta quebrou na fase 5, e a lição foi
-   * que só se descobre executando. Perguntar antes vira um 409 que diz qual
-   * dívida está no caminho.
+   * que só se descobre executando. Perguntar antes vira um 409 que diz o que
+   * está no caminho.
+   *
+   * São duas perguntas porque são dois elos com donos diferentes: a baixa de
+   * dívida (fase 6) e a despesa da MilWeb (fase 7). A do financeiro vem
+   * primeiro porque é a que atravessa a fronteira entre os dois mundos —
+   * deixar uma despesa da empresa sem lastro é pior que uma dívida quitada
+   * sem comprovante.
    */
   async delete(vaultId: string, id: string): Promise<void> {
     const transaction = await this.transactions.findById(vaultId, id);
     if (!transaction) throw new NotFoundError("Movimentação não encontrada.");
+
+    const despesa = await this.businessLinks.describeBusinessLink(vaultId, id);
+    if (despesa) {
+      throw new ConflictError(
+        `Esta compra já virou despesa da MilWeb: "${despesa}". ` +
+          "Desfaça o envio na tela do financeiro do Cofre antes de apagar — " +
+          "senão a despesa da empresa ficaria sem lastro nenhum.",
+      );
+    }
 
     const divida = await this.debtLinks.describeDebtLink(vaultId, id);
     if (divida) {

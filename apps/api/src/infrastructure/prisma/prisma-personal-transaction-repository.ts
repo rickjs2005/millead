@@ -11,6 +11,7 @@ import type {
   TransactionPage,
   UpdateTransactionInput,
 } from "../../domain/repositories/personal-transaction-repository.js";
+import { formatMoney, parseMoney } from "../../application/services/vault-money.js";
 
 const transactionSelect = {
   id: true,
@@ -252,6 +253,40 @@ export class PrismaPersonalTransactionRepository implements PersonalTransactionR
       categoryId: group.categoryId,
       merchantId: group.merchantId,
       count: group._count._all,
+    }));
+  }
+
+  async listWithBusinessSplits(
+    vaultId: string,
+    range: { from: Date | null; to: Date | null },
+  ): Promise<Array<{ transaction: PersonalTransaction; businessAmount: string }>> {
+    const rows = await prisma.personalTransaction.findMany({
+      where: {
+        vaultId,
+        // Estornada não é gasto — mandar pro financeiro uma compra que voltou
+        // cobraria da empresa um dinheiro que ninguém pagou.
+        status: { not: "REVERSED" },
+        splits: { some: { kind: "BUSINESS" } },
+        ...(range.from || range.to
+          ? {
+              transactionDate: {
+                ...(range.from ? { gte: range.from } : {}),
+                ...(range.to ? { lte: range.to } : {}),
+              },
+            }
+          : {}),
+      },
+      select: { ...transactionSelect, splits: { select: splitSelect } },
+      orderBy: { transactionDate: "desc" },
+    });
+
+    return rows.map(({ splits, ...row }) => ({
+      transaction: toTransaction(row),
+      businessAmount: formatMoney(
+        splits
+          .filter((s) => s.kind === "BUSINESS")
+          .reduce((total, s) => total + parseMoney(s.amount.toString()), 0),
+      ),
     }));
   }
 

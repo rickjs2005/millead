@@ -5,6 +5,7 @@ import {
   CreditCard,
   FolderTree,
   Landmark,
+  Building2,
   HandCoins,
   ListFilter,
   Receipt,
@@ -36,6 +37,7 @@ const ITEMS: readonly NavItem[] = [
   { href: "/cofre/assinaturas", label: "Assinaturas", icon: Repeat },
   { href: "/cofre/alertas", label: "Alertas", icon: Bell, badge: true },
   { href: "/cofre/dividas", label: "Dívidas", icon: HandCoins },
+  { href: "/cofre/milweb", label: "MilWeb", icon: Building2 },
   { href: "/cofre/contas", label: "Contas", icon: Landmark },
   { href: "/cofre/cartoes", label: "Cartões", icon: CreditCard },
   { href: "/cofre/categorias", label: "Categorias", icon: FolderTree },
@@ -49,7 +51,7 @@ const ITEMS: readonly NavItem[] = [
  *
  * Vive aqui, e não na barra lateral do app, porque o Cofre não faz parte do
  * CRM — ele é uma área à parte, atrás de outra porta. Rola na horizontal no
- * celular em vez de virar menu sanfonado: são doze destinos curtos, e esconder
+ * celular em vez de virar menu sanfonado: são treze destinos curtos, e esconder
  * atrás de um toque a mais atrapalharia mais que ocupar espaço.
  */
 export function VaultNav() {
