@@ -10,6 +10,11 @@ export const queryKeys = {
   },
   settings: {
     integrations: () => ["settings", "integrations"] as const,
+    postSaleAutomation: () => ["settings", "post-sale-automation"] as const,
+    members: () => ["settings", "members"] as const,
+  },
+  postSale: {
+    execution: (contractId: string) => ["post-sale", "execution", contractId] as const,
   },
   messages: {
     list: (params: object) => ["messages", "list", params] as const,

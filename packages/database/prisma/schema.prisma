@@ -43,21 +43,23 @@ model User {
   createdAt    DateTime  @default(now()) @map("created_at")
   updatedAt    DateTime  @updatedAt @map("updated_at")
 
-  memberships       Membership[]
-  refreshTokens     RefreshToken[]
-  auditLogs         AuditLog[]
-  leadNotes         LeadNote[]
-  assignedLeads     Lead[]             @relation("LeadOwner")
-  assignedTasks     Task[]             @relation("TaskAssignee")
-  activities        Activity[]
-  createdMeetings   Meeting[]          @relation("MeetingCreatedBy")
-  meetingAttendees  MeetingAttendee[]
-  createdProposals  Proposal[]         @relation("ProposalCreatedBy")
-  requestedAudits   Audit[]            @relation("AuditRequestedBy")
-  contracts         Contract[]         @relation("ContractCreatedBy")
-  createdBriefings  Briefing[]         @relation("BriefingCreatedBy")
-  pushSubscriptions PushSubscription[]
-  pricingEstimates  PricingEstimate[]
+  memberships               Membership[]
+  refreshTokens             RefreshToken[]
+  auditLogs                 AuditLog[]
+  leadNotes                 LeadNote[]
+  assignedLeads             Lead[]                       @relation("LeadOwner")
+  assignedTasks             Task[]                       @relation("TaskAssignee")
+  activities                Activity[]
+  createdMeetings           Meeting[]                    @relation("MeetingCreatedBy")
+  meetingAttendees          MeetingAttendee[]
+  createdProposals          Proposal[]                   @relation("ProposalCreatedBy")
+  requestedAudits           Audit[]                      @relation("AuditRequestedBy")
+  contracts                 Contract[]                   @relation("ContractCreatedBy")
+  createdBriefings          Briefing[]                   @relation("BriefingCreatedBy")
+  pushSubscriptions         PushSubscription[]
+  pricingEstimates          PricingEstimate[]
+  postSaleDefaultOwnerOf    PostSaleAutomationSettings[] @relation("PostSaleDefaultOwner")
+  automationExecutionsFired AutomationExecution[]        @relation("AutomationTriggeredBy")
 
   @@map("users")
 }
@@ -118,6 +120,10 @@ model Organization {
   pricingEstimateCosts    PricingEstimateCost[]
   costUsageEntries        CostUsageEntry[]
   receivables             Receivable[]
+  postSaleAutomation      PostSaleAutomationSettings?
+  automationExecutions    AutomationExecution[]
+  automationSteps         AutomationStep[]
+  automationArtifacts     AutomationArtifact[]
 
   @@map("organizations")
 }
@@ -384,20 +390,21 @@ model Lead {
   pipelineStage PipelineStage? @relation(fields: [pipelineStageId], references: [id], onDelete: SetNull)
   owner         User?          @relation("LeadOwner", fields: [ownerId], references: [id], onDelete: SetNull)
 
-  contacts         LeadContact[]
-  notes            LeadNote[]
-  tags             LeadTag[]
-  tasks            Task[]
-  activities       Activity[]
+  contacts          LeadContact[]
+  notes             LeadNote[]
+  tags              LeadTag[]
+  tasks             Task[]
+  activities        Activity[]
   // Reunião/mensagem/proposta são registros comerciais -- apagar um Lead
   // não pode destruir isso em cascata sem querer. Restrict: primeiro
   // resolve/arquiva o que está pendurado, depois apaga o lead.
-  meetings         Meeting[]
-  proposals        Proposal[]
-  messages         Message[]
-  contracts        Contract[]
-  briefings        Briefing[]
-  pricingEstimates PricingEstimate[]
+  meetings          Meeting[]
+  proposals         Proposal[]
+  messages          Message[]
+  contracts         Contract[]
+  briefings         Briefing[]
+  pricingEstimates  PricingEstimate[]
+  projectChecklists ProjectChecklist[]
 
   @@index([organizationId, status])
   @@index([companyId])
@@ -431,15 +438,30 @@ model ProjectChecklist {
   name           String
   type           ProjectChecklistType
   companyId      String?              @map("company_id")
+  /// Lead do CRM que originou o projeto -- preenchido pela automação
+  /// pós-fechamento (contrato -> projeto); null nos checklists criados à mão.
+  leadId         String?              @map("lead_id")
+  /// Contrato assinado que originou o projeto. UNIQUE (Postgres aceita N
+  /// nulos num unique de coluna anulável): é a trava de banco contra
+  /// "projeto duplicado para o mesmo contrato" -- o reenvio do webhook não
+  /// consegue criar um segundo nem que a checagem de aplicação falhe.
+  contractId     String?              @unique @map("contract_id")
   localFolder    String?              @map("local_folder")
+  /// Início e prazo estimado. Só a automação preenche hoje, e só a partir de
+  /// dado confiável do contrato assinado (assinadoEm + prazoEntregaDias).
+  startedAt      DateTime?            @map("started_at")
+  dueAt          DateTime?            @map("due_at")
   createdAt      DateTime             @default(now()) @map("created_at")
   updatedAt      DateTime             @updatedAt @map("updated_at")
 
   organization Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   company      Company?                @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  lead         Lead?                   @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  contract     Contract?               @relation(fields: [contractId], references: [id], onDelete: SetNull)
   phases       ProjectChecklistPhase[]
 
   @@index([organizationId])
+  @@index([leadId])
   @@map("project_checklists")
 }
 
@@ -534,9 +556,10 @@ model PipelineStage {
   isLost         Boolean  @default(false) @map("is_lost")
   createdAt      DateTime @default(now()) @map("created_at")
 
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  pipeline     Pipeline     @relation(fields: [pipelineId], references: [id], onDelete: Cascade)
-  leads        Lead[]
+  organization               Organization                 @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  pipeline                   Pipeline                     @relation(fields: [pipelineId], references: [id], onDelete: Cascade)
+  leads                      Lead[]
+  postSaleAutomationSettings PostSaleAutomationSettings[]
 
   // [pipelineId, order] já cobre buscas por pipelineId (coluna líder do
   // índice composto) -- um @@index([pipelineId]) separado seria redundante.
@@ -1010,14 +1033,17 @@ model Contract {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  organization Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  company      Company          @relation(fields: [companyId], references: [id], onDelete: Restrict)
-  lead         Lead?            @relation(fields: [leadId], references: [id], onDelete: SetNull)
-  proposal     Proposal?        @relation(fields: [proposalId], references: [id], onDelete: SetNull)
-  createdBy    User?            @relation("ContractCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
-  signers      ContractSigner[]
-  events       ContractEvent[]
-  receivables  Receivable[]
+  organization         Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  company              Company               @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  lead                 Lead?                 @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  proposal             Proposal?             @relation(fields: [proposalId], references: [id], onDelete: SetNull)
+  createdBy            User?                 @relation("ContractCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  signers              ContractSigner[]
+  events               ContractEvent[]
+  receivables          Receivable[]
+  briefings            Briefing[]
+  projectChecklist     ProjectChecklist?
+  automationExecutions AutomationExecution[]
 
   @@unique([organizationId, numero])
   @@index([organizationId, status])
@@ -1264,6 +1290,11 @@ model Briefing {
   templateId      String         @map("template_id")
   leadId          String?        @map("lead_id")
   companyId       String?        @map("company_id")
+  /// Contrato assinado que originou este briefing (automação pós-fechamento).
+  /// NÃO é unique: um mesmo contrato pode legitimamente render mais de um
+  /// briefing (duplicar/reenviar) -- a trava contra duplicata da AUTOMAÇÃO
+  /// é `automation_artifacts`, não esta coluna.
+  contractId      String?        @map("contract_id")
   createdById     String?        @map("created_by_id")
   status          BriefingStatus @default(PENDING)
   /// Denormalizado, recalculado a cada autosave -- evita aggregate query
@@ -1283,6 +1314,7 @@ model Briefing {
   template     BriefingTemplate  @relation(fields: [templateId], references: [id], onDelete: Restrict)
   lead         Lead?             @relation(fields: [leadId], references: [id], onDelete: SetNull)
   company      Company?          @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  contract     Contract?         @relation(fields: [contractId], references: [id], onDelete: SetNull)
   createdBy    User?             @relation("BriefingCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
   link         BriefingLink?
   answers      BriefingAnswer[]
@@ -1292,6 +1324,7 @@ model Briefing {
   @@index([organizationId, status])
   @@index([leadId])
   @@index([companyId])
+  @@index([contractId])
   @@map("briefings")
 }
 
@@ -1638,6 +1671,212 @@ model CostUsageEntry {
   @@index([organizationId, usedAt])
   @@index([organizationId, subscriptionId])
   @@map("cost_usage_entries")
+}
+
+// ---------------------------------------------------------------------------
+// Automação pós-fechamento (contrato assinado -> lead ganho, recebimentos,
+// briefing, projeto, tarefas).
+//
+// Três tabelas de execução em vez de uma porque cada uma responde a uma
+// pergunta diferente e com uma trava de unicidade diferente:
+//   - AutomationExecution: "este contrato já disparou a automação?"
+//     (unique organizationId+eventType+contractId)
+//   - AutomationStep: "esta ETAPA já rodou nesta execução?"
+//     (unique executionId+key) -- é o que faz o reprocessamento rodar só o
+//     que falta
+//   - AutomationArtifact: "este ARTEFATO já foi criado?"
+//     (unique executionId+key) -- é o que impede tarefa/briefing/projeto
+//     duplicado quando o webhook é reenviado, e é de onde a tela do contrato
+//     tira os links pro que foi criado
+//
+// Um `result Json` no step cobriria a leitura mas não daria trava de banco
+// nenhuma -- e é exatamente a trava que o reenvio de webhook exige.
+// ---------------------------------------------------------------------------
+
+enum AutomationEventType {
+  /// Único evento hoje. A entidade de origem deste evento é o Contract
+  /// (coluna `contract_id`, obrigatória). Um evento futuro com outra origem
+  /// ganha a própria coluna anulável, em vez de um par sourceType/sourceId
+  /// genérico sem FK.
+  CONTRACT_SIGNED
+
+  @@map("automation_event_type")
+}
+
+enum AutomationTrigger {
+  /// Disparada pelo webhook de assinatura.
+  WEBHOOK
+  /// Reprocessamento pedido por um usuário na tela do contrato.
+  MANUAL
+
+  @@map("automation_trigger")
+}
+
+enum AutomationExecutionStatus {
+  PENDING
+  RUNNING
+  SUCCEEDED
+  PARTIAL
+  FAILED
+
+  @@map("automation_execution_status")
+}
+
+enum AutomationStepKey {
+  LEAD_WON
+  RECEIVABLES
+  BRIEFING
+  PROJECT
+  TASKS
+
+  @@map("automation_step_key")
+}
+
+enum AutomationStepStatus {
+  PENDING
+  RUNNING
+  SUCCEEDED
+  /// Desligada de propósito na configuração, ou não aplicável (ex.: contrato
+  /// sem lead) -- não conta como pendência.
+  SKIPPED
+  /// Faltou configuração obrigatória: a etapa NÃO adivinhou valor, criou uma
+  /// tarefa pro responsável resolver à mão. Conta como execução parcial.
+  NEEDS_ACTION
+  FAILED
+
+  @@map("automation_step_status")
+}
+
+enum AutomationArtifactType {
+  LEAD
+  RECEIVABLE_PLAN
+  BRIEFING
+  PROJECT_CHECKLIST
+  TASK
+
+  @@map("automation_artifact_type")
+}
+
+/// Configuração por organização da automação pós-fechamento.
+///
+/// `installmentCount`/`entryDueDays`/`firstInstallmentDueDays` são anuláveis
+/// SEM default de propósito: são decisão financeira do dono. Sem valor
+/// salvo, a etapa de recebimentos vira pendência com tarefa -- nunca chuta
+/// "2 parcelas em 30 dias" no lugar de quem vende.
+model PostSaleAutomationSettings {
+  id                      String                @id @default(cuid())
+  organizationId          String                @unique @map("organization_id")
+  /// Chave-mestra. Default false: ligar a automação é decisão explícita --
+  /// nenhuma organização existente muda de comportamento com a migration.
+  enabled                 Boolean               @default(false)
+  /// Estágio do pipeline marcado como ganho pra onde o lead é movido.
+  wonStageId              String?               @map("won_stage_id")
+  briefingTemplateKey     String?               @map("briefing_template_key")
+  projectType             ProjectChecklistType? @map("project_type")
+  /// Responsável padrão por projeto, briefing e tarefas geradas.
+  defaultOwnerId          String?               @map("default_owner_id")
+  createReceivables       Boolean               @default(true) @map("create_receivables")
+  installmentCount        Int?                  @map("installment_count")
+  /// Dias após a assinatura para o vencimento da entrada.
+  entryDueDays            Int?                  @map("entry_due_days")
+  /// Dias após a assinatura para o vencimento da 1ª parcela.
+  firstInstallmentDueDays Int?                  @map("first_installment_due_days")
+  createBriefing          Boolean               @default(true) @map("create_briefing")
+  createProject           Boolean               @default(true) @map("create_project")
+  createdAt               DateTime              @default(now()) @map("created_at")
+  updatedAt               DateTime              @updatedAt @map("updated_at")
+
+  organization Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  wonStage     PipelineStage? @relation(fields: [wonStageId], references: [id], onDelete: SetNull)
+  defaultOwner User?          @relation("PostSaleDefaultOwner", fields: [defaultOwnerId], references: [id], onDelete: SetNull)
+
+  @@map("post_sale_automation_settings")
+}
+
+/// Uma execução da automação para UM contrato. O unique composto é a
+/// idempotência de topo: o webhook reenviado N vezes reencontra a MESMA
+/// linha em vez de criar N execuções.
+model AutomationExecution {
+  id             String                    @id @default(cuid())
+  organizationId String                    @map("organization_id")
+  eventType      AutomationEventType       @map("event_type")
+  contractId     String                    @map("contract_id")
+  status         AutomationExecutionStatus @default(PENDING)
+  triggeredBy    AutomationTrigger         @default(WEBHOOK) @map("triggered_by")
+  /// Usuário que pediu o reprocessamento; null quando veio do webhook.
+  triggeredById  String?                   @map("triggered_by_id")
+  attempts       Int                       @default(0)
+  startedAt      DateTime?                 @map("started_at")
+  finishedAt     DateTime?                 @map("finished_at")
+  /// Resumo do erro fatal (mensagem, sem stack, sem token/PDF/segredo).
+  error          String?
+  /// Payload seguro do evento: só id/número/status/valor do contrato --
+  /// nunca snapshot do contratante, token de assinatura ou PDF.
+  payload        Json?
+  createdAt      DateTime                  @default(now()) @map("created_at")
+  updatedAt      DateTime                  @updatedAt @map("updated_at")
+
+  organization    Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  contract        Contract             @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  triggeredByUser User?                @relation("AutomationTriggeredBy", fields: [triggeredById], references: [id], onDelete: SetNull)
+  steps           AutomationStep[]
+  artifacts       AutomationArtifact[]
+
+  @@unique([organizationId, eventType, contractId])
+  @@index([organizationId, status])
+  @@index([contractId])
+  @@map("automation_executions")
+}
+
+model AutomationStep {
+  id             String               @id @default(cuid())
+  organizationId String               @map("organization_id")
+  executionId    String               @map("execution_id")
+  key            AutomationStepKey
+  status         AutomationStepStatus @default(PENDING)
+  /// Texto curto pra tela ("Lead já estava ganho", "Sem template configurado").
+  detail         String?
+  error          String?
+  attempts       Int                  @default(0)
+  startedAt      DateTime?            @map("started_at")
+  finishedAt     DateTime?            @map("finished_at")
+  createdAt      DateTime             @default(now()) @map("created_at")
+  updatedAt      DateTime             @updatedAt @map("updated_at")
+
+  organization Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  execution    AutomationExecution @relation(fields: [executionId], references: [id], onDelete: Cascade)
+
+  @@unique([executionId, key])
+  @@index([organizationId])
+  @@map("automation_steps")
+}
+
+/// Um registro por coisa criada pela automação. `key` é o identificador
+/// ESTÁVEL do artefato dentro da execução (ex.: "briefing", "project",
+/// "task:kickoff") -- é ele, junto do unique, que garante que reprocessar
+/// não cria uma segunda tarefa de kickoff.
+///
+/// `refId` não é FK: aponta pra tabelas diferentes conforme o `type`. Se a
+/// entidade for apagada, o link na tela some (tratado como "não encontrado")
+/// em vez de virar FK quebrada ou cascata surpresa.
+model AutomationArtifact {
+  id             String                 @id @default(cuid())
+  organizationId String                 @map("organization_id")
+  executionId    String                 @map("execution_id")
+  stepKey        AutomationStepKey      @map("step_key")
+  key            String
+  type           AutomationArtifactType
+  refId          String                 @map("ref_id")
+  /// Rótulo pra tela (título da tarefa, nome do projeto...).
+  label          String?
+  createdAt      DateTime               @default(now()) @map("created_at")
+
+  organization Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  execution    AutomationExecution @relation(fields: [executionId], references: [id], onDelete: Cascade)
+
+  @@unique([executionId, key])
+  @@index([organizationId])
+  @@map("automation_artifacts")
 }
 
 // ============================================================

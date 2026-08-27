@@ -4,6 +4,7 @@ import type { Membership, MembershipContext } from "../../domain/entities/member
 import type {
   CreateMembershipInput,
   MembershipRepository,
+  OrganizationMember,
 } from "../../domain/repositories/membership-repository.js";
 
 const withContext = {
@@ -40,6 +41,29 @@ export class PrismaMembershipRepository implements MembershipRepository {
         joinedAt: input.joinedAt,
       },
     });
+  }
+
+  async listMembersForOrg(organizationId: string): Promise<OrganizationMember[]> {
+    const rows = await prisma.membership.findMany({
+      where: { organizationId, status: "ACTIVE" },
+      include: { user: { select: { name: true, email: true } }, role: { select: { name: true } } },
+      orderBy: { user: { name: "asc" } },
+    });
+    return rows.map((row) => ({
+      userId: row.userId,
+      name: row.user.name,
+      email: row.user.email,
+      roleName: row.role.name,
+      status: row.status,
+    }));
+  }
+
+  async isActiveMember(userId: string, organizationId: string): Promise<boolean> {
+    const row = await prisma.membership.findUnique({
+      where: { userId_organizationId: { userId, organizationId } },
+      select: { status: true },
+    });
+    return row?.status === "ACTIVE";
   }
 
   async findContext(userId: string, organizationId: string): Promise<MembershipContext | null> {

@@ -75,7 +75,13 @@ export class BriefingService {
   async create(
     organizationId: string,
     createdById: string | null,
-    input: { templateKey: string; leadId?: string | null; companyId?: string | null },
+    input: {
+      templateKey: string;
+      leadId?: string | null;
+      companyId?: string | null;
+      /** Só a automação pós-fechamento preenche -- a criação manual não expõe. */
+      contractId?: string | null;
+    },
   ) {
     const template = await this.templates.findByKey(input.templateKey, organizationId);
     if (!template) throw new ValidationError(`Template "${input.templateKey}" não encontrado.`);
@@ -150,7 +156,7 @@ export class BriefingService {
     organizationId: string,
     createdById: string | null,
     template: { id: string; kind: string },
-    input: { leadId?: string | null; companyId?: string | null },
+    input: { leadId?: string | null; companyId?: string | null; contractId?: string | null },
   ) {
     const token = await this.generateUniqueToken();
     const briefing = await this.briefings.create({
@@ -158,6 +164,7 @@ export class BriefingService {
       templateId: template.id,
       leadId: input.leadId ?? null,
       companyId: input.companyId ?? null,
+      contractId: input.contractId ?? null,
       createdById,
       token,
     });
@@ -174,6 +181,12 @@ export class BriefingService {
 
   list(organizationId: string, filters: BriefingFilters, pagination: PaginationParams) {
     return this.briefings.list(organizationId, filters, pagination);
+  }
+
+  /** Briefing já gerado a partir de um contrato (idempotência da automação
+   *  pós-fechamento). */
+  findByContract(organizationId: string, contractId: string) {
+    return this.briefings.findFirstByContractId(organizationId, contractId);
   }
 
   async get(organizationId: string, id: string) {

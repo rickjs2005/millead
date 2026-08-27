@@ -1,6 +1,8 @@
 import type { ProjectChecklistPhaseStatus } from "@millead/database";
 import { NotFoundError, ValidationError } from "../../domain/errors/app-error.js";
 import type { CompanyRepository } from "../../domain/repositories/company-repository.js";
+import type { ContractRepository } from "../../domain/repositories/contract-repository.js";
+import type { LeadRepository } from "../../domain/repositories/lead-repository.js";
 import type {
   CreateProjectChecklistInput,
   ProjectChecklistRepository,
@@ -68,22 +70,40 @@ export class ProjectChecklistService {
   constructor(
     private readonly projectChecklists: ProjectChecklistRepository,
     private readonly companies: CompanyRepository,
+    private readonly leads: LeadRepository,
+    private readonly contracts: ContractRepository,
   ) {}
 
   async create(
     organizationId: string,
     input: Omit<CreateProjectChecklistInput, "organizationId">,
   ) {
-    // companyId cruza tenant se não validado: a FK só garante que a linha
-    // Company existe, não que pertence à mesma organização de quem está
-    // criando o checklist -- sem isso, qualquer usuário autenticado poderia
-    // linkar um checklist a uma Company de outro tenant.
+    // companyId/leadId/contractId cruzam tenant se não validados: a FK só
+    // garante que a linha existe, não que pertence à mesma organização de
+    // quem está criando o checklist -- sem isso, qualquer chamador poderia
+    // linkar um checklist a uma Company/Lead/Contract de outro tenant.
+    // O DTO HTTP só expõe companyId (Zod descarta o resto), então os outros
+    // dois só chegam pela automação pós-fechamento -- que também não pode
+    // errar isso em silêncio.
     if (input.companyId) {
       const company = await this.companies.findByIdForOrg(input.companyId, organizationId);
       if (!company) throw new NotFoundError("Empresa não encontrada.");
     }
+    if (input.leadId) {
+      const lead = await this.leads.findByIdForOrg(input.leadId, organizationId);
+      if (!lead) throw new NotFoundError("Lead não encontrado.");
+    }
+    if (input.contractId) {
+      const contract = await this.contracts.findByIdForOrg(input.contractId, organizationId);
+      if (!contract) throw new NotFoundError("Contrato não encontrado.");
+    }
     const phaseNames = PHASE_TEMPLATES[input.type];
     return this.projectChecklists.create({ organizationId, ...input }, [...phaseNames]);
+  }
+
+  /** Projeto já gerado a partir de um contrato (idempotência da automação). */
+  findByContract(organizationId: string, contractId: string) {
+    return this.projectChecklists.findByContractId(organizationId, contractId);
   }
 
   async list(organizationId: string) {

@@ -47,7 +47,7 @@ snake_case no Postgres real (via `@@map`/`@map`) — legível dos dois lados.
 
 `Audit` · `AuditReport` · `AuditScore`
 
-Schema modelado agora conforme pedido na Fase 2, lógica (fila BullMQ,
+Schema modelado agora conforme pedido na Fase 2, lógica (fila `audit-site`,
 scraping, scoring) só entra na Fase 6.
 
 ### 4. Mensageria (Fase 7)
@@ -57,7 +57,51 @@ scraping, scoring) só entra na Fase 6.
 `Message.status` guarda o estado atual; `MessageLog` guarda o histórico
 completo de eventos de entrega reportados pelo provedor (webhook).
 
-### 5. Billing
+### 5. Automação pós-fechamento
+
+`PostSaleAutomationSettings` · `AutomationExecution` · `AutomationStep` ·
+`AutomationArtifact`
+
+Contrato assinado dispara lead ganho + recebimentos + briefing + projeto +
+tarefas. Design completo em
+[a spec](./superpowers/specs/2026-08-26-post-sale-automation-design.md).
+
+- **Três tabelas de execução, não uma.** Cada uma responde a uma pergunta
+  diferente e carrega uma trava de unicidade diferente — e é a trava, não a
+  leitura, que faz o reenvio do webhook ser seguro:
+
+  | Tabela | Unique | Pergunta |
+  | --- | --- | --- |
+  | `automation_executions` | `(organizationId, eventType, contractId)` | "este contrato já disparou?" |
+  | `automation_steps` | `(executionId, key)` | "esta etapa já rodou?" |
+  | `automation_artifacts` | `(executionId, key)` | "este artefato já foi criado?" |
+
+  Um `result Json` no step cobriria a leitura mas não daria trava nenhuma.
+- `AutomationArtifact.refId` **não é FK**: aponta pra tabelas diferentes
+  conforme o `type` (lead, briefing, projeto, tarefa, plano). Se a entidade
+  for apagada, o link na tela some — em vez de FK quebrada ou cascata
+  surpresa.
+- **Campos financeiros anuláveis SEM default** (`installmentCount`,
+  `entryDueDays`, `firstInstallmentDueDays`): é decisão do dono, não do
+  sistema. Nulo faz a etapa de recebimentos virar pendência com tarefa, nunca
+  um chute. `enabled` nasce `false` — a migration não muda o comportamento de
+  nenhuma organização existente.
+- Colunas aditivas em tabelas existentes:
+  - `briefings.contract_id` — **não** é unique: um contrato pode render mais
+    de um briefing (duplicar/reenviar). A trava contra duplicata da automação
+    é o artefato.
+  - `project_checklists.contract_id` — **é UNIQUE**. Postgres aceita N nulos
+    num unique de coluna anulável, então checklists manuais (contrato nulo)
+    convivem sem colidir, e "projeto duplicado por contrato" fica impossível
+    no banco.
+  - `project_checklists.lead_id`, `started_at`, `due_at` — vínculo com o CRM
+    e prazo derivado de dado confiável do contrato (`assinadoEm` +
+    `prazoEntregaDias`).
+- **`tasks` NÃO ganhou `contract_id`** de propósito: é tabela quente usada por
+  todo o CRM, e o vínculo forte já vive em `automation_artifacts`. A
+  referência ao contrato vai na descrição da tarefa (com link).
+
+### 6. Billing
 
 `Subscription` — genérico o bastante pra qualquer provedor de pagamento
 (Stripe ou não); nenhuma integração escolhida ainda.

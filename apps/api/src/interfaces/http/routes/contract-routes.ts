@@ -9,6 +9,7 @@ import {
 } from "../../../application/dto/contract.dto.js";
 import { asyncHandler } from "../async-handler.js";
 import type { ContractController } from "../controllers/contract-controller.js";
+import type { PostSaleController } from "../controllers/post-sale-controller.js";
 import { requirePermission } from "../middlewares/require-permission.js";
 import { validateBody, validateQuery } from "../middlewares/validate.js";
 
@@ -19,6 +20,7 @@ import { validateBody, validateQuery } from "../middlewares/validate.js";
  */
 export function createContractRoutes(
   controller: ContractController,
+  postSale: PostSaleController,
   authenticate: RequestHandler,
 ): Router {
   const router = Router();
@@ -39,6 +41,12 @@ export function createContractRoutes(
     asyncHandler(controller.updateStatus),
   );
   router.post("/:id/reprocess", write, asyncHandler(controller.reprocess));
+
+  // Automação pós-fechamento deste contrato. Mesmas permissões do contrato:
+  // quem enxerga o contrato enxerga o que ele desencadeou; reprocessar é
+  // escrita.
+  router.get("/:id/post-sale", read, asyncHandler(postSale.getExecution));
+  router.post("/:id/post-sale/reprocess", write, asyncHandler(postSale.reprocess));
 
   return router;
 }

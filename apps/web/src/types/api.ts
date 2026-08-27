@@ -1181,9 +1181,119 @@ export interface ProjectChecklist {
   name: string;
   type: ProjectChecklistType;
   companyId: string | null;
+  /** Preenchidos só pela automação pós-fechamento (contrato assinado ->
+   *  projeto); nulos nos checklists criados à mão. */
+  leadId: string | null;
+  contractId: string | null;
   localFolder: string | null;
+  startedAt: string | null;
+  dueAt: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+// ---------------------------------------------------------------------------
+// Automação pós-fechamento
+// ---------------------------------------------------------------------------
+
+export type AutomationExecutionStatus =
+  | "PENDING"
+  | "RUNNING"
+  | "SUCCEEDED"
+  | "PARTIAL"
+  | "FAILED";
+
+export type AutomationStepKey = "LEAD_WON" | "RECEIVABLES" | "BRIEFING" | "PROJECT" | "TASKS";
+
+export type AutomationStepStatus =
+  | "PENDING"
+  | "RUNNING"
+  | "SUCCEEDED"
+  | "SKIPPED"
+  | "NEEDS_ACTION"
+  | "FAILED";
+
+export type AutomationArtifactType =
+  | "LEAD"
+  | "RECEIVABLE_PLAN"
+  | "BRIEFING"
+  | "PROJECT_CHECKLIST"
+  | "TASK";
+
+export interface AutomationStep {
+  id: string;
+  executionId: string;
+  key: AutomationStepKey;
+  status: AutomationStepStatus;
+  detail: string | null;
+  error: string | null;
+  attempts: number;
+  startedAt: string | null;
+  finishedAt: string | null;
+}
+
+export interface AutomationArtifact {
+  id: string;
+  executionId: string;
+  stepKey: AutomationStepKey;
+  key: string;
+  type: AutomationArtifactType;
+  refId: string;
+  label: string | null;
+  createdAt: string;
+}
+
+export interface AutomationExecution {
+  id: string;
+  organizationId: string;
+  eventType: "CONTRACT_SIGNED";
+  contractId: string;
+  status: AutomationExecutionStatus;
+  triggeredBy: "WEBHOOK" | "MANUAL";
+  triggeredById: string | null;
+  attempts: number;
+  startedAt: string | null;
+  finishedAt: string | null;
+  error: string | null;
+  payload: unknown;
+  createdAt: string;
+  updatedAt: string;
+  steps: AutomationStep[];
+  artifacts: AutomationArtifact[];
+}
+
+export interface PostSaleAutomationSettings {
+  id: string;
+  organizationId: string;
+  enabled: boolean;
+  wonStageId: string | null;
+  briefingTemplateKey: string | null;
+  projectType: ProjectChecklistType | null;
+  defaultOwnerId: string | null;
+  createReceivables: boolean;
+  /** Anuláveis SEM default no banco: decisão financeira do dono. Nulo faz a
+   *  etapa de recebimentos virar pendência, nunca um chute. */
+  installmentCount: number | null;
+  entryDueDays: number | null;
+  firstInstallmentDueDays: number | null;
+  createBriefing: boolean;
+  createProject: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PostSaleSettingsResult {
+  settings: PostSaleAutomationSettings;
+  /** Rótulos do que ainda falta configurar pra automação rodar inteira. */
+  missing: string[];
+}
+
+export interface OrganizationMember {
+  userId: string;
+  name: string;
+  email: string;
+  roleName: string;
+  status: "INVITED" | "ACTIVE" | "SUSPENDED";
 }
 
 export interface ProjectChecklistSummary extends ProjectChecklist {

@@ -33,9 +33,11 @@ import {
   useReprocessContract,
   useUpdateContractStatus,
 } from "@/features/contracts/hooks";
+import { PostSaleCard } from "@/features/post-sale/components/post-sale-card";
 import { InstallmentsCard } from "@/features/receivables/components/installments-card";
 import { ApiError } from "@/services/api-client";
 import { contractsService } from "@/services/contracts";
+import { useAuthStore } from "@/stores/auth-store";
 import { formatCurrency, formatDateTime } from "@/utils/format";
 
 export default function ContractDetailPage() {
@@ -44,6 +46,7 @@ export default function ContractDetailPage() {
   const updateStatus = useUpdateContractStatus();
   const reprocess = useReprocessContract();
   const { confirm, dialog } = useConfirmDialog();
+  const canWriteContracts = useAuthStore((s) => s.hasPermission)("proposals:write");
 
   if (isLoading) {
     return (
@@ -283,6 +286,12 @@ export default function ContractDetailPage() {
             valorTotal={contract.valorTotal}
             status={contract.status}
             proposalId={contract.proposalId}
+          />
+
+          <PostSaleCard
+            contractId={contract.id}
+            contractStatus={contract.status}
+            canWrite={canWriteContracts}
           />
         </div>
       </div>

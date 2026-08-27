@@ -48,6 +48,8 @@ export interface Briefing {
   templateKind?: BriefingTemplateKind;
   leadId: string | null;
   companyId: string | null;
+  /** Contrato assinado que originou o briefing (automação pós-fechamento). */
+  contractId: string | null;
   createdById: string | null;
   status: BriefingStatus;
   progressPercent: number;
