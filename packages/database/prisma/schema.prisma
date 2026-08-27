@@ -2037,6 +2037,9 @@ model PersonalVault {
   rules           PersonalClassificationRule[]
   subscriptions   PersonalSubscription[]
   alerts          PersonalSubscriptionAlert[]
+  contacts        PersonalContact[]
+  debts           PersonalDebt[]
+  debtPayments    PersonalDebtPayment[]
 
   @@map("personal_vaults")
 }
@@ -2374,6 +2377,11 @@ model PersonalTransaction {
 
   splits PersonalTransactionSplit[]
   alerts PersonalSubscriptionAlert[]
+  /// Dividas que ESTA movimentacao originou (a compra feita pra outra pessoa).
+  originatedDebts PersonalDebt[] @relation("DebtOrigin")
+  /// Baixa de divida que esta movimentacao representa (o Pix que quitou).
+  /// Um-para-um: ver o UNIQUE em PersonalDebtPayment.
+  debtSettlement PersonalDebtPayment? @relation("DebtSettlement")
 
   @@unique([vaultId, fingerprint])
   @@index([vaultId, transactionDate])
@@ -2766,4 +2774,146 @@ model PersonalSubscriptionAlert {
   @@unique([vaultId, dedupeKey])
   @@index([vaultId, status, referenceDate])
   @@map("personal_subscription_alerts")
+}
+
+// -------------------------------------------------------------------
+// Cofre Financeiro -- dividas (fase 6): pessoas, dividas e baixas.
+//
+// A regra que organiza tudo aqui: um Pix recebido pra quitar uma divida NAO E
+// RENDA, e o pagamento de uma divida minha NAO E DESPESA NOVA. Nos dois casos
+// o dinheiro se move, mas o fato economico ja aconteceu antes -- na compra que
+// virou divida. Contar de novo na hora da baixa seria contagem dupla, o mesmo
+// risco que as divisoes evitam do outro lado.
+//
+// O elo que sustenta isso e `PersonalDebtPayment.transactionId`, UNICO: uma
+// movimentacao baixa no maximo uma divida. Sem a unicidade, a mesma entrada de
+// R$200 poderia baixar duas dividas de R$200 e o Cofre teria inventado
+// dinheiro.
+// -------------------------------------------------------------------
+
+enum PersonalDebtDirection {
+  /// Alguem me deve.
+  THEY_OWE_ME
+  /// Eu devo pra alguem.
+  I_OWE_THEM
+
+  @@map("personal_debt_direction")
+}
+
+/// Pessoa envolvida numa divida.
+///
+/// Guarda so o necessario pra saber de quem se trata. Nao existe coluna de CPF,
+/// conta bancaria ou chave Pix, e isso e deliberado: o Cofre nao guarda
+/// credencial de ninguem -- nem do dono, nem de terceiro. Um dado de terceiro
+/// vazado e pior que um dado proprio vazado, porque a pessoa nem sabe que ele
+/// estava aqui.
+model PersonalContact {
+  id       String  @id @default(cuid())
+  vaultId  String  @map("vault_id")
+  name     String
+  /// Texto livre pra "como falar com a pessoa" -- apelido, telefone, o que for.
+  contact  String?
+  notes    String?
+  isActive Boolean @default(true) @map("is_active")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  vault PersonalVault  @relation(fields: [vaultId], references: [id], onDelete: Cascade)
+  debts PersonalDebt[]
+
+  @@unique([vaultId, name])
+  @@index([vaultId, isActive])
+  @@map("personal_contacts")
+}
+
+/// Uma divida: alguem me deve, ou eu devo pra alguem.
+///
+/// ## Por que valor pago, saldo e status NAO sao colunas
+///
+/// A API expoe os tres, mas nenhum e persistido -- todos saem das baixas e da
+/// data de hoje.
+///
+/// O argumento decisivo e o vencimento: uma divida vira ATRASADA pela
+/// **passagem do tempo**, sem que ninguem escreva nada. Uma coluna `status`
+/// estaria errada toda madrugada, e so voltaria a ficar certa quando alguem
+/// mexesse na linha -- ou seja, o campo mentiria exatamente nas dividas
+/// esquecidas, que sao as que mais importam.
+///
+/// Pelo mesmo motivo o cancelamento E coluna: cancelar e um EVENTO, a unica
+/// coisa aqui que so acontece porque alguem decidiu. O resto se calcula.
+model PersonalDebt {
+  id        String @id @default(cuid())
+  vaultId   String @map("vault_id")
+  contactId String @map("contact_id")
+
+  direction      PersonalDebtDirection
+  description    String
+  originalAmount Decimal               @map("original_amount") @db.Decimal(14, 2)
+  currency       PersonalCurrency      @default(BRL)
+  dueDate        DateTime?             @map("due_date") @db.Date
+
+  /// Movimentacao que DEU ORIGEM a divida -- a compra feita pra outra pessoa, o
+  /// emprestimo que saiu da conta. Nao confundir com a baixa, que mora em
+  /// PersonalDebtPayment: uma e o motivo da divida existir, a outra e o motivo
+  /// dela deixar de existir.
+  ///
+  /// SetNull: apagar a compra nao apaga o fato de que a pessoa deve.
+  originTransactionId String? @map("origin_transaction_id")
+
+  canceledAt DateTime? @map("canceled_at")
+  notes      String?
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  vault             PersonalVault        @relation(fields: [vaultId], references: [id], onDelete: Cascade)
+  /// Restrict: apagar uma pessoa que ainda tem divida em aberto apagaria a
+  /// divida junto, e "de quem era mesmo aquele dinheiro?" nao tem resposta
+  /// depois.
+  contact           PersonalContact      @relation(fields: [contactId], references: [id], onDelete: Restrict)
+  originTransaction PersonalTransaction? @relation("DebtOrigin", fields: [originTransactionId], references: [id], onDelete: SetNull)
+  payments          PersonalDebtPayment[]
+
+  @@index([vaultId, direction])
+  @@index([vaultId, dueDate])
+  @@index([vaultId, canceledAt])
+  @@index([contactId])
+  @@index([originTransactionId])
+  @@map("personal_debts")
+}
+
+/// Baixa de uma divida -- total ou parcial.
+///
+/// Pagamento parcial e o caso normal, nao a excecao: quem deve R$500 devolve
+/// R$200 agora e R$300 depois. Por isso a baixa e uma LINHA, nao um campo
+/// "valor pago" incrementado: cada devolucao guarda sua data, e o historico da
+/// divida e a lista delas.
+model PersonalDebtPayment {
+  id      String @id @default(cuid())
+  vaultId String @map("vault_id")
+  debtId  String @map("debt_id")
+
+  amount Decimal  @db.Decimal(14, 2)
+  paidAt DateTime @map("paid_at") @db.Date
+
+  /// A movimentacao que representa esta baixa -- o Pix que caiu na conta.
+  /// Opcional: da pra registrar "me devolveu R$200 em dinheiro" sem nenhuma
+  /// movimentacao por tras.
+  ///
+  /// UNIQUE de proposito -- ver o comentario no topo do bloco. Restrict na
+  /// exclusao: apagar o Pix nao pode desmanchar uma baixa em silencio, porque
+  /// a divida continuaria marcada como quitada sem nada que explicasse por que.
+  transactionId String? @unique @map("transaction_id")
+  note          String?
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  vault       PersonalVault        @relation(fields: [vaultId], references: [id], onDelete: Cascade)
+  debt        PersonalDebt         @relation(fields: [debtId], references: [id], onDelete: Cascade)
+  transaction PersonalTransaction? @relation("DebtSettlement", fields: [transactionId], references: [id], onDelete: Restrict)
+
+  @@index([debtId])
+  @@index([vaultId, paidAt])
+  @@map("personal_debt_payments")
 }

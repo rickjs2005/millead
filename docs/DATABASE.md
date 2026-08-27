@@ -202,8 +202,25 @@ Assinaturas e alertas (fase 5):
   cobranca paga) e `personal_classification_rules.set_subscription_id` (a
   coluna prometida na fase 4).
 
-As tabelas da fase seguinte (dividas) seguem a mesma regra: dono pelo Cofre,
-nunca por organizacao.
+As tabelas de dividas (`personal_contacts`, `personal_debts`,
+`personal_debt_payments`) seguem a mesma regra: dono pelo Cofre, RLS ligada,
+nenhum dado sensivel de terceiro (sem CPF, conta ou chave Pix). Tres decisoes
+de modelagem que valem registro:
+
+- **Nao existe coluna de valor pago, saldo nem status de divida.** Os tres sao
+  derivados das baixas e da data de hoje. Uma divida vira ATRASADA pela
+  passagem do tempo, sem ninguem escrever nada -- uma coluna gravada estaria
+  errada toda madrugada. So `canceled_at` e coluna, porque so o cancelamento e
+  um evento.
+- **`personal_debt_payments.transaction_id` e UNIQUE.** Uma movimentacao baixa
+  no maximo uma divida; sem isso a mesma entrada de R$200 poderia baixar duas
+  dividas de R$200 e o banco teria inventado dinheiro. E o vinculo que sustenta
+  a regra "Pix de quitacao nao e renda".
+- **A soma das baixas x valor da divida NAO tem CHECK.** E a unica invariante
+  de dinheiro do Cofre que o Postgres nao consegue defender sozinho: ela
+  relaciona linhas de tabelas diferentes, e CHECK so enxerga a propria linha. O
+  gatilho que resolveria seria regra de negocio escondida no banco, longe dos
+  testes -- entao ela vive em `validatePayment`, no servico.
 
 ### 7. Billing
 

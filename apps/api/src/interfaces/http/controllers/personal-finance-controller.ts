@@ -37,6 +37,15 @@ import type {
   SubscriptionQuery,
   UpdateSubscriptionBody,
 } from "../../../application/dto/personal-subscription.dto.js";
+import type {
+  AddPaymentBody,
+  ContactQuery,
+  CreateContactBody,
+  CreateDebtBody,
+  DebtQuery,
+  UpdateContactBody,
+  UpdateDebtBody,
+} from "../../../application/dto/personal-debt.dto.js";
 import type { PersonalAccountService } from "../../../application/services/personal-account-service.js";
 import type { PersonalClassificationService } from "../../../application/services/personal-classification-service.js";
 import {
@@ -45,6 +54,7 @@ import {
 } from "../../../application/services/personal-subscription-service.js";
 import type { PersonalImportService } from "../../../application/services/personal-import-service.js";
 import type { PersonalCatalogService } from "../../../application/services/personal-catalog-service.js";
+import type { PersonalDebtService } from "../../../application/services/personal-debt-service.js";
 import type { PersonalTransactionService } from "../../../application/services/personal-transaction-service.js";
 import { parseMoney } from "../../../application/services/vault-money.js";
 import { requireVaultContext } from "../require-vault-context.js";
@@ -65,6 +75,7 @@ export class PersonalFinanceController {
     private readonly imports: PersonalImportService,
     private readonly classification: PersonalClassificationService,
     private readonly subscriptions: PersonalSubscriptionService,
+    private readonly debts: PersonalDebtService,
   ) {}
 
   // ----- Contas -----
@@ -472,6 +483,77 @@ export class PersonalFinanceController {
     res.json(
       await this.transactions.payStatement(vaultId, req.params.id!, req.body as PayStatementBody),
     );
+  };
+
+  // ----- Pessoas -----
+
+  listContacts = async (req: Request, res: Response): Promise<void> => {
+    const { vaultId } = requireVaultContext(req);
+    const { includeInactive } = req.validatedQuery as ContactQuery;
+    res.json(await this.debts.listContacts(vaultId, includeInactive));
+  };
+
+  createContact = async (req: Request, res: Response): Promise<void> => {
+    const { vaultId } = requireVaultContext(req);
+    res.status(201).json(await this.debts.createContact(vaultId, req.body as CreateContactBody));
+  };
+
+  updateContact = async (req: Request, res: Response): Promise<void> => {
+    const { vaultId } = requireVaultContext(req);
+    res.json(
+      await this.debts.updateContact(vaultId, req.params.id!, req.body as UpdateContactBody),
+    );
+  };
+
+  deleteContact = async (req: Request, res: Response): Promise<void> => {
+    const { vaultId } = requireVaultContext(req);
+    await this.debts.deleteContact(vaultId, req.params.id!);
+    res.status(204).send();
+  };
+
+  // ----- Dividas -----
+
+  listDebts = async (req: Request, res: Response): Promise<void> => {
+    const { vaultId } = requireVaultContext(req);
+    res.json(await this.debts.list(vaultId, req.validatedQuery as DebtQuery));
+  };
+
+  debtSummary = async (req: Request, res: Response): Promise<void> => {
+    const { vaultId } = requireVaultContext(req);
+    res.json(await this.debts.summary(vaultId));
+  };
+
+  createDebt = async (req: Request, res: Response): Promise<void> => {
+    const { vaultId } = requireVaultContext(req);
+    res.status(201).json(await this.debts.create(vaultId, req.body as CreateDebtBody));
+  };
+
+  getDebt = async (req: Request, res: Response): Promise<void> => {
+    const { vaultId } = requireVaultContext(req);
+    res.json(await this.debts.get(vaultId, req.params.id!));
+  };
+
+  updateDebt = async (req: Request, res: Response): Promise<void> => {
+    const { vaultId } = requireVaultContext(req);
+    res.json(await this.debts.update(vaultId, req.params.id!, req.body as UpdateDebtBody));
+  };
+
+  deleteDebt = async (req: Request, res: Response): Promise<void> => {
+    const { vaultId } = requireVaultContext(req);
+    await this.debts.delete(vaultId, req.params.id!);
+    res.status(204).send();
+  };
+
+  addDebtPayment = async (req: Request, res: Response): Promise<void> => {
+    const { vaultId } = requireVaultContext(req);
+    res
+      .status(201)
+      .json(await this.debts.addPayment(vaultId, req.params.id!, req.body as AddPaymentBody));
+  };
+
+  deleteDebtPayment = async (req: Request, res: Response): Promise<void> => {
+    const { vaultId } = requireVaultContext(req);
+    res.json(await this.debts.deletePayment(vaultId, req.params.id!, req.params.paymentId!));
   };
 }
 

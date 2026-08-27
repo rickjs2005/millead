@@ -132,6 +132,18 @@ export interface PersonalTransaction {
   installmentTotal: number | null;
   isTransfer: boolean;
   transferPairId: string | null;
+  /**
+   * Dívida que esta movimentação baixa, quando é o caso — o Pix que quitou.
+   *
+   * Derivado do vínculo em `personal_debt_payments`, não uma coluna da
+   * movimentação: a baixa é um fato da dívida, e duplicar a marca aqui criaria
+   * dois lugares que podem discordar sobre se aquela entrada é renda.
+   *
+   * Vem junto na leitura (é uma relação 1:1) porque `classifyCashFlow` precisa
+   * dele em toda listagem, e buscar dívida por movimentação numa lista de 200
+   * linhas seria 200 consultas.
+   */
+  settlesDebtId: string | null;
   createdAt: Date;
   updatedAt: Date;
 }

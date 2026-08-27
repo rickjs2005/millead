@@ -4,24 +4,26 @@ Tipo: sistema
 Stack: Next.js 15 + React 19 + TypeScript, Express, PostgreSQL (Prisma), pg-boss (fila no proprio Postgres), pnpm + Turborepo, Clean Architecture multi-tenant
 
 ## Progresso
-Fase 01 — Descoberta e arquitetura     ✓  (Clean Architecture documentada, roadmap de 8 fases concluído segundo o README)
-Fase 02 — UX/UI                        ✓  (frontend cobre todos os módulos, dashboard funcional)
-Fase 03 — Modelagem do banco           ✓  (migrations em packages/database/prisma, multi-tenant via `organizationId`)
-Fase 04 — Backend                      ✓  (domain/application/infrastructure/interfaces, health checks, rate-limit middleware)
-Fase 05 — Autenticação e autorização   ✓  (27/08 verificado: `requirePermission` em todas as rotas de negócio, permissões resolvidas do banco a cada request, e a gestão de equipe fechou o ciclo — papéis custom, membro suspenso e bloqueio de escalada de privilégio)
-Fase 06 — Frontend                     ✓  (todos os módulos consomem `apps/web/src/services`)
-Fase 07 — Integrações                  ◐  (ZapSign/contratos, IA Claude, Instagram/MilSocial existem; memória registra pendência antiga de bug de e-mail na Autentique/ZapSign — não reverificado)
-Fase 08 — Segurança                    ◐  (JWT + rate-limit presentes; memória cita achados de segurança "baixos" pendentes em millead-pendencias-seguranca.md — não reverificados)
-Fase 09 — Testes                       ◐  (27/08: 477 API + 182 web + 56 runner + 21 video-contracts = 736, todos passando. DOIS gaps confirmados: (a) o CI **não roda testes** — ci.yml só faz format/lint/type-check/build; (b) nenhum E2E dos fluxos públicos (/b/:token, /p/:token, /fechamento/:slug))
-Fase 10 — Performance                  ○  (não verificado nesta sessão)
-Fase 11 — Observabilidade              ◐  (27/08 reverificado: health checks + pino existem; **zero** error tracking — nenhum Sentry/equivalente em nenhum package.json. Erro em produção só aparece se alguém abrir o log do Render)
-Fase 12 — Infraestrutura               ✓  (Render blueprint p/ API, Vercel p/ web, Supabase, Upstash, CI em .github/workflows/ci.yml)
-Fase 13 — QA final                     ○  (não rodado nesta sessão)
-Fase 14 — Deploy                       ✓  (millead.milweb.com.br + millead-api.onrender.com no ar, conforme memória e render.yaml)
-Fase 15 — SEO para páginas públicas    ◐  (27/08 checado: **não é N/A**. Não existe robots.txt nem robots.ts, e não há `noindex` em lugar nenhum — mas existem 3 rotas públicas sem login com dado de cliente: /b/:token (briefing), /p/:token (proposta com valor) e /fechamento/:slug. Aqui o objetivo é o INVERSO de SEO: impedir indexação)
-Fase 16 — Pós-lançamento               ◐  (keep-api-awake.yml mitiga cold start do free tier; milsocial-sync.yml roda diário; sem monitoramento de erro/uptime de terceiros identificado)
+
+Fase 01 — Descoberta e arquitetura ✓ (Clean Architecture documentada, roadmap de 8 fases concluído segundo o README)
+Fase 02 — UX/UI ✓ (frontend cobre todos os módulos, dashboard funcional)
+Fase 03 — Modelagem do banco ✓ (migrations em packages/database/prisma, multi-tenant via `organizationId`)
+Fase 04 — Backend ✓ (domain/application/infrastructure/interfaces, health checks, rate-limit middleware)
+Fase 05 — Autenticação e autorização ✓ (27/08 verificado: `requirePermission` em todas as rotas de negócio, permissões resolvidas do banco a cada request, e a gestão de equipe fechou o ciclo — papéis custom, membro suspenso e bloqueio de escalada de privilégio)
+Fase 06 — Frontend ✓ (todos os módulos consomem `apps/web/src/services`)
+Fase 07 — Integrações ◐ (ZapSign/contratos, IA Claude, Instagram/MilSocial existem; memória registra pendência antiga de bug de e-mail na Autentique/ZapSign — não reverificado)
+Fase 08 — Segurança ◐ (JWT + rate-limit presentes; memória cita achados de segurança "baixos" pendentes em millead-pendencias-seguranca.md — não reverificados)
+Fase 09 — Testes ◐ (27/08: 477 API + 182 web + 56 runner + 21 video-contracts = 736, todos passando. DOIS gaps confirmados: (a) o CI **não roda testes** — ci.yml só faz format/lint/type-check/build; (b) nenhum E2E dos fluxos públicos (/b/:token, /p/:token, /fechamento/:slug))
+Fase 10 — Performance ○ (não verificado nesta sessão)
+Fase 11 — Observabilidade ◐ (27/08 reverificado: health checks + pino existem; **zero** error tracking — nenhum Sentry/equivalente em nenhum package.json. Erro em produção só aparece se alguém abrir o log do Render)
+Fase 12 — Infraestrutura ✓ (Render blueprint p/ API, Vercel p/ web, Supabase, Upstash, CI em .github/workflows/ci.yml)
+Fase 13 — QA final ○ (não rodado nesta sessão)
+Fase 14 — Deploy ✓ (millead.milweb.com.br + millead-api.onrender.com no ar, conforme memória e render.yaml)
+Fase 15 — SEO para páginas públicas ◐ (27/08 checado: **não é N/A**. Não existe robots.txt nem robots.ts, e não há `noindex` em lugar nenhum — mas existem 3 rotas públicas sem login com dado de cliente: /b/:token (briefing), /p/:token (proposta com valor) e /fechamento/:slug. Aqui o objetivo é o INVERSO de SEO: impedir indexação)
+Fase 16 — Pós-lançamento ◐ (keep-api-awake.yml mitiga cold start do free tier; milsocial-sync.yml roda diário; sem monitoramento de erro/uptime de terceiros identificado)
 
 ## Trabalho de 26/08/2026 — Automação pós-fechamento
+
 Implementada de ponta a ponta (commit `06a063c`): contrato ASSINADO dispara lead ganho +
 recebimentos + briefing + projeto + tarefas, via fila pg-boss, idempotente no
 reenvio do webhook. Configuração por organização em Configurações > Automação
@@ -29,6 +31,7 @@ reenvio do webhook. Configuração por organização em Configurações > Automa
 Spec: `docs/superpowers/specs/2026-08-26-post-sale-automation-design.md`.
 
 Descobertas relevantes da investigação:
+
 - A fila é **pg-boss no Postgres**, não BullMQ+Redis (trocada em 21/07/2026).
   README/ARCHITECTURE/DATABASE ainda descreviam o antigo — corrigidos.
 - **Gestão de equipe não existia no commit de origem da branch**, mas entrou
@@ -56,10 +59,12 @@ a senha errada). Perda real assumida pelo Rick: um briefing do KPM USA.
 Armadilha documentada em `docs/DATABASE.md` (seção Workflow).
 
 ## Trabalho de 26/08/2026 — Painel (evolução, não tela nova)
+
 Commit `2c3b035`, no ar. Decisão: evoluir o dashboard existente em vez de criar
 uma central "Hoje" — ele já tinha 12 componentes (tarefas, reuniões,
 atividades), e uma tela nova duplicaria isso. Entrou só o que a automação
 passou a produzir e não tinha tela:
+
 - Card "Pós-fechamento pendente" (`GET /api/v1/contracts/post-sale/pending`) —
   única visão agregada das automações que pararam, com reprocessar inline.
 - Card "Prazos de projeto" — usa o `dueAt` gravado pela automação; filtro
@@ -78,7 +83,7 @@ exportacao) sao as fases 2-10. Doc: `docs/personal-finance-vault.md`.
 Tres achados que mudaram o desenho, encontrados lendo o codigo antes de codar:
 
 1. **RBAC vazaria o Cofre.** `ADMIN_PERMISSIONS = ALL_PERMISSIONS.filter(k => k
-   !== BILLING_MANAGE)` — qualquer chave nova entra sozinha no papel Admin de
+!== BILLING_MANAGE)` — qualquer chave nova entra sozinha no papel Admin de
    toda organizacao. O modulo nao usa permissao nenhuma: autorizacao e posse
    (`PersonalVault.ownerUserId` unique) + sessao elevada.
 2. **`PushSender` so tem `sendToOrg`** — alerta de assinatura pessoal iria pro
@@ -301,24 +306,72 @@ Decisoes:
 16 testes novos no web -> **198 no web, 1148 no monorepo**. type-check, lint
 (0 avisos) e build limpos; as 10 rotas aparecem no output do build.
 
+## Trabalho de 27/08/2026 — Cofre Financeiro, Fase 6 (dividas)
+
+Mesma branch `feat/cofre-financeiro`, **nao mergeada, nao deployada**. Tres
+tabelas (`personal_contacts`, `personal_debts`, `personal_debt_payments`),
+migration aditiva `20260828070000_add_personal_debts` aplicada, duas telas
+novas (`/cofre/dividas`, `/cofre/pessoas`).
+
+A regra que organiza a fase: **baixa de divida nao e fato economico novo**. O
+Pix que quita nao e renda, e pagar uma divida minha nao e despesa nova -- nos
+dois casos o dinheiro ja foi contado quando a divida nasceu. Quem decide e
+`classifyCashFlow`, uma funcao so com quatro respostas exclusivas; o que
+sustenta no banco e o UNIQUE em `personal_debt_payments.transaction_id` (uma
+movimentacao baixa no maximo uma divida -- sem isso, R$200 baixariam R$400).
+
+Decisoes:
+
+- **Valor pago, saldo e status nao sao colunas.** Uma divida vira ATRASADA pela
+  passagem do tempo, sem ninguem escrever nada -- uma coluna `status` estaria
+  errada toda madrugada e mentiria justamente nas dividas esquecidas. So o
+  cancelamento e coluna, porque so ele e um evento.
+- **A soma das baixas nao pode passar do valor** e a unica invariante de
+  dinheiro do modulo que o Postgres nao defende sozinho (relaciona duas
+  tabelas; CHECK so ve a propria linha). Fica no servico, com teste.
+- Devolver a mais **nao** vira credito na direcao oposta: o saldo trava em zero
+  e o excedente aparece como `overpaid`, pra ser resolvido na mao.
+- **Compra reembolsavel fecha o ciclo**: criar a divida a receber a partir de
+  uma compra marca a divisao REIMBURSABLE na mesma operacao, preservando o
+  rateio que ja existia. Sem isso, os R$300 do jantar continuariam contados
+  como gasto seu enquanto a tela de dividas jurava que alguem te deve R$100.
+- **Nenhum dado sensivel de terceiro**: `personal_contacts` tem nome, contato
+  em texto livre e observacoes. Sem CPF, conta ou chave Pix.
+
+**A licao da fase 5 foi aplicada antes de doer.** A FK da baixa e RESTRICT, e
+erro de constraint sobe como 500 -- foi assim que a exclusao de conta quebrou.
+Desta vez a checagem veio antes: apagar movimentacao que baixa divida responde
+409 dizendo qual divida esta no caminho, e apagar pessoa com divida responde
+409 sugerindo desativar. Quem pergunta e a porta `DebtLinkChecker`.
+
+60 testes novos na API -> **933 na API, 1208 no monorepo**. type-check, lint,
+build e as 12 tarefas do turbo limpos. Validacao de ponta a ponta pelo BFF
+(mesmo caminho do navegador): **19/19**, incluindo a regressao do 409 e a
+limpeza dos dados de teste (Cofre voltou a zero).
+
 ## Bloqueios
+
 - Pendências registradas em memória (`millead-pendencias-seguranca`) ainda em aberto: ZapSign não configurado no Render (contratos não são assináveis de verdade em produção), 2 achados baixos de segurança (landing de IA sem sanitização própria, tokens em localStorage), permissões próprias de Contratos/Landing pages pendentes de migração.
 
 ## Próxima ação
 
-**Fase 6 do Cofre**: dividas (pessoas que me devem e valores que eu devo),
-com pagamentos parciais e a regra de que Pix de quitacao NAO e renda.
+**Fase 7 do Cofre**: ponte com o financeiro da MilWeb (`BusinessExpense`,
+`PersonalBusinessAllocation`), pra que a divisao empresarial de uma compra
+pessoal vire despesa da empresa sem contagem dupla.
 
-Antes de usar: definir `VAULT_SESSION_SECRET` no `.env` e no Render. Sem ela o
-modulo inteiro responde 404 de proposito, e a tela vai parecer quebrada.
+Antes de usar: definir `VAULT_SESSION_SECRET` no `.env` (ja feito localmente)
+e no Render. Sem ela o modulo inteiro responde 404 de proposito.
 
-Continua pendente: **validacao visual em navegador** -- nenhuma tela do Cofre
-foi aberta de verdade ainda.
+Continua pendente: **validacao visual em navegador** -- a extensao do Chrome
+nao esta conectada, entao nenhuma tela do Cofre foi olhada de verdade ainda.
+As 12 rotas respondem 200 e o fluxo foi exercitado pelo BFF, mas ninguem viu
+os pixels.
 
 Antes de usar o Cofre e preciso definir `VAULT_SESSION_SECRET` no `.env` e no
 Render — sem ela o modulo inteiro responde 404 de proposito.
 
 ### Pendencias anteriores (verificadas em 27/08)
+
 **Ligar a automação**: Configurações > Automação (estágio de ganho "Fechado",
 responsável, template `institucional-v1`, tipo de projeto, parcelas/prazos).
 Nada dispara enquanto ela estiver desligada — é o default.
@@ -341,4 +394,5 @@ As pendências de `millead-pendencias-seguranca` (ZapSign no Render, achados
 baixos) continuam dependendo de decisão do Rick.
 
 ## Notas de N/A
+
 - (nenhuma até o momento — Fase 15 propositalmente não marcada N/A sem confirmar antes)

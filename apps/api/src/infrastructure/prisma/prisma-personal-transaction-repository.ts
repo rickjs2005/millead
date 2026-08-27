@@ -41,6 +41,9 @@ const transactionSelect = {
   installmentTotal: true,
   isTransfer: true,
   transferPairId: true,
+  // Relação 1:1 com a baixa de dívida — um join, não uma consulta a mais por
+  // linha. É o que sustenta "Pix de quitação não é renda" nas listagens.
+  debtSettlement: { select: { debtId: true } },
   createdAt: true,
   updatedAt: true,
 } as const;
@@ -58,11 +61,13 @@ type TransactionRow = Prisma.PersonalTransactionGetPayload<{ select: typeof tran
 type SplitRow = Prisma.PersonalTransactionSplitGetPayload<{ select: typeof splitSelect }>;
 
 function toTransaction(row: TransactionRow): PersonalTransaction {
+  const { debtSettlement, ...rest } = row;
   return {
-    ...row,
+    ...rest,
     amount: row.amount.toString(),
     originalAmount: row.originalAmount?.toString() ?? null,
     amountBrl: row.amountBrl.toString(),
+    settlesDebtId: debtSettlement?.debtId ?? null,
   };
 }
 

@@ -23,6 +23,9 @@ export const queryKeys = {
     subscriptions: (status?: string) => ["vault", "subscriptions", status ?? null] as const,
     alerts: () => ["vault", "alerts"] as const,
     alertCount: () => ["vault", "alert-count"] as const,
+    contacts: (includeInactive: boolean) => ["vault", "contacts", includeInactive] as const,
+    debts: (filters: object) => ["vault", "debts", filters] as const,
+    debtSummary: () => ["vault", "debt-summary"] as const,
   },
   settings: {
     integrations: () => ["settings", "integrations"] as const,

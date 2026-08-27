@@ -15,6 +15,7 @@ import { ProjectChecklistService } from "../application/services/project-checkli
 import { PersonalAccountService } from "../application/services/personal-account-service.js";
 import { PersonalCatalogService } from "../application/services/personal-catalog-service.js";
 import { PersonalClassificationService } from "../application/services/personal-classification-service.js";
+import { PersonalDebtService } from "../application/services/personal-debt-service.js";
 import { PersonalSubscriptionService } from "../application/services/personal-subscription-service.js";
 import { PersonalImportService } from "../application/services/personal-import-service.js";
 import { PersonalTransactionService } from "../application/services/personal-transaction-service.js";
@@ -87,6 +88,7 @@ import { PrismaTaskRepository } from "../infrastructure/prisma/prisma-task-repos
 import { buildPostSaleOnboardingService } from "./post-sale-factory.js";
 import { PrismaPersonalAccountRepository } from "../infrastructure/prisma/prisma-personal-account-repository.js";
 import { PrismaPersonalCatalogRepository } from "../infrastructure/prisma/prisma-personal-catalog-repository.js";
+import { PrismaPersonalDebtRepository } from "../infrastructure/prisma/prisma-personal-debt-repository.js";
 import { PrismaPersonalImportRepository } from "../infrastructure/prisma/prisma-personal-import-repository.js";
 import { PrismaPersonalRuleRepository } from "../infrastructure/prisma/prisma-personal-rule-repository.js";
 import { PrismaPersonalSubscriptionRepository } from "../infrastructure/prisma/prisma-personal-subscription-repository.js";
@@ -220,6 +222,7 @@ export function buildContainer(): Container {
   const personalImportRepository = new PrismaPersonalImportRepository();
   const personalRuleRepository = new PrismaPersonalRuleRepository();
   const personalSubscriptionRepository = new PrismaPersonalSubscriptionRepository();
+  const personalDebtRepository = new PrismaPersonalDebtRepository();
   // Instancia propria do push: os alertas do Cofre usam `sendToUser`, nunca
   // `sendToOrg` -- ver o comentario na porta PushSender.
   const vaultPushSender = new WebPushSender();
@@ -231,10 +234,19 @@ export function buildContainer(): Container {
   // em lugar nenhum -- ver o comentário em routes/vault-routes.ts.
   const personalCatalogService = new PersonalCatalogService(personalCatalogRepository);
   const personalAccountService = new PersonalAccountService(personalAccountRepository);
+  // Antes do serviço de movimentações: ele recebe a porta `DebtLinkChecker`
+  // pra recusar, com 409, apagar uma movimentação que baixa dívida. Sem ciclo
+  // — o serviço de dívidas depende do REPOSITÓRIO de movimentações, não do
+  // serviço.
+  const personalDebtService = new PersonalDebtService(
+    personalDebtRepository,
+    personalTransactionRepository,
+  );
   const personalTransactionService = new PersonalTransactionService(
     personalTransactionRepository,
     personalAccountRepository,
     personalStatementRepository,
+    personalDebtService,
   );
   // A classificacao e criada antes da importacao: a importacao dispara uma
   // passada de classificacao no que acabou de gravar, pela porta estreita
@@ -502,6 +514,7 @@ export function buildContainer(): Container {
     personalImportService,
     personalClassificationService,
     personalSubscriptionService,
+    personalDebtService,
   );
   const requireVault = createRequireVault(personalVaultRepository, vaultSessionService);
 

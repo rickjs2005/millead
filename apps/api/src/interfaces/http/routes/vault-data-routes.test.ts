@@ -73,6 +73,18 @@ const ROTAS: ReadonlyArray<{ method: "get" | "post" | "patch" | "put" | "delete"
     { method: "get", path: "/statements" },
     { method: "get", path: "/statements/abc" },
     { method: "post", path: "/statements/abc/payments" },
+    { method: "get", path: "/contacts" },
+    { method: "post", path: "/contacts" },
+    { method: "patch", path: "/contacts/abc" },
+    { method: "delete", path: "/contacts/abc" },
+    { method: "get", path: "/debts/summary" },
+    { method: "get", path: "/debts" },
+    { method: "post", path: "/debts" },
+    { method: "get", path: "/debts/abc" },
+    { method: "patch", path: "/debts/abc" },
+    { method: "delete", path: "/debts/abc" },
+    { method: "post", path: "/debts/abc/payments" },
+    { method: "delete", path: "/debts/abc/payments/def" },
   ];
 
 function fakeAuthenticate(): RequestHandler {
@@ -149,6 +161,18 @@ function stubController() {
     "listStatements",
     "getStatement",
     "payStatement",
+    "listContacts",
+    "createContact",
+    "updateContact",
+    "deleteContact",
+    "listDebts",
+    "debtSummary",
+    "createDebt",
+    "getDebt",
+    "updateDebt",
+    "deleteDebt",
+    "addDebtPayment",
+    "deleteDebtPayment",
   ];
   const controller = Object.fromEntries(names.map((name) => [name, vi.fn(handler(name))]));
   return { controller: controller as unknown as PersonalFinanceController, called };
@@ -216,6 +240,18 @@ describe("createVaultDataRoutes — ordem das rotas", () => {
     });
 
     expect(called).toEqual(["createTransfer"]);
+  });
+
+  it('"/debts/summary" não é engolido por "/debts/:id"', async () => {
+    // Mesmo risco do caso acima, com um agravante: aqui o handler errado
+    // responderia 404 "dívida não encontrada" -- e o resumo simplesmente não
+    // apareceria, como se não houvesse dívida nenhuma.
+    const { app, called } = buildApp(vaultOpen);
+    const base = await listen(app);
+
+    await fetch(`${base}/api/v1/vault/debts/summary`);
+
+    expect(called).toEqual(["debtSummary"]);
   });
 });
 

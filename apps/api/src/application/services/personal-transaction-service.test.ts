@@ -30,7 +30,7 @@ const VAULT = "vault-1";
  * total, que rateio) sem banco. Mocks com `mockResolvedValue` provariam só que
  * o service chama métodos — não que a conta fecha.
  */
-function makeFakes() {
+function makeFakes(debtLink: string | null = null) {
   const accounts: PersonalAccount[] = [
     account("acc-1", "Conta principal"),
     account("acc-2", "Carteira"),
@@ -89,6 +89,7 @@ function makeFakes() {
         id: `tx-${++seq}`,
         vaultId: VAULT,
         transferPairId: null,
+        settlesDebtId: null,
         createdAt: new Date(),
         updatedAt: new Date(),
         ...input,
@@ -138,6 +139,7 @@ function makeFakes() {
           id: `tx-${++seq}`,
           vaultId: VAULT,
           transferPairId: null,
+          settlesDebtId: null,
           createdAt: new Date(),
           updatedAt: new Date(),
           ...row,
@@ -198,7 +200,14 @@ function makeFakes() {
     },
   };
 
-  const service = new PersonalTransactionService(transactionRepo, accountRepo, statementRepo);
+  // Sem dívida vinculada por padrão; o teste que exercita o bloqueio troca isto.
+  const debtLinks = { describeDebtLink: async () => debtLink };
+  const service = new PersonalTransactionService(
+    transactionRepo,
+    accountRepo,
+    statementRepo,
+    debtLinks,
+  );
   return { service, transactions, splits, statements };
 }
 
@@ -344,6 +353,29 @@ describe("compra no cartão e fatura", () => {
 
     const statement = fakes.statements.find((s) => s.id === "st-2026-08-01");
     expect(statement!.totalAmount).toBe("0");
+  });
+});
+
+describe("movimentação que baixa dívida", () => {
+  it("recusa apagar, com 409, em vez de estourar na FK do banco", async () => {
+    // A FK da baixa é ON DELETE RESTRICT: sem esta checagem o erro subiria
+    // como 500. Foi exatamente assim que a exclusão de conta quebrou na fase
+    // anterior -- e só apareceu executando o app, não nos testes.
+    const fakes = makeFakes("Emprestei pro conserto do carro (Bruno)");
+    const created = await fakes.service.create(VAULT, manual({ amount: "500.00" }));
+
+    await expect(fakes.service.delete(VAULT, created.id)).rejects.toThrow(
+      /Remova a baixa na tela de dívidas/,
+    );
+    expect(fakes.transactions).toHaveLength(1);
+  });
+
+  it("apaga normalmente quando não há dívida vinculada", async () => {
+    const fakes = makeFakes();
+    const created = await fakes.service.create(VAULT, manual({ amount: "500.00" }));
+
+    await fakes.service.delete(VAULT, created.id);
+    expect(fakes.transactions).toHaveLength(0);
   });
 });
 

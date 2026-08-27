@@ -1445,6 +1445,10 @@ export interface VaultTransaction {
   installmentNumber: number | null;
   installmentTotal: number | null;
   isTransfer: boolean;
+  /** Dívida que esta movimentação baixa. Quando preenchido, o dinheiro NÃO
+   *  entra em receita nem em despesa — ele já foi contado quando a dívida
+   *  nasceu. */
+  settlesDebtId: string | null;
   splits: VaultSplit[];
   /** Derivados do rateio — não existem no banco. */
   isBusiness: boolean;
@@ -1625,4 +1629,53 @@ export interface VaultAlertRefresh {
   novosAlertas: number;
   cobrancasVinculadas: number;
   pendentes: VaultAlert[];
+}
+
+// ----- Cofre: pessoas e dívidas -----
+
+export type VaultDebtDirection = "THEY_OWE_ME" | "I_OWE_THEM";
+export type VaultDebtStatus = "OPEN" | "PARTIAL" | "PAID" | "OVERDUE" | "CANCELED";
+
+export interface VaultContact {
+  id: string;
+  name: string;
+  contact: string | null;
+  notes: string | null;
+  isActive: boolean;
+}
+
+export interface VaultDebtPayment {
+  id: string;
+  amount: string;
+  paidAt: string;
+  transactionId: string | null;
+  note: string | null;
+}
+
+export interface VaultDebt {
+  id: string;
+  contactId: string;
+  contactName: string;
+  direction: VaultDebtDirection;
+  description: string;
+  originalAmount: string;
+  /** Derivados das baixas e da data de hoje — nenhum é coluna no banco. */
+  paidAmount: string;
+  balance: string;
+  overpaid: string;
+  status: VaultDebtStatus;
+  currency: PersonalCurrency;
+  dueDate: string | null;
+  originTransactionId: string | null;
+  canceledAt: string | null;
+  notes: string | null;
+  payments: VaultDebtPayment[];
+  createdAt: string;
+}
+
+export interface VaultDebtSummary {
+  aReceber: string;
+  aPagar: string;
+  atrasadasReceber: number;
+  atrasadasPagar: number;
 }

@@ -54,6 +54,7 @@ function transaction(over: Partial<PersonalTransaction> = {}): PersonalTransacti
     installmentTotal: null,
     isTransfer: false,
     transferPairId: null,
+    settlesDebtId: null,
     createdAt: new Date(),
     updatedAt: new Date(),
     ...over,

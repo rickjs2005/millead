@@ -37,6 +37,15 @@ import {
   subscriptionQuerySchema,
   updateSubscriptionSchema,
 } from "../../../application/dto/personal-subscription.dto.js";
+import {
+  addPaymentSchema,
+  contactQuerySchema,
+  createContactSchema,
+  createDebtSchema,
+  debtQuerySchema,
+  updateContactSchema,
+  updateDebtSchema,
+} from "../../../application/dto/personal-debt.dto.js";
 import { asyncHandler } from "../async-handler.js";
 import type { PersonalFinanceController } from "../controllers/personal-finance-controller.js";
 import { validateBody, validateQuery } from "../middlewares/validate.js";
@@ -240,6 +249,35 @@ export function createVaultDataRoutes(
     validateBody(payStatementSchema),
     asyncHandler(controller.payStatement),
   );
+
+  // ----- Pessoas -----
+  router.get("/contacts", validateQuery(contactQuerySchema), asyncHandler(controller.listContacts));
+  router.post(
+    "/contacts",
+    validateBody(createContactSchema),
+    asyncHandler(controller.createContact),
+  );
+  router.patch(
+    "/contacts/:id",
+    validateBody(updateContactSchema),
+    asyncHandler(controller.updateContact),
+  );
+  router.delete("/contacts/:id", asyncHandler(controller.deleteContact));
+
+  // ----- Dívidas -----
+  // "/debts/summary" ANTES de "/debts/:id": invertido, "summary" viraria um id.
+  router.get("/debts/summary", asyncHandler(controller.debtSummary));
+  router.get("/debts", validateQuery(debtQuerySchema), asyncHandler(controller.listDebts));
+  router.post("/debts", validateBody(createDebtSchema), asyncHandler(controller.createDebt));
+  router.get("/debts/:id", asyncHandler(controller.getDebt));
+  router.patch("/debts/:id", validateBody(updateDebtSchema), asyncHandler(controller.updateDebt));
+  router.delete("/debts/:id", asyncHandler(controller.deleteDebt));
+  router.post(
+    "/debts/:id/payments",
+    validateBody(addPaymentSchema),
+    asyncHandler(controller.addDebtPayment),
+  );
+  router.delete("/debts/:id/payments/:paymentId", asyncHandler(controller.deleteDebtPayment));
 
   return router;
 }

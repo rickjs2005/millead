@@ -51,6 +51,21 @@ export const TRANSACTION_STATUS_LABELS: Record<string, string> = {
   REVERSED: "Estornada",
 };
 
+export const DEBT_STATUS_LABELS: Record<string, string> = {
+  OPEN: "Em aberto",
+  PARTIAL: "Parcial",
+  PAID: "Quitada",
+  OVERDUE: "Atrasada",
+  CANCELED: "Cancelada",
+};
+
+/** "A receber" / "a pagar" em vez de THEY_OWE_ME / I_OWE_THEM: na tela o que
+ *  importa é para que lado o dinheiro anda. */
+export const DEBT_DIRECTION_LABELS: Record<string, string> = {
+  THEY_OWE_ME: "A receber",
+  I_OWE_THEM: "A pagar",
+};
+
 export const STATEMENT_STATUS_LABELS: Record<string, string> = {
   OPEN: "Aberta",
   CLOSED: "Fechada",

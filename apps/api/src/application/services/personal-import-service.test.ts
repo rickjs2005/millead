@@ -118,6 +118,7 @@ function makeFakes() {
           id: `tx-${++seq}`,
           vaultId: VAULT,
           transferPairId: null,
+          settlesDebtId: null,
           createdAt: new Date(),
           updatedAt: new Date(),
           ...row,

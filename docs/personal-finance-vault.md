@@ -652,6 +652,127 @@ promete.
 | `PATCH /vault/alerts/:id/read`              | Marcar como lido                                |
 | `PATCH /vault/alerts/:id/snooze`            | Adiar até uma data                              |
 
+## Dívidas (fase 6)
+
+Quem me deve, para quem eu devo, e o que já foi devolvido. Três tabelas —
+`personal_contacts`, `personal_debts`, `personal_debt_payments` — e uma regra
+que organiza todas as decisões abaixo.
+
+### A regra: baixa de dívida não é fato econômico novo
+
+**Um Pix recebido para quitar uma dívida não é renda.** O dinheiro entra na
+conta, mas o fato já aconteceu antes — quando a compra foi feita e virou
+dívida. Contar de novo na baixa seria contagem dupla: o mês em que alguém te
+devolve R$500 apareceria como um mês em que você ganhou R$500 a mais.
+
+O mesmo vale do outro lado: **pagar uma dívida que eu devo não é despesa
+nova**. A despesa foi o empréstimo que entrou, não a devolução que sai.
+
+Quem decide isso é `classifyCashFlow`, uma função só com quatro respostas
+mutuamente exclusivas: `INCOME`, `EXPENSE`, `TRANSFER`, `DEBT_SETTLEMENT`.
+Escrever `contaComoReceita()` e `contaComoDespesa()` separados criaria dois
+lugares para manter a mesma regra, e a primeira divergência entre eles seria
+silenciosa — os totais simplesmente parariam de fechar, sem erro nenhum.
+
+O que sustenta a regra no banco é `personal_debt_payments.transaction_id`, com
+**UNIQUE**: uma movimentação baixa no máximo uma dívida. Sem a unicidade, a
+mesma entrada de R$200 poderia baixar duas dívidas de R$200 e o Cofre teria
+inventado dinheiro.
+
+### Valor pago, saldo e status não são colunas
+
+A API expõe os três; nenhum é persistido. Todos saem das baixas mais a data de
+hoje.
+
+O argumento decisivo é o vencimento: uma dívida vira **atrasada pela passagem
+do tempo**, sem que ninguém escreva nada. Uma coluna `status` estaria errada
+toda madrugada e só voltaria a ficar certa quando alguém mexesse na linha — ou
+seja, mentiria exatamente nas dívidas esquecidas, que são as que mais importam.
+
+Pelo mesmo motivo o **cancelamento é coluna**: cancelar é um evento, a única
+coisa aqui que só acontece porque alguém decidiu.
+
+A ordem de `resolveDebtStatus` também é uma decisão: cancelada vence tudo (uma
+dívida perdoada não fica atrasada para sempre na tela) e quitada vence atrasada
+(pagou fora do prazo continua sendo pagou).
+
+### O que o Postgres defende, e o que ele não consegue
+
+No banco: `original_amount > 0`, `amount > 0` nas baixas, e as FKs.
+
+Fora do banco, com teste: **a soma das baixas não pode ultrapassar o valor da
+dívida.** É uma invariante entre linhas de tabelas diferentes, e um CHECK só
+enxerga a própria linha. O gatilho que resolveria isso seria uma regra de
+negócio escondida no banco, longe dos testes — então ela mora em
+`validatePayment`.
+
+Duas consequências desenhadas junto:
+
+- Devolver a mais **não** vira crédito na direção oposta. O saldo trava em
+  zero e o excedente aparece como `overpaid`, para ser resolvido à mão.
+- Reduzir o valor da dívida abaixo do que já foi baixado é **recusado**, não
+  "corrigido" sozinho: aceitar criaria saldo negativo e inverteria a dívida em
+  silêncio.
+
+### Quatro perguntas antes de vincular uma baixa
+
+Cada uma existe por um jeito diferente de o número ficar errado:
+
+| Pergunta                | O que ela evita                                                      |
+| ----------------------- | -------------------------------------------------------------------- |
+| É do Cofre?             | Filtrar por `vaultId` é o que garante isso, não a suposição.         |
+| Direção certa?          | Trocada, a baixa esconderia uma despesa como se fosse receita.       |
+| Não é transferência?    | Uma conta sua não te deve dinheiro.                                  |
+| Ainda não baixou outra? | O UNIQUE recusaria, mas com erro de constraint em vez de explicação. |
+
+### A compra reembolsável fecha o ciclo
+
+Criar uma dívida a receber a partir de uma compra também marca a divisão
+`REIMBURSABLE` naquela movimentação, na mesma operação. Sem isso os R$300 do
+jantar continuariam contados como gasto seu enquanto a tela de dívidas jurasse
+que alguém te deve R$100.
+
+O rateio que já existia é **preservado**: o repositório só sabe substituir o
+conjunto inteiro (rateio pela metade é rateio errado), então o serviço lê antes
+e reenvia tudo. Sem esse cuidado, criar uma dívida apagaria em silêncio a
+divisão empresarial já lançada naquela compra. Se o total não couber no valor
+da movimentação, a dívida **não é criada** — recusar depois de gravar deixaria
+um valor a receber sem o reembolsável correspondente.
+
+### A lição da fase 5, aplicada antes de doer
+
+A FK da baixa é `ON DELETE RESTRICT`. Um erro de constraint sobe como 500 — foi
+exatamente assim que a exclusão de conta quebrou na fase anterior, e só apareceu
+executando o app.
+
+Desta vez a checagem veio antes: apagar uma movimentação que baixa dívida
+responde **409** dizendo qual dívida está no caminho, e apagar uma pessoa com
+dívida responde **409** sugerindo desativar em vez de apagar. Quem pergunta é a
+porta `DebtLinkChecker` — uma pergunta só, e não o serviço de dívidas inteiro
+injetado no de movimentações.
+
+### Privacidade
+
+`personal_contacts` guarda nome, um campo de contato em texto livre e
+observações. **Não existe coluna de CPF, conta bancária ou chave Pix**, e isso
+é deliberado: o Cofre não guarda credencial de ninguém — nem do dono, nem de
+terceiro. Um dado de terceiro vazado é pior que um dado próprio vazado, porque
+a pessoa nem sabia que ele estava aqui.
+
+### API
+
+| Rota                                    | O que faz                                             |
+| --------------------------------------- | ----------------------------------------------------- |
+| `GET/POST/PATCH/DELETE /vault/contacts` | Pessoas. Apagar com dívida → 409.                     |
+| `GET /vault/debts`                      | Em aberto por padrão; filtros de direção/pessoa.      |
+| `GET /vault/debts/summary`              | A receber, a pagar e quantas atrasadas de cada.       |
+| `POST /vault/debts`                     | Cria; `markOriginReimbursable` fecha o ciclo.         |
+| `PATCH /vault/debts/:id`                | Descrição, valor, vencimento, cancelar/reabrir.       |
+| `POST /vault/debts/:id/payments`        | Baixa total ou parcial.                               |
+| `DELETE /vault/debts/:id/payments/:id`  | Desfaz a baixa e devolve a dívida ao estado anterior. |
+
+Telas: `/cofre/dividas` e `/cofre/pessoas`.
+
 ## Telas (antecipadas da fase 8)
 
 Dez telas sob `/cofre`, puxadas para antes das fases 6, 7 e 9 — cinco fases de
@@ -744,7 +865,7 @@ Gere o segredo com `openssl rand -base64 48`.
 
 ## Testes
 
-407 testes cobrem as cinco fases e as telas, todos sem banco e sem HTTP real (exceto os
+467 testes cobrem as seis fases e as telas, todos sem banco e sem HTTP real (exceto os
 de rota, que sobem Express numa porta efêmera).
 
 **Fase 1 — segurança:**
@@ -800,16 +921,24 @@ de rota, que sobem Express numa porta efêmera).
 | `subscription-alerts.test.ts`           | Os 4 marcos + antecedência; pausada não alerta; folga antes de acusar cobrança faltando; duplicata é um alerta por par; chaves estáveis.         |
 | `personal-subscription-service.test.ts` | Exemplo do Claude ponta a ponta; **rodar duas vezes não duplica**; extrato antigo não empurra renovação; push só pro dono; adiar volta no prazo. |
 
+**Fase 6 — dívidas:**
+
+| Arquivo                         | O que prova                                                                                                                                                               |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `debt-status.test.ts`           | **Atrasa sozinha com a passagem do tempo**; cancelada vence tudo; pagou fora do prazo é pago; saldo nunca negativo; um centavo a mais é recusado.                         |
+| `cash-flow-kind.test.ts`        | **Pix que quita não é renda**; pagar dívida não é despesa nova; transferência continua fora; ordem não decide nada.                                                       |
+| `personal-debt-service.test.ts` | As duas direções; parcial e total; atraso no resumo; a mesma movimentação não baixa duas dívidas; **reembolsável tira do consumo pessoal** e preserva o rateio existente. |
+
 ## Roadmap
 
 | #   | Fase                                                                   | Estado |
 | --- | ---------------------------------------------------------------------- | ------ |
 | 1   | Cofre, sessão elevada, reautenticação                                  | ✓      |
-| 2   | Contas, cartões, categorias, fornecedores, transações, splits, faturas | ○      |
+| 2   | Contas, cartões, categorias, fornecedores, transações, splits, faturas | ✓      |
 | 3   | Importação OFX/CSV e deduplicação                                      | ✓      |
 | 4   | Classificação e regras determinísticas                                 | ✓      |
 | 5   | Assinaturas e alertas                                                  | ✓      |
-| 6   | Dívidas e pagamentos                                                   | ○      |
+| 6   | Dívidas e pagamentos                                                   | ✓      |
 | 7   | Ponte com o financeiro da MilWeb (`BusinessExpense`)                   | ○      |
 | 8   | Telas (antecipadas) · dashboard e drill-down completos                 | ◐      |
 | 9   | Backup e exportação                                                    | ○      |

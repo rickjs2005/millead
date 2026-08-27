@@ -3,9 +3,10 @@ import type {
   PersonalTransaction,
   PersonalTransactionDetail,
 } from "../../domain/entities/personal-finance.js";
-import { NotFoundError, ValidationError } from "../../domain/errors/app-error.js";
+import { ConflictError, NotFoundError, ValidationError } from "../../domain/errors/app-error.js";
 import type { PersonalAccountRepository } from "../../domain/repositories/personal-account-repository.js";
 import type { PersonalStatementRepository } from "../../domain/repositories/personal-statement-repository.js";
+import type { DebtLinkChecker } from "../../domain/services/debt-link-checker.js";
 import type {
   PersonalTransactionRepository,
   SplitInput,
@@ -74,6 +75,9 @@ export class PersonalTransactionService {
     private readonly transactions: PersonalTransactionRepository,
     private readonly accounts: PersonalAccountRepository,
     private readonly statements: PersonalStatementRepository,
+    /** Só uma pergunta: "isto baixa alguma dívida?". Ver `DebtLinkChecker`
+     *  sobre por que uma porta, e não o serviço de dívidas inteiro. */
+    private readonly debtLinks: DebtLinkChecker,
   ) {}
 
   // ----- Leitura -----
@@ -173,9 +177,26 @@ export class PersonalTransactionService {
     return toDetail(updated, splits);
   }
 
+  /**
+   * Apagar movimentação que baixa dívida é recusado ANTES de o banco recusar.
+   *
+   * A FK da baixa é `ON DELETE RESTRICT`, e um erro de constraint sobe como
+   * 500 — foi assim que a exclusão de conta quebrou na fase 5, e a lição foi
+   * que só se descobre executando. Perguntar antes vira um 409 que diz qual
+   * dívida está no caminho.
+   */
   async delete(vaultId: string, id: string): Promise<void> {
     const transaction = await this.transactions.findById(vaultId, id);
     if (!transaction) throw new NotFoundError("Movimentação não encontrada.");
+
+    const divida = await this.debtLinks.describeDebtLink(vaultId, id);
+    if (divida) {
+      throw new ConflictError(
+        `Esta movimentação é a baixa da dívida "${divida}". ` +
+          "Remova a baixa na tela de dívidas antes de apagar a movimentação — " +
+          "senão a dívida continuaria quitada sem nada que explicasse por quê.",
+      );
+    }
 
     const deleted = await this.transactions.delete(vaultId, id);
     if (!deleted) throw new NotFoundError("Movimentação não encontrada.");
