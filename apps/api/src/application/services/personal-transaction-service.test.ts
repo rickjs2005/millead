@@ -124,7 +124,30 @@ function makeFakes() {
       );
       return true;
     },
-    findExistingFingerprints: async () => new Set(),
+    createManyFromImport: async (_v, rows) => {
+      // Espelha o `skipDuplicates` do banco: linha cujo fingerprint já existe
+      // não entra, e a contagem devolvida é só o que entrou de fato.
+      const existentes = new Set(
+        transactions.flatMap((t) => (t.fingerprint ? [t.fingerprint] : [])),
+      );
+      let count = 0;
+      for (const row of rows) {
+        if (row.fingerprint && existentes.has(row.fingerprint)) continue;
+        if (row.fingerprint) existentes.add(row.fingerprint);
+        transactions.push({
+          id: `tx-${++seq}`,
+          vaultId: VAULT,
+          transferPairId: null,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          ...row,
+        });
+        count++;
+      }
+      return count;
+    },
+    findExistingFingerprints: async (_v, fingerprints) =>
+      new Set(fingerprints.filter((fp) => transactions.some((t) => t.fingerprint === fp))),
     sumByStatement: async (_v, statementId) =>
       String(
         sumMoney(

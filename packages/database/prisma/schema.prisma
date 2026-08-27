@@ -2032,6 +2032,8 @@ model PersonalVault {
   transactions PersonalTransaction[]
   splits       PersonalTransactionSplit[]
   statements   PersonalStatement[]
+  importBatches   PersonalImportBatch[]
+  importProfiles  PersonalImportProfile[]
 
   @@map("personal_vaults")
 }
@@ -2133,6 +2135,8 @@ model PersonalAccount {
   transactions PersonalTransaction[]
   /// Cartoes que sao pagos por esta conta.
   paidCards    PersonalCreditCard[] @relation("CardPaymentAccount")
+  importBatches   PersonalImportBatch[]
+  importProfiles  PersonalImportProfile[]
 
   @@index([vaultId, isActive])
   @@map("personal_accounts")
@@ -2162,6 +2166,8 @@ model PersonalCreditCard {
   paymentAccount PersonalAccount?      @relation("CardPaymentAccount", fields: [paymentAccountId], references: [id], onDelete: SetNull)
   transactions   PersonalTransaction[]
   statements     PersonalStatement[]
+  importBatches  PersonalImportBatch[]
+  importProfiles PersonalImportProfile[]
 
   @@index([vaultId, isActive])
   @@map("personal_credit_cards")
@@ -2310,6 +2316,9 @@ model PersonalTransaction {
   amountBrl Decimal @map("amount_brl") @db.Decimal(14, 2)
 
   source PersonalTransactionSource
+  /// Lote de importacao de origem -- a procedencia da linha. SetNull: apagar
+  /// o registro do lote nao pode levar as movimentacoes junto.
+  importBatchId String? @map("import_batch_id")
   /// FITID do OFX (ou equivalente), como veio.
   externalId String? @map("external_id")
   /// Chave de deduplicacao das importacoes. Quando existe FITID, e derivada
@@ -2345,6 +2354,7 @@ model PersonalTransaction {
   merchant  PersonalMerchant?   @relation(fields: [merchantId], references: [id], onDelete: SetNull)
   category  PersonalCategory?   @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   statement PersonalStatement?  @relation(fields: [statementId], references: [id], onDelete: SetNull)
+  importBatch PersonalImportBatch? @relation(fields: [importBatchId], references: [id], onDelete: SetNull)
 
   splits PersonalTransactionSplit[]
 
@@ -2357,6 +2367,7 @@ model PersonalTransaction {
   @@index([accountId])
   @@index([cardId])
   @@index([statementId])
+  @@index([importBatchId])
   @@map("personal_transactions")
 }
 
@@ -2386,4 +2397,120 @@ model PersonalTransactionSplit {
   @@index([transactionId])
   @@index([vaultId, kind])
   @@map("personal_transaction_splits")
+}
+
+// -------------------------------------------------------------------
+// Cofre Financeiro -- importacao (fase 3): lote e perfil de mapeamento.
+//
+// O ARQUIVO BANCARIO NAO E ARMAZENADO. Nenhuma coluna aqui guarda o
+// conteudo: sobram hash, nome higienizado, periodo, formato, contagens e
+// erros por numero de linha. Extrato e o documento mais sensivel do Cofre,
+// e um arquivo guardado "por precaucao" e um arquivo que pode vazar --
+// depois de virar movimentacao, ele nao serve mais pra nada.
+// -------------------------------------------------------------------
+
+enum PersonalImportFormat {
+  OFX
+  CSV
+
+  @@map("personal_import_format")
+}
+
+enum PersonalImportStatus {
+  /// Todas as linhas validas viraram movimentacao.
+  COMPLETED
+  /// Parte entrou; o resto era duplicata ou linha invalida.
+  PARTIAL
+  /// Nada entrou (arquivo ilegivel ou nenhuma linha aproveitavel).
+  FAILED
+
+  @@map("personal_import_status")
+}
+
+/// Registro do que foi importado -- a prova de procedencia de cada
+/// movimentacao vinda de arquivo.
+model PersonalImportBatch {
+  id      String @id @default(cuid())
+  vaultId String @map("vault_id")
+  /// Origem: conta OU cartao (CHECK no banco, igual a movimentacao).
+  accountId String? @map("account_id")
+  cardId    String? @map("card_id")
+
+  format PersonalImportFormat
+  /// SHA-256 do conteudo. Serve pra reconhecer o MESMO arquivo reenviado --
+  /// e o unico proposito; nao da pra reconstruir nada a partir dele.
+  fileHash String @map("file_hash")
+  /// Nome higienizado (sem caminho, sem caractere de controle). O nome
+  /// original de um extrato costuma carregar agencia e conta.
+  fileName String @map("file_name")
+
+  periodStart DateTime? @map("period_start") @db.Date
+  periodEnd   DateTime? @map("period_end") @db.Date
+
+  totalRows     Int @default(0) @map("total_rows")
+  importedRows  Int @default(0) @map("imported_rows")
+  duplicateRows Int @default(0) @map("duplicate_rows")
+  ignoredRows   Int @default(0) @map("ignored_rows")
+
+  status PersonalImportStatus
+  /// Erros SEGUROS: `[{ line, code }]`. Nunca a descricao bancaria, nunca o
+  /// valor -- um log de importacao com o conteudo do extrato seria o extrato
+  /// de volta, por outra porta.
+  errors Json?
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  vault        PersonalVault         @relation(fields: [vaultId], references: [id], onDelete: Cascade)
+  account      PersonalAccount?      @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  card         PersonalCreditCard?   @relation(fields: [cardId], references: [id], onDelete: SetNull)
+  transactions PersonalTransaction[]
+
+  @@index([vaultId, createdAt])
+  @@index([vaultId, fileHash])
+  @@map("personal_import_batches")
+}
+
+/// Modelo de leitura de CSV salvo por banco/cartao.
+///
+/// Existe porque CSV de banco nao tem padrao: cada um escolhe separador,
+/// formato de data, virgula ou ponto decimal, e se debito vem negativo ou em
+/// coluna propria. Remapear as colunas toda vez seria o tipo de atrito que
+/// faz a pessoa parar de importar.
+model PersonalImportProfile {
+  id      String @id @default(cuid())
+  vaultId String @map("vault_id")
+  name    String
+
+  accountId String? @map("account_id")
+  cardId    String? @map("card_id")
+
+  format PersonalImportFormat @default(CSV)
+  /// Caractere separador (`,`, `;` ou tab).
+  delimiter String @default(",")
+  /// `,` ou `.` -- extrato brasileiro costuma usar virgula.
+  decimalSeparator String @default(",") @map("decimal_separator")
+  /// `DMY`, `MDY` ou `YMD`. Guardado como ordem, e nao como mascara literal,
+  /// porque o que muda entre bancos e a ORDEM; o separador varia demais pra
+  /// valer a pena fixar.
+  dateOrder String  @default("DMY") @map("date_order")
+  hasHeader Boolean @default(true) @map("has_header")
+
+  /// De qual coluna sai cada campo: `{ date, description, amount, debit,
+  /// credit, externalId }`. Indice numerico ou nome do cabecalho.
+  columnMap Json @map("column_map")
+
+  /// Alguns bancos mandam despesa como positivo. Inverter aqui e melhor que
+  /// pedir pra pessoa "lembrar" na hora de conferir.
+  invertSign Boolean @default(false) @map("invert_sign")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  vault   PersonalVault       @relation(fields: [vaultId], references: [id], onDelete: Cascade)
+  account PersonalAccount?    @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  card    PersonalCreditCard? @relation(fields: [cardId], references: [id], onDelete: SetNull)
+
+  @@unique([vaultId, name])
+  @@index([vaultId])
+  @@map("personal_import_profiles")
 }

@@ -118,6 +118,9 @@ export interface PersonalTransaction {
   originalCurrency: PersonalCurrency | null;
   amountBrl: string;
   source: PersonalTransactionSource;
+  /** Lote de importação de origem — a procedência da linha. Nulo em
+   *  lançamento manual. */
+  importBatchId: string | null;
   externalId: string | null;
   fingerprint: string | null;
   status: PersonalTransactionStatus;

@@ -216,8 +216,8 @@ Detalhes de design, estados, idempotência e como testar à mão:
 ## Cofre Financeiro (área pessoal do dono da conta)
 
 Área privada em `/cofre` para finanças pessoais, separada do financeiro da
-MilWeb. **Fases 1 e 2 de 10 concluídas**: segurança e núcleo financeiro.
-Importação de OFX/CSV, classificação, assinaturas, dívidas e a ponte com o
+MilWeb. **Fases 1 a 3 de 10 concluídas**: segurança, núcleo financeiro e
+importação de extrato. Classificação, assinaturas, dívidas e a ponte com o
 Centro de Custos entram nas fases seguintes.
 
 Segurança:
@@ -257,6 +257,20 @@ divisões e faturas):
 - **Seis CHECKs no banco** (origem única, valor positivo, parcela coerente…) e
   FKs `Restrict`: cadastro com histórico se desativa, não se apaga.
 - Filtros por competência **ou** caixa, nunca misturados sem rótulo.
+
+Importação de OFX/CSV:
+
+- **O arquivo bancário não é guardado** — nem em disco, nem em storage, nem
+  entre a pré-visualização e a confirmação. Fica só o registro do lote: hash,
+  nome higienizado, período e contagens.
+- **Pré-visualização não grava nada.** Você vê o que entraria, quantas linhas
+  são duplicatas e quais foram recusadas, antes de confirmar.
+- **Parsers próprios**, sem dependência nova: OFX 1.x (SGML, tags que não
+  fecham) e 2.x (XML), e CSV com aspas, CRLF e BOM.
+- **Reimportar não duplica**: o unique de fingerprint com `skipDuplicates` faz
+  a importação ser idempotente no banco, não só na conferência.
+- **Erros de linha são códigos**, nunca o texto do extrato.
+- Modelos de mapeamento por banco/cartão, porque CSV de banco não tem padrão.
 
 Requer `VAULT_SESSION_SECRET` no `.env` — sem ela o módulo inteiro responde
 404 (fecha, não degrada). Design completo, decisões e roadmap em

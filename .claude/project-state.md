@@ -135,14 +135,62 @@ type-check, lint e build limpos.
 **Ainda nao ha tela pro nucleo** -- as telas sao a fase 8 do plano acordado.
 Hoje o nucleo so e acessivel pela API.
 
+## Trabalho de 27/08/2026 — Cofre Financeiro, Fase 3 (importacao)
+
+Mesma branch `feat/cofre-financeiro`, **nao mergeada, nao deployada**.
+Importacao de OFX e CSV em dois passos (pre-visualizar / confirmar), com
+deduplicacao, mapeamento de colunas e modelos por banco.
+
+Decisao que define o desenho: **o arquivo bancario nao e persistido em lugar
+nenhum** -- nem storage, nem tabela de rascunho entre os passos. Chega como
+texto no corpo JSON, vive na memoria da requisicao e acaba ali. O lote guarda
+so hash, nome higienizado, periodo, contagens e erros por numero de linha.
+
+Consequencia assumida: a pre-visualizacao devolve as linhas e a confirmacao
+manda de volta as escolhidas, entao **o servidor nao confia no que volta** --
+fingerprint recalculado, duplicatas reconferidas contra o banco, origem
+revalidada. O cliente escolhe QUAIS linhas entram, nao o que elas sao.
+
+Outros pontos:
+
+- **Parsers proprios**, sem dependencia nova: OFX 1.x (SGML, tags que nao
+  fecham -- o formato mais comum nos bancos daqui, e o que um parser XML
+  quebraria) e 2.x (XML); CSV com aspas, CRLF e BOM.
+- **Separador de coluna escolhido por consistencia**, nao por contagem: num
+  extrato brasileiro a virgula decimal aparece em toda linha e ganharia a
+  contagem, quebrando tudo.
+- **Mapeamento conferido contra o cabecalho** antes de ler linha nenhuma. E o
+  que separa "isso nao e um extrato" (HTML de sessao expirada) de "mapeei a
+  coluna errada" -- e deixa "mes sem movimentacao" como resultado vazio
+  legitimo, nao erro.
+- **Idempotencia no banco**: `createMany({ skipDuplicates: true })` sobre o
+  unique `(vault_id, fingerprint)`. A checagem da pre-visualizacao e pra VER;
+  o unique e o que impede.
+- **Erros de linha sao codigos** (`VALOR_INVALIDO`), nunca conteudo do
+  extrato, com teste que falha se a descricao bancaria vazar pro log.
+- Linhas importadas nascem `PENDING` -- quem confirma a classificacao e a
+  fase 4.
+
+Achado corrigido no caminho: `importBatchId` estava sendo gravado sem existir
+no tipo de dominio (passava pelo Prisma e funcionava, mas o TypeScript nao
+modelava o campo). Declarado em `PersonalTransaction` e `CreateTransactionInput`.
+
+Migration `20260827190000_add_personal_vault_import` **aplicada em producao**
+(aditiva: 2 tabelas, 2 enums, 1 coluna anulavel; RLS e 2 CHECKs verificados).
+87 testes novos -> **729 na API** (988 no monorepo). type-check, lint e build
+limpos.
+
+**Ainda nao ha tela** pro nucleo nem pra importacao -- telas sao a fase 8.
+
 ## Bloqueios
 - Pendências registradas em memória (`millead-pendencias-seguranca`) ainda em aberto: ZapSign não configurado no Render (contratos não são assináveis de verdade em produção), 2 achados baixos de segurança (landing de IA sem sanitização própria, tokens em localStorage), permissões próprias de Contratos/Landing pages pendentes de migração.
 
 ## Próxima ação
 
-**Fase 3 do Cofre**: importacao OFX/CSV com pre-visualizacao, mapeamento de
-colunas e deduplicacao. A base ja esta pronta (fingerprint, normalizacao de
-descricao, `findExistingFingerprints`).
+**Fase 4 do Cofre**: classificacao automatica (cascata deterministica de 6
+niveis) e regras do usuario. A base ja esta pronta: aliases de fornecedor,
+`findMerchantByAlias`, descricao normalizada e as linhas importadas esperando
+em `PENDING`.
 
 Antes de usar o Cofre e preciso definir `VAULT_SESSION_SECRET` no `.env` e no
 Render — sem ela o modulo inteiro responde 404 de proposito.

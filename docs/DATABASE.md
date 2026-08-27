@@ -106,7 +106,8 @@ tarefas. Design completo em
 
 `PersonalVault` · `PersonalAccount` · `PersonalCreditCard` ·
 `PersonalCategory` · `PersonalMerchant` · `PersonalMerchantAlias` ·
-`PersonalTransaction` · `PersonalTransactionSplit` · `PersonalStatement`
+`PersonalTransaction` · `PersonalTransactionSplit` · `PersonalStatement` ·
+`PersonalImportBatch` · `PersonalImportProfile`
 
 **Unica tabela do schema SEM `organizationId`, de proposito.** O dono e o
 usuario (`ownerUserId`, com `@unique`), nao a organizacao. A coluna
@@ -152,8 +153,25 @@ Decisoes de modelagem do nucleo (fase 2):
 - **FKs `Restrict`** em conta e cartao: apagar cadastro nao pode levar o
   historico financeiro junto. A API responde 409 pedindo pra desativar.
 
-As tabelas das fases seguintes (importacoes, regras, assinaturas, dividas)
-seguem a mesma regra: dono pelo Cofre, nunca por organizacao.
+Importacao (fase 3):
+
+- **O arquivo bancario NAO e persistido.** `personal_import_batches` guarda
+  hash, nome higienizado, periodo, formato, contagens e erros por numero de
+  linha -- nada que reconstrua o extrato. Extrato e o documento mais sensivel
+  do Cofre, e um arquivo guardado "por precaucao" e um arquivo que pode vazar.
+- **`errors` e `[{ line, code }]`**, nunca a descricao bancaria. Ha teste que
+  falha se conteudo do extrato aparecer no erro.
+- **`personal_transactions.import_batch_id`** e a procedencia da linha
+  (SetNull: apagar o registro do lote nao leva as movimentacoes junto).
+- **`personal_import_profiles`** guarda o mapeamento de colunas por
+  banco/cartao: CSV de banco nao tem padrao, e remapear toda vez e o atrito
+  que faz a pessoa parar de importar.
+- A idempotencia da importacao vem do `createMany({ skipDuplicates: true })`
+  sobre o unique `(vault_id, fingerprint)` -- e o banco, nao a checagem da
+  pre-visualizacao, que impede a linha repetida de entrar.
+
+As tabelas das fases seguintes (regras, assinaturas, dividas) seguem a mesma
+regra: dono pelo Cofre, nunca por organizacao.
 
 ### 7. Billing
 

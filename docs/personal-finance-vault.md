@@ -5,10 +5,10 @@ de uma exigência simples e incomum no resto do sistema: nenhum membro da
 equipe pode ver, consultar ou inferir o que está aqui — nem quem tem papel
 Owner ou Admin na organização.
 
-> **Estado atual: Fase 2 de 10.** Segurança e núcleo financeiro prontos e
-> testados. Importação de OFX/CSV, classificação, assinaturas, dívidas,
-> integração com o financeiro da MilWeb, dashboard e exportação são as fases
-> seguintes — ver [Roadmap](#roadmap).
+> **Estado atual: Fase 3 de 10.** Segurança, núcleo financeiro e importação de
+> OFX/CSV prontos e testados. Classificação, assinaturas, dívidas, integração
+> com o financeiro da MilWeb, dashboard e exportação são as fases seguintes —
+> ver [Roadmap](#roadmap).
 
 ## A decisão que define o módulo: sem RBAC
 
@@ -303,6 +303,137 @@ datas, conta, cartão, categoria, fornecedor, fatura, status, direção, busca e
 paginação. **Os dois regimes nunca se misturam sem rótulo** — o filtro decide
 qual coluna de data é usada, inclusive na ordenação.
 
+## Importação de OFX e CSV (fase 3)
+
+Dois passos — **pré-visualizar** e **confirmar** — e um princípio que decide o
+resto do desenho.
+
+### O arquivo nunca é guardado
+
+Nem em disco, nem em storage, nem numa tabela de rascunho entre os dois
+passos. Ele chega como texto no corpo JSON (não multipart, que pediria o
+`@vercel/blob` que os briefings usam), existe na memória do processo durante a
+requisição, e acaba ali.
+
+O que fica é o **lote** (`personal_import_batches`): hash do conteúdo, nome
+higienizado, período, formato, contagens e erros por número de linha. Nada
+disso reconstrói o extrato.
+
+Isso tem uma consequência de engenharia explícita: a pré-visualização devolve
+as linhas já interpretadas e a confirmação manda de volta as que você aceitou.
+**O servidor não confia no que volta** — fingerprint é recalculado, duplicatas
+são reconferidas contra o banco no momento da gravação, e a origem é
+revalidada como sua. O cliente escolhe _quais_ linhas entram; ele não decide o
+que elas são.
+
+A alternativa (guardar o arquivo entre os passos) pediria um lugar para estado
+temporário que é justamente o dado mais sensível do Cofre, com prazo de
+validade e rotina de limpeza para manter. Não vale.
+
+### Erros de linha são códigos, nunca conteúdo
+
+`{ line: 12, code: "VALOR_INVALIDO" }`. Um log de importação com a linha crua
+seria o extrato de volta por outra porta — e há teste que falha se a descrição
+do banco aparecer no erro.
+
+Códigos: `COLUNA_AUSENTE`, `DATA_INVALIDA`, `VALOR_INVALIDO`,
+`DESCRICAO_VAZIA`.
+
+### Parsers próprios, sem dependência nova
+
+- **OFX** cobre as duas versões: 1.x é SGML com tags que não fecham
+  (`<FITID>123` e acabou), 2.x é XML. Um parser XML quebraria no 1.x, que é
+  justamente o mais comum nos bancos brasileiros. A leitura para no primeiro
+  `<` ou na quebra de linha, o que funciona nos dois.
+- **CSV** trata aspas, aspas duplicadas, quebra de linha dentro do campo, CRLF
+  e BOM (o que o Excel gera). São ~60 linhas; a alternativa era mais um pacote
+  na cadeia de suprimento de um módulo que lê extrato bancário.
+
+Nenhum dos dois interpreta valor ou data: as strings saem cruas e a conversão
+é a mesma para OFX e CSV. Duas conversões para o mesmo campo seriam duas
+chances de divergir.
+
+### Separador de coluna é escolhido por consistência, não por contagem
+
+Num extrato brasileiro (`27/08/2026;MERCADO;1.234,56`) a vírgula decimal
+aparece em toda linha, então contar ocorrências elegeria a vírgula e cada
+linha quebraria num lugar diferente. O separador certo é o que produz **o
+mesmo número de colunas em todas as linhas**.
+
+### Na dúvida, recusar a linha
+
+Valor com separador ambíguo (`1,2,3`), data que não existe (`31/02`), débito e
+crédito preenchidos ao mesmo tempo, três casas decimais: tudo vira linha
+recusada com código, e aparece na revisão. Um palpite errado vira valor torto
+no meio de centenas de linhas certas — o pior tipo de erro, porque não chama
+atenção.
+
+Linha de valor zero também é descartada: costuma ser linha de saldo que o
+banco enfia no meio do extrato.
+
+### Mapeamento conferido contra o cabeçalho
+
+Antes de ler linha nenhuma, o serviço confere que toda coluna do mapeamento
+existe no cabeçalho — casando sem acento e sem caixa ("Histórico" =
+"HISTORICO").
+
+É o que separa dois problemas que pareceriam o mesmo: **o arquivo não é um
+extrato** (a página de sessão expirada do banco é HTML, vira uma linha só e
+passa pelo leitor de CSV sem reclamar) e **o mapeamento aponta pra coluna
+errada**. Sem a checagem, os dois viriam como zero linhas ou como N linhas
+inválidas, e você conferiria linha por linha um problema que é do arquivo
+inteiro.
+
+Feito ali, e não dentro do mapeamento, porque **mês sem movimentação é
+legítimo**: cabeçalho certo e nenhuma linha é resultado vazio, não erro.
+
+### Modelos de importação
+
+CSV de banco não tem padrão: cada um escolhe separador, ordem da data, vírgula
+ou ponto decimal, e se débito vem negativo ou em coluna própria. O perfil
+(`personal_import_profiles`) guarda isso por banco/cartão, para você não
+remapear toda vez — o tipo de atrito que faz a pessoa parar de importar.
+
+Suporta coluna única com sinal **ou** o par débito/crédito, e `invertSign`
+para os bancos que mandam despesa positiva.
+
+### Deduplicação em duas camadas
+
+| Camada                | O que faz                                                                                                 |
+| --------------------- | --------------------------------------------------------------------------------------------------------- |
+| Pré-visualização      | Mostra as duplicatas **antes** de confirmar, separando "já está no Cofre" de "repetida dentro do arquivo" |
+| `createMany` + unique | **Impede** que entrem                                                                                     |
+
+A segunda é a que garante. Entre a conferência e a confirmação passam minutos,
+e nesse intervalo a mesma linha pode ter entrado por outro caminho — a
+checagem é para você _ver_; o unique `(vaultId, fingerprint)` com
+`skipDuplicates` é o que faz a importação ser idempotente no nível do banco.
+Duplo clique em "Confirmar" não cria a movimentação duas vezes.
+
+### O que a importação grava
+
+Linhas importadas nascem **`PENDING`**: vieram do banco, mas ainda não
+passaram pela sua revisão de categoria — quem confirma é a fase 4. Cada uma
+aponta para o lote de origem (`importBatchId`), que é a procedência.
+
+Extrato de conta ganha `settlementDate` (o banco reporta o que já compensou);
+fatura de cartão, não — e cada compra já nasce ligada à fatura certa, resolvida
+pelo dia de fechamento, com uma consulta por mês de referência e não por linha.
+
+### API
+
+| Rota                                       | O que faz                                                    |
+| ------------------------------------------ | ------------------------------------------------------------ |
+| `POST /vault/imports/preview`              | Lê, interpreta e devolve o que entraria. **Não grava nada.** |
+| `POST /vault/imports`                      | Confirma as linhas escolhidas e registra o lote              |
+| `GET /vault/imports`                       | Histórico de importações                                     |
+| `GET/POST /vault/imports/profiles`         | Modelos de mapeamento                                        |
+| `PATCH/DELETE /vault/imports/profiles/:id` | Editar e remover modelo                                      |
+
+Limite de 1 MB por arquivo (o do body-parser da API). É folgado: um extrato
+mensal em CSV tem ~15 KB e em OFX ~50 KB. A mensagem de erro sugere importar
+por período quando alguém tenta o ano inteiro de uma vez.
+
 ## Configuração
 
 ```bash
@@ -315,7 +446,7 @@ Gere o segredo com `openssl rand -base64 48`.
 
 ## Testes
 
-165 testes cobrem as duas fases, todos sem banco e sem HTTP real (exceto os
+252 testes cobrem as três fases, todos sem banco e sem HTTP real (exceto os
 de rota, que sobem Express numa porta efêmera).
 
 **Fase 1 — segurança:**
@@ -342,13 +473,25 @@ de rota, que sobem Express numa porta efêmera).
 | `personal-transaction-service.test.ts` | **Pagamento de fatura não vira despesa nova**; estorno recalcula o total; transferência sai dos totais; moeda estrangeira exige o valor em BRL. |
 | `vault-data-routes.test.ts`            | As 31 rotas de dados exigem sessão elevada, uma a uma — mais um teste que falha se alguém registrar rota nova fora da lista.                    |
 
+**Fase 3 — importação:**
+
+| Arquivo                           | O que prova                                                                                                                            |
+| --------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `import-amount.test.ts`           | `1.234,56`, `(50,00)`, `50,00-`; recusa separador ambíguo, três casas e valor zero.                                                    |
+| `import-date.test.ts`             | `08/07` é julho ou agosto conforme o perfil; **não desliza de dia por fuso**; 29/02 só em ano bissexto.                                |
+| `import-csv.test.ts`              | Aspas, aspas duplicadas, quebra de linha no campo, CRLF, BOM; separador escolhido por consistência de colunas, não por contagem.       |
+| `import-ofx.test.ts`              | OFX 1.x (SGML sem fechamento) e 2.x (XML); HTML não vira OFX; extrato sem movimentação é válido e vazio.                               |
+| `import-mapper.test.ts`           | Mapeamento por nome e por índice; débito/crédito em colunas separadas; `invertSign`; **erro nunca carrega conteúdo do extrato**.       |
+| `import-dedup.test.ts`            | Duplicata no arquivo × no Cofre; FITID repetido pega mesmo com descrição e valor mudados; reimportação classifica tudo como duplicata. |
+| `personal-import-service.test.ts` | Pré-visualização **não grava nada**; reimportar não duplica; nome de arquivo higienizado; mês sem movimentação é vazio, não erro.      |
+
 ## Roadmap
 
 | #   | Fase                                                                   | Estado |
 | --- | ---------------------------------------------------------------------- | ------ |
 | 1   | Cofre, sessão elevada, reautenticação                                  | ✓      |
 | 2   | Contas, cartões, categorias, fornecedores, transações, splits, faturas | ○      |
-| 3   | Importação OFX/CSV e deduplicação                                      | ○      |
+| 3   | Importação OFX/CSV e deduplicação                                      | ✓      |
 | 4   | Classificação e regras determinísticas                                 | ○      |
 | 5   | Assinaturas e alertas                                                  | ○      |
 | 6   | Dívidas e pagamentos                                                   | ○      |

@@ -33,6 +33,8 @@ export interface CreateTransactionInput {
   originalCurrency: PersonalCurrency | null;
   amountBrl: string;
   source: PersonalTransactionSource;
+  /** Lote de importação de origem. Nulo em lançamento manual. */
+  importBatchId: string | null;
   externalId: string | null;
   /** Nulo em lançamento manual — ver o comentário do campo no schema. */
   fingerprint: string | null;
@@ -129,6 +131,17 @@ export interface PersonalTransactionRepository {
   /** Substitui TODAS as divisões numa transação de banco. Não existe "adicionar
    *  uma divisão": rateio pela metade é rateio errado. */
   replaceSplits(vaultId: string, transactionId: string, splits: SplitInput[]): Promise<boolean>;
+
+  /** Insere um lote de importação de uma vez, PULANDO o que colidir com o
+   *  unique `(vaultId, fingerprint)`. Devolve quantas linhas entraram de
+   *  verdade.
+   *
+   *  É esta trava — e não a checagem de duplicatas da pré-visualização — que
+   *  garante a idempotência: entre a conferência e a confirmação passam
+   *  minutos, e nesse intervalo a mesma linha pode ter entrado por outro
+   *  caminho. A checagem é pra você VER as duplicatas antes; o unique é o que
+   *  impede que elas entrem. */
+  createManyFromImport(vaultId: string, rows: CreateTransactionInput[]): Promise<number>;
 
   /** Fingerprints que já existem, dentre os oferecidos — é a consulta que a
    *  pré-visualização da importação (fase 3) usa pra mostrar as duplicatas

@@ -30,6 +30,7 @@ const transactionSelect = {
   originalCurrency: true,
   amountBrl: true,
   source: true,
+  importBatchId: true,
   externalId: true,
   fingerprint: true,
   status: true,
@@ -179,6 +180,18 @@ export class PrismaPersonalTransactionRepository implements PersonalTransactionR
       }
       return true;
     });
+  }
+
+  async createManyFromImport(vaultId: string, rows: CreateTransactionInput[]): Promise<number> {
+    if (rows.length === 0) return 0;
+    // `skipDuplicates` + o unique de fingerprint = importação idempotente no
+    // nível do banco. Sem isso, duas confirmações do mesmo lote (duplo clique,
+    // retry de rede) criariam a movimentação duas vezes.
+    const { count } = await prisma.personalTransaction.createMany({
+      data: rows.map((row) => ({ vaultId, ...row })),
+      skipDuplicates: true,
+    });
+    return count;
   }
 
   async findExistingFingerprints(vaultId: string, fingerprints: string[]): Promise<Set<string>> {

@@ -18,6 +18,13 @@ import {
   updateMerchantSchema,
   updateTransactionSchema,
 } from "../../../application/dto/personal-finance.dto.js";
+import {
+  confirmImportSchema,
+  createImportProfileSchema,
+  importHistoryQuerySchema,
+  previewImportSchema,
+  updateImportProfileSchema,
+} from "../../../application/dto/personal-import.dto.js";
 import { asyncHandler } from "../async-handler.js";
 import type { PersonalFinanceController } from "../controllers/personal-finance-controller.js";
 import { validateBody, validateQuery } from "../middlewares/validate.js";
@@ -128,6 +135,38 @@ export function createVaultDataRoutes(
     "/transactions/:id/splits",
     validateBody(replaceSplitsSchema),
     asyncHandler(controller.replaceSplits),
+  );
+
+  // ----- Importação -----
+  // "/imports/profiles" ANTES de qualquer "/imports/:id" que venha a existir.
+  router.get("/imports/profiles", asyncHandler(controller.listImportProfiles));
+  router.post(
+    "/imports/profiles",
+    validateBody(createImportProfileSchema),
+    asyncHandler(controller.createImportProfile),
+  );
+  router.patch(
+    "/imports/profiles/:id",
+    validateBody(updateImportProfileSchema),
+    asyncHandler(controller.updateImportProfile),
+  );
+  router.delete("/imports/profiles/:id", asyncHandler(controller.deleteImportProfile));
+
+  // Pré-visualização NÃO grava nada: lê, interpreta e devolve o que entraria.
+  router.post(
+    "/imports/preview",
+    validateBody(previewImportSchema),
+    asyncHandler(controller.previewImport),
+  );
+  router.post(
+    "/imports",
+    validateBody(confirmImportSchema),
+    asyncHandler(controller.confirmImport),
+  );
+  router.get(
+    "/imports",
+    validateQuery(importHistoryQuerySchema),
+    asyncHandler(controller.listImports),
   );
 
   // ----- Faturas -----

@@ -18,7 +18,15 @@ import type {
   UpdateMerchantBody,
   UpdateTransactionBody,
 } from "../../../application/dto/personal-finance.dto.js";
+import type {
+  ConfirmImportBody,
+  CreateImportProfileBody,
+  ImportHistoryQuery,
+  PreviewImportBody,
+  UpdateImportProfileBody,
+} from "../../../application/dto/personal-import.dto.js";
 import type { PersonalAccountService } from "../../../application/services/personal-account-service.js";
+import type { PersonalImportService } from "../../../application/services/personal-import-service.js";
 import type { PersonalCatalogService } from "../../../application/services/personal-catalog-service.js";
 import type { PersonalTransactionService } from "../../../application/services/personal-transaction-service.js";
 import { requireVaultContext } from "../require-vault-context.js";
@@ -36,6 +44,7 @@ export class PersonalFinanceController {
     private readonly accounts: PersonalAccountService,
     private readonly catalog: PersonalCatalogService,
     private readonly transactions: PersonalTransactionService,
+    private readonly imports: PersonalImportService,
   ) {}
 
   // ----- Contas -----
@@ -222,6 +231,75 @@ export class PersonalFinanceController {
     res
       .status(201)
       .json(await this.transactions.createTransfer(vaultId, req.body as CreateTransferBody));
+  };
+
+  // ----- Importação -----
+
+  previewImport = async (req: Request, res: Response): Promise<void> => {
+    const { vaultId } = requireVaultContext(req);
+    const body = req.body as PreviewImportBody;
+    res.json(
+      await this.imports.preview(vaultId, {
+        accountId: body.accountId,
+        cardId: body.cardId,
+        fileName: body.fileName,
+        content: body.content,
+        profileId: body.profileId,
+        settings: body.settings,
+      }),
+    );
+  };
+
+  confirmImport = async (req: Request, res: Response): Promise<void> => {
+    const { vaultId } = requireVaultContext(req);
+    res.status(201).json(await this.imports.confirm(vaultId, req.body as ConfirmImportBody));
+  };
+
+  listImports = async (req: Request, res: Response): Promise<void> => {
+    const { vaultId } = requireVaultContext(req);
+    const { limit } = req.validatedQuery as ImportHistoryQuery;
+    res.json(await this.imports.listBatches(vaultId, limit));
+  };
+
+  listImportProfiles = async (req: Request, res: Response): Promise<void> => {
+    const { vaultId } = requireVaultContext(req);
+    res.json(await this.imports.listProfiles(vaultId));
+  };
+
+  createImportProfile = async (req: Request, res: Response): Promise<void> => {
+    const { vaultId } = requireVaultContext(req);
+    const body = req.body as CreateImportProfileBody;
+    res.status(201).json(
+      await this.imports.createProfile(vaultId, {
+        name: body.name,
+        accountId: body.accountId,
+        cardId: body.cardId,
+        format: body.format,
+        delimiter: body.delimiter,
+        decimalSeparator: body.decimalSeparator,
+        dateOrder: body.dateOrder,
+        hasHeader: body.hasHeader,
+        invertSign: body.invertSign,
+        columnMap: body.columnMap,
+      }),
+    );
+  };
+
+  updateImportProfile = async (req: Request, res: Response): Promise<void> => {
+    const { vaultId } = requireVaultContext(req);
+    res.json(
+      await this.imports.updateProfile(
+        vaultId,
+        req.params.id!,
+        req.body as UpdateImportProfileBody,
+      ),
+    );
+  };
+
+  deleteImportProfile = async (req: Request, res: Response): Promise<void> => {
+    const { vaultId } = requireVaultContext(req);
+    await this.imports.deleteProfile(vaultId, req.params.id!);
+    res.status(204).send();
   };
 
   // ----- Faturas -----
