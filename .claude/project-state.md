@@ -441,20 +441,66 @@ build e as 12 tarefas do turbo limpos. Validacao de ponta a ponta pelo BFF:
 **28/28**, incluindo o ciclo completo (exportar -> esvaziar -> restaurar ->
 conferir que rateio, divida, baixa e apelido voltaram ligados).
 
+## Trabalho de 27/08/2026 - Cofre Financeiro, Fase 10 (painel e revisao final)
+
+Mesma branch `feat/cofre-financeiro`, **nao mergeada, nao deployada**. O
+modulo esta COMPLETO: as dez fases em `✓`.
+
+Duas entregas:
+
+**1. O painel do mes** (`GET /vault/summary`, na visao geral do Cofre). E o
+unico lugar onde as regras de todas as fases se aplicam ao mesmo tempo, e por
+isso o unico onde a contagem dupla apareceria. Existe em torno de uma
+identidade que precisa fechar ao centavo:
+
+    saidas = consumo pessoal + parte da empresa + reembolsavel
+
+Transferencia, baixa de divida e estorno ficam fora de entradas/saidas -- mas
+as duas primeiras aparecem numa linha propria, porque esconde-las faria a
+pessoa procurar dinheiro que saiu da conta e nao esta em lugar nenhum da tela.
+"Entrou e saiu" e "consumo pessoal" aparecem lado a lado de proposito: sao
+respostas a perguntas diferentes, e o modulo inteiro foi desenhado pra que nao
+se misturem.
+
+**2. Varredura de seguranca** das 19 tabelas e de todas as rotas:
+
+- RLS em 19/19 tabelas (a checagem inicial deu falso positivo em 16 enums --
+  refeita separando `model` de `enum`)
+- Nenhum lugar le `vaultId` do corpo da requisicao
+- Nenhuma consulta Prisma sem filtro de posse (2 apontadas, as duas falso
+  positivo: `where` destruturado e o `findByOwner` do proprio Cofre)
+- Nenhuma rota de dados sem sessao elevada; nenhuma com RBAC fora da ponte
+- Zero `console.log`, zero senha em query string, auditoria so com contadores
+
+15 testes novos -> **1038 na API, 1313 no monorepo**. type-check, lint, build e
+as 12 tarefas do turbo limpos. Validacao de ponta a ponta pelo BFF: **14/14**,
+incluindo a identidade fechando contra a API real (365 + 150 + 75 = 590).
+
+### O modulo em numeros
+
+19 tabelas · 8 migrations · 80 rotas · 14 telas · 572 testes do Cofre.
+
 ## Bloqueios
 
 - Pendências registradas em memória (`millead-pendencias-seguranca`) ainda em aberto: ZapSign não configurado no Render (contratos não são assináveis de verdade em produção), 2 achados baixos de segurança (landing de IA sem sanitização própria, tokens em localStorage), permissões próprias de Contratos/Landing pages pendentes de migração.
 
 ## Próxima ação
 
-**Fase 10 do Cofre** (ultima): revisao final -- painel consolidado (o que
-resta da fase 8), varredura de seguranca do modulo inteiro e fechamento da
-documentacao.
+**Usar o Cofre com dados reais.** As dez fases estao prontas e validadas; o
+que falta e o Rick importar os extratos dele. O caminho:
+`/cofre` -> Contas -> Importar (OFX do banco) -> revisar as classificacoes.
 
-Decisao pendente pro Rick: **apagar o Cofre**. O comentario do schema diz "ver
-a exportacao antes de apagar", mas a exclusao em si nao foi construida -- e uma
-acao destrutiva e irreversivel, e merece decisao propria em vez de entrar de
-carona numa fase.
+Duas coisas continuam pendentes de decisao dele:
+
+1. **Validacao visual em navegador** -- a extensao do Chrome nao conecta.
+   As 14 telas respondem 200 e todos os fluxos foram exercitados pelo BFF, mas
+   ninguem olhou os pixels.
+2. **Apagar o Cofre** nao existe. O comentario do schema diz "ver a exportacao
+   antes de apagar", mas a exclusao em si nao foi construida -- e destrutiva e
+   irreversivel, e merece decisao propria.
+
+Se for usar em producao (millead.milweb.com.br), falta: `VAULT_SESSION_SECRET`
+no Render, e merge + deploy da branch.
 
 Antes de usar: definir `VAULT_SESSION_SECRET` no `.env` (ja feito localmente)
 e no Render. Sem ela o modulo inteiro responde 404 de proposito.

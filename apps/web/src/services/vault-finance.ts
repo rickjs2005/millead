@@ -1,5 +1,6 @@
 import { api } from "./api-client";
 import type {
+  VaultMonthSummary,
   PersonalDateBasis,
   PersonalDirection,
   PersonalSplitKind,
@@ -52,6 +53,8 @@ export interface TransactionFilters {
 /** Núcleo do Cofre. Tudo atrás da sessão elevada — um 401 `VAULT_LOCKED`
  *  aqui significa "reabra o Cofre", não "faça login". */
 export const vaultFinanceService = {
+  monthSummary: (month: string) =>
+    api.get<VaultMonthSummary>("/api/v1/vault/summary", { month }),
   listAccounts: (includeInactive = false) =>
     api.get<VaultAccount[]>("/api/v1/vault/accounts", { includeInactive }),
   createAccount: (payload: AccountPayload) =>

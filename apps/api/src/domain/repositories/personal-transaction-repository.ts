@@ -182,6 +182,16 @@ export interface PersonalTransactionRepository {
    *  ponte pergunta exatamente isto ("o que ainda pode ir pro financeiro"), e
    *  varrer a paginação inteira pra achar as poucas com divisão BUSINESS
    *  cresceria com o extrato, não com a resposta. */
+  /** Todas as movimentações de um período, com os rateios, sem paginação.
+   *
+   *  Um resumo mensal precisa do mês INTEIRO: paginar aqui daria um total
+   *  calculado sobre a primeira página, que é um número errado com cara de
+   *  certo. O intervalo já limita o volume. */
+  listForPeriod(
+    vaultId: string,
+    range: { from: Date; to: Date },
+  ): Promise<Array<PersonalTransaction & { splits: SplitInput[] }>>;
+
   listWithBusinessSplits(
     vaultId: string,
     range: { from: Date | null; to: Date | null },

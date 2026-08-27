@@ -20,6 +20,7 @@ import { createVaultDataRoutes } from "./vault-data-routes.js";
  */
 const ROTAS: ReadonlyArray<{ method: "get" | "post" | "patch" | "put" | "delete"; path: string }> =
   [
+    { method: "get", path: "/summary" },
     { method: "get", path: "/accounts" },
     { method: "post", path: "/accounts" },
     { method: "get", path: "/accounts/abc" },
@@ -145,6 +146,7 @@ function stubController() {
     res.status(200).json({ ok: true });
   };
   const names = [
+    "monthSummary",
     "listAccounts",
     "getAccount",
     "createAccount",

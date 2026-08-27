@@ -486,6 +486,14 @@ export class PersonalFinanceController {
     );
   };
 
+  // ----- Resumo do mês -----
+
+  monthSummary = async (req: Request, res: Response): Promise<void> => {
+    const { vaultId } = requireVaultContext(req);
+    const { month } = req.validatedQuery as { month: string };
+    res.json(await this.transactions.summarizeMonth(vaultId, month));
+  };
+
   // ----- Pessoas -----
 
   listContacts = async (req: Request, res: Response): Promise<void> => {

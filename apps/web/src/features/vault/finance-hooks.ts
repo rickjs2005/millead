@@ -227,6 +227,15 @@ export function useDeleteVaultMerchant() {
 
 // ----- Movimentações -----
 
+/** Resumo do mês. É a única leitura que combina as regras de todas as fases —
+ *  ver `vault-summary.ts` na API sobre a conta que precisa fechar. */
+export function useVaultMonthSummary(month: string) {
+  return useQuery({
+    queryKey: queryKeys.vault.monthSummary(month),
+    queryFn: () => vaultFinanceService.monthSummary(month),
+  });
+}
+
 export function useVaultTransactions(filters: TransactionFilters) {
   return useQuery({
     queryKey: queryKeys.vault.transactions(filters),

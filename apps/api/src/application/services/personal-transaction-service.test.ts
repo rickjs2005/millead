@@ -152,6 +152,7 @@ function makeFakes(debtLink: string | null = null, businessLink: string | null =
     listClassificationHistory: async () => [],
     findExistingFingerprints: async (_v, fingerprints) =>
       new Set(fingerprints.filter((fp) => transactions.some((t) => t.fingerprint === fp))),
+    listForPeriod: async () => [],
     listWithBusinessSplits: async () => [],
     sumByStatement: async (_v, statementId) =>
       String(

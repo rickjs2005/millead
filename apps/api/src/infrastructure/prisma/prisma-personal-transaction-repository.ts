@@ -256,6 +256,27 @@ export class PrismaPersonalTransactionRepository implements PersonalTransactionR
     }));
   }
 
+  async listForPeriod(
+    vaultId: string,
+    range: { from: Date; to: Date },
+  ): Promise<Array<PersonalTransaction & { splits: SplitInput[] }>> {
+    const rows = await prisma.personalTransaction.findMany({
+      where: { vaultId, transactionDate: { gte: range.from, lte: range.to } },
+      select: { ...transactionSelect, splits: { select: splitSelect } },
+      orderBy: { transactionDate: "asc" },
+    });
+
+    return rows.map(({ splits, ...row }) => ({
+      ...toTransaction(row),
+      splits: splits.map((s) => ({
+        kind: s.kind,
+        amount: s.amount.toString(),
+        categoryId: s.categoryId,
+        note: s.note,
+      })),
+    }));
+  }
+
   async listWithBusinessSplits(
     vaultId: string,
     range: { from: Date | null; to: Date | null },

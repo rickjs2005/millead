@@ -10,6 +10,7 @@ export const queryKeys = {
   },
   vault: {
     status: () => ["vault", "status"] as const,
+    monthSummary: (month: string) => ["vault", "month-summary", month] as const,
     session: () => ["vault", "session"] as const,
     accounts: (includeInactive: boolean) => ["vault", "accounts", includeInactive] as const,
     cards: (includeInactive: boolean) => ["vault", "cards", includeInactive] as const,

@@ -1112,6 +1112,80 @@ foram embora — a FK delas é `Restrict`.
   guardaria o conteúdo do extrato em cache, que é exatamente o que este módulo
   evita.
 
+## Painel do mês e revisão final (fase 10)
+
+A última fase fecha duas coisas: o painel que faltava da fase 8, e uma
+varredura de segurança do módulo inteiro.
+
+### A conta que precisa fechar
+
+O resumo mensal é o único lugar onde as regras de todas as fases se aplicam ao
+mesmo tempo — e por isso o único onde a contagem dupla apareceria. Ele existe
+em torno de uma identidade:
+
+    saídas = consumo pessoal + parte da empresa + reembolsável
+
+Ela tem de fechar **ao centavo**. Se fechar, nada se perdeu no caminho e nada
+foi contado duas vezes. É o teste mais importante do módulo, e ele roda tanto
+sobre dados montados quanto de ponta a ponta pela API.
+
+Três coisas ficam fora de entradas e saídas, cada uma por um motivo já decidido
+antes:
+
+| Fora do fluxo          | Por quê                                                    |
+| ---------------------- | ---------------------------------------------------------- |
+| Transferência          | Move dinheiro entre contas suas; não é fato novo (fase 2). |
+| Baixa de dívida        | O fato aconteceu quando a dívida nasceu (fase 6).          |
+| Movimentação estornada | Ninguém pagou por ela.                                     |
+
+As duas primeiras **não somem da tela**: aparecem numa linha própria, com o
+total. Esconder faria a pessoa procurar dinheiro que saiu da conta e não está
+em lugar nenhum do painel.
+
+### Entrou e saiu ≠ consumo pessoal
+
+O painel mostra os dois lado a lado, de propósito. "Saiu R$590" e "consumi
+R$365" são respostas a perguntas diferentes, e o módulo inteiro foi desenhado
+pra que elas não se misturem — deixar só uma na tela empurraria a confusão pra
+cabeça de quem lê.
+
+Pelo mesmo motivo o **resultado do mês usa o que saiu da conta**, não o consumo
+pessoal: a compra de R$300 com R$200 da MilWeb tirou R$300 do caixa. Usar o
+consumo aqui diria que sobrou dinheiro que não sobrou.
+
+O quebra-cabeça por categoria conta **só a parte pessoal**. Dizer R$300 numa
+categoria em que R$250 é da empresa faria parecer que ela é seu maior gasto.
+
+### Varredura de segurança
+
+Passada final sobre as 19 tabelas e todas as rotas do módulo:
+
+| O que foi checado                                     | Resultado |
+| ----------------------------------------------------- | --------- |
+| RLS em toda tabela do Cofre e da ponte                | 19/19     |
+| `vaultId` vindo do corpo da requisição em algum lugar | nenhum    |
+| Consultas Prisma sem filtro de posse                  | nenhuma   |
+| Rotas de dados sem sessão elevada                     | nenhuma   |
+| Rotas do Cofre com RBAC fora da ponte                 | nenhuma   |
+| `console.log` em código do Cofre                      | nenhum    |
+| Senha ou valor em query string                        | nenhum    |
+| Auditoria carregando valores                          | nenhuma   |
+
+A auditoria do Cofre grava só contadores: tentativas erradas, contagens de
+exportação e de restauração. O middleware corporativo de auditoria ignora
+`/api/v1/vault` explicitamente — sem isso, cada movimentação criada apareceria
+na trilha da organização.
+
+### O módulo em números
+
+|            |                                                       |
+| ---------- | ----------------------------------------------------- |
+| Tabelas    | 19 (17 do Cofre, 2 da ponte)                          |
+| Migrations | 8 — 7 aditivas e 1 correcao de FK                     |
+| Rotas      | 80 sob `/api/v1/vault`, 6 em `/api/v1/costs/expenses` |
+| Telas      | 14 sob `/cofre`                                       |
+| Testes     | 572 (1038 na API inteira)                             |
+
 ## Configuração
 
 ```bash
@@ -1124,7 +1198,7 @@ Gere o segredo com `openssl rand -base64 48`.
 
 ## Testes
 
-557 testes cobrem as oito fases e as telas, todos sem banco e sem HTTP real (exceto os
+572 testes cobrem as dez fases e as telas, todos sem banco e sem HTTP real (exceto os
 de rota, que sobem Express numa porta efêmera).
 
 **Fase 1 — segurança:**
@@ -1206,6 +1280,12 @@ de rota, que sobem Express numa porta efêmera).
 | `prisma-personal-backup-repository.test.ts` | O bug do 500 na planilha: `Decimal` vira string de duas casas, sem cortar zero, sem estragar data.                                                                             |
 | `personal-vault-service.test.ts`            | A confirmacao de senha usa o **mesmo balde de tentativas** do desbloqueio, respeita o castigo e **nao emite sessao nova**.                                                     |
 
+**Fase 10 - painel e revisao final:**
+
+| Arquivo                 | O que prova                                                                                                                                                                                                                       |
+| ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `vault-summary.test.ts` | **A conta fecha ao centavo** (saidas = pessoal + empresa + reembolsavel), com centavos impares; transferencia e baixa de divida ficam fora sem sumir; estornada nao conta; categoria soma so a parte pessoal; fevereiro bissexto. |
+
 ## Roadmap
 
 | #   | Fase                                                                   | Estado |
@@ -1217,6 +1297,6 @@ de rota, que sobem Express numa porta efêmera).
 | 5   | Assinaturas e alertas                                                  | ✓      |
 | 6   | Dívidas e pagamentos                                                   | ✓      |
 | 7   | Ponte com o financeiro da MilWeb (`BusinessExpense`)                   | ✓      |
-| 8   | Telas (antecipadas) · dashboard e drill-down completos                 | ◐      |
+| 8   | Telas · painel do mês e drill-down                                     | ✓      |
 | 9   | Backup e exportação                                                    | ✓      |
-| 10  | Testes finais, documentação e revisão                                  | ○      |
+| 10  | Testes finais, documentação e revisão                                  | ✓      |

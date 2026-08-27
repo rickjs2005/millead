@@ -2,9 +2,11 @@
 
 import { Bell, CreditCard, Landmark, Receipt, Repeat } from "lucide-react";
 import Link from "next/link";
+import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { MonthSummaryCard, mesAtual } from "@/features/vault/components/month-summary-card";
 import { describeAlert, formatVaultDate } from "@/features/vault/format";
 import {
   useVaultAccounts,
@@ -23,6 +25,7 @@ import { formatCurrency } from "@/utils/format";
  * que está esperando por você.
  */
 export default function CofreVisaoGeralPage() {
+  const [mes, setMes] = useState(mesAtual);
   const accounts = useVaultAccounts();
   const alerts = useVaultAlerts();
   const subscriptions = useVaultSubscriptions("ACTIVE");
@@ -79,6 +82,8 @@ export default function CofreVisaoGeralPage() {
           href="/cofre/cartoes"
         />
       </section>
+
+      <MonthSummaryCard mes={mes} onMudarMes={setMes} />
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>

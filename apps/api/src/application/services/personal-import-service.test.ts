@@ -131,6 +131,7 @@ function makeFakes() {
     listClassificationHistory: async () => [],
     findExistingFingerprints: async (_v, fps) =>
       new Set(fps.filter((fp) => transactions.some((t) => t.fingerprint === fp))),
+    listForPeriod: async () => [],
     listWithBusinessSplits: async () => [],
     sumByStatement: async () => "0",
   };

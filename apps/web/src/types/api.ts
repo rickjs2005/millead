@@ -1740,3 +1740,30 @@ export interface BusinessExpenseSummary {
   porPlano: ExpensePlanComparison[];
   semPlano: { realizadoBrl: number; lancamentos: number };
 }
+
+// ----- Resumo mensal do Cofre -----
+
+export interface VaultCategoryLine {
+  categoryId: string | null;
+  total: string;
+  lancamentos: number;
+}
+
+export interface VaultMonthSummary {
+  entradas: string;
+  saidas: string;
+  /** `entradas − saídas`. Pode ser negativo. */
+  resultado: string;
+  /** Quanto das saídas foi gasto com você — diferente de "quanto saiu". */
+  consumoPessoal: string;
+  daEmpresa: string;
+  reembolsavel: string;
+  /** O que se moveu sem ser receita nem despesa, para o dinheiro não sumir da
+   *  tela: transferências e baixas de dívida. */
+  foraDoFluxo: {
+    transferencias: { total: string; lancamentos: number };
+    baixasDivida: { total: string; lancamentos: number };
+  };
+  porCategoria: VaultCategoryLine[];
+  lancamentos: number;
+}

@@ -8,6 +8,7 @@ import {
   createTransactionSchema,
   createTransferSchema,
   listQuerySchema,
+  monthQuerySchema,
   payStatementSchema,
   replaceSplitsSchema,
   statementQuerySchema,
@@ -76,6 +77,9 @@ export function createVaultDataRoutes(
   router.use(authenticate, requireVault);
 
   const listQuery = validateQuery(listQuerySchema);
+
+  // ----- Resumo do mês -----
+  router.get("/summary", validateQuery(monthQuerySchema), asyncHandler(controller.monthSummary));
 
   // ----- Contas -----
   router.get("/accounts", listQuery, asyncHandler(controller.listAccounts));

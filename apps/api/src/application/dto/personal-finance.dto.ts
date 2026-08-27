@@ -233,3 +233,10 @@ export const listQuerySchema = z.object({
   includeInactive: z.coerce.boolean().default(false),
 });
 export type ListQuery = z.infer<typeof listQuerySchema>;
+
+/** Mês do resumo. `AAAA-MM` e nada mais: um intervalo livre num painel mensal
+ *  produziria um "resumo do mês" que não é de mês nenhum. */
+export const monthQuerySchema = z.object({
+  month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, "Mês inválido — use AAAA-MM."),
+});
+export type MonthQuery = z.infer<typeof monthQuerySchema>;

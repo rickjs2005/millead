@@ -24,6 +24,7 @@ import {
 import { resolveStatementPeriod, resolveStatementStatus } from "./statement-period.js";
 import { normalizeDescription } from "./transaction-text.js";
 import { formatMoney, parseMoney } from "./vault-money.js";
+import { monthRange, summarizeMonth, type MonthSummary } from "./vault-summary.js";
 
 /**
  * Movimentações, divisões e faturas.
@@ -220,6 +221,31 @@ export class PersonalTransactionService {
     const deleted = await this.transactions.delete(vaultId, id);
     if (!deleted) throw new NotFoundError("Movimentação não encontrada.");
     if (transaction.statementId) await this.recalculateStatement(vaultId, transaction.statementId);
+  }
+
+  /**
+   * Resumo de um mês.
+   *
+   * O único lugar do módulo onde as regras de todas as fases se aplicam ao
+   * mesmo tempo — e por isso o único onde a contagem dupla apareceria. A conta
+   * que precisa fechar está documentada em `vault-summary.ts`.
+   */
+  async summarizeMonth(vaultId: string, month: string): Promise<MonthSummary> {
+    const range = monthRange(month);
+    if (!range) throw new ValidationError("Mês inválido — use AAAA-MM.");
+
+    const movimentacoes = await this.transactions.listForPeriod(vaultId, range);
+    return summarizeMonth(
+      movimentacoes.map((t) => ({
+        direction: t.direction,
+        amountBrl: t.amountBrl,
+        status: t.status,
+        isTransfer: t.isTransfer,
+        settlesDebtId: t.settlesDebtId,
+        categoryId: t.categoryId,
+        splits: t.splits.map((s) => ({ kind: s.kind, amount: s.amount })),
+      })),
+    );
   }
 
   /**
