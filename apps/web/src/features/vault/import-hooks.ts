@@ -4,6 +4,7 @@ import { queryKeys } from "@/lib/query-keys";
 import { ApiError } from "@/services/api-client";
 import {
   vaultImportService,
+  type AnalyzePayload,
   type ConfirmPayload,
   type PreviewPayload,
 } from "@/services/vault-import";
@@ -19,6 +20,21 @@ function apiMessage(error: unknown, fallback: string): string {
  * escolher o arquivo. Tratá-la como query faria o React Query guardar o
  * conteúdo do extrato em cache — exatamente o que este módulo evita.
  */
+/**
+ * Análise do arquivo — o primeiro passo do novo fluxo.
+ *
+ * Mutation, e não query, pelo mesmo motivo da pré-visualização: não é um
+ * estado do servidor que a tela observa, é uma ação que a pessoa dispara. E,
+ * mais importante, tratá-la como query faria o React Query guardar o conteúdo
+ * do extrato em cache — exatamente o que este módulo evita.
+ */
+export function useAnalyzeImport() {
+  return useMutation({
+    mutationFn: (payload: AnalyzePayload) => vaultImportService.analyze(payload),
+    onError: (error) => toast.error(apiMessage(error, "Não foi possível ler o arquivo.")),
+  });
+}
+
 export function usePreviewImport() {
   return useMutation({
     mutationFn: (payload: PreviewPayload) => vaultImportService.preview(payload),

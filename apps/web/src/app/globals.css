@@ -143,4 +143,21 @@
     background-color: hsl(var(--border));
     border-radius: 999px;
   }
+
+  /*
+   * Barra de rolagem invisível, mas a rolagem continua funcionando.
+   *
+   * Para faixas de navegação que rolam na horizontal no celular: a barra
+   * nativa do Windows é grossa e opaca, e atravessada sob uma linha de abas
+   * ela parece defeito. Escondê-la NÃO tira a acessibilidade -- rolar por
+   * toque, por roda do mouse, por teclado (as abas são links, e o foco
+   * arrasta a faixa junto) continua tudo igual.
+   */
+  .scrollbar-none {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
+  }
 }

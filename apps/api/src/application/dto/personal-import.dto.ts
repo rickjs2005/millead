@@ -82,7 +82,22 @@ export const confirmImportSchema = z
       .array(
         z.object({
           line: z.coerce.number().int().min(1),
-          date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Data inválida — use AAAA-MM-DD."),
+          /**
+           * Aceita `AAAA-MM-DD` e também o ISO completo que a análise devolve.
+           *
+           * A análise serializa `Date` como `2026-08-05T00:00:00.000Z`; a
+           * confirmação exigia só `2026-08-05`. O ciclo completo da própria API
+           * -- analisar e confirmar de volta o que ela mesma devolveu --
+           * respondia 422, e obrigava todo cliente a reformatar a data.
+           *
+           * O corte é exato porque as colunas de data do Cofre são `@db.Date`
+           * à meia-noite UTC: os dez primeiros caracteres do ISO SÃO a data,
+           * sem conversão de fuso no caminho.
+           */
+          date: z
+            .string()
+            .regex(/^\d{4}-\d{2}-\d{2}(T[\d:.]+Z?)?$/, "Data inválida — use AAAA-MM-DD.")
+            .transform((valor) => valor.slice(0, 10)),
           description: z.string().min(1).max(300),
           amount: z.string().regex(/^\d+(\.\d{1,2})?$/, "Valor inválido."),
           direction: z.enum(["IN", "OUT"]),
@@ -140,3 +155,22 @@ export const importHistoryQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(20),
 });
 export type ImportHistoryQuery = z.infer<typeof importHistoryQuerySchema>;
+
+/**
+ * Análise: só o arquivo. Nenhuma origem é obrigatória.
+ *
+ * É a mudança de fluxo desta versão -- a conta está escrita dentro do OFX, e
+ * pedir que a pessoa a repita antes de o sistema olhar o arquivo era trabalho
+ * que o código faz, e um lugar a mais para errar.
+ */
+export const analyzeImportSchema = z.object({
+  fileName: z.string().min(1).max(255),
+  content: z.string().min(1, "Arquivo vazio."),
+  /** Preenchidos quando a pessoa escolhe ou corrige a origem. */
+  accountId: z.string().min(1).nullable().default(null),
+  cardId: z.string().min(1).nullable().default(null),
+  profileId: z.string().min(1).nullable().default(null),
+  /** Mapeamento corrigido na tela -- reanalisa sem novo upload. */
+  settings: importSettingsSchema.nullable().default(null),
+});
+export type AnalyzeImportBody = z.infer<typeof analyzeImportSchema>;

@@ -1767,3 +1767,109 @@ export interface VaultMonthSummary {
   porCategoria: VaultCategoryLine[];
   lancamentos: number;
 }
+
+// ----- Análise de extrato -----
+
+export type ImportConfidence = "alta" | "media" | "baixa";
+export type ImportMatchLevel = "exata" | "provavel" | "ambigua" | "nenhuma";
+export type ImportTransactionKind =
+  | "COMPRA"
+  | "TRANSFERENCIA"
+  | "PAGAMENTO_FATURA"
+  | "ESTORNO"
+  | "SAQUE"
+  | "DEPOSITO"
+  | "TARIFA"
+  | "JUROS"
+  | "BOLETO";
+
+/** O que o próprio arquivo declara sobre si. Nada aqui é inferido. */
+export interface VaultImportIdentity {
+  kind: "account" | "card" | null;
+  institution: string | null;
+  bankId: string | null;
+  fid: string | null;
+  accountNumber: string | null;
+  last4: string | null;
+  accountType: string | null;
+  currency: string | null;
+  periodStart: string | null;
+  periodEnd: string | null;
+  balance: string | null;
+  balanceAt: string | null;
+}
+
+export interface VaultImportCandidate {
+  id: string;
+  name: string;
+  institution: string | null;
+  last4: string | null;
+}
+
+export interface VaultImportMatch {
+  level: ImportMatchLevel;
+  kind: "account" | "card" | null;
+  /** Preenchido só quando a evidência é única — ver import-origin-match. */
+  selectedId: string | null;
+  candidates: VaultImportCandidate[];
+  reason: string;
+}
+
+export interface VaultImportSuggestion {
+  kind: "account" | "card";
+  name: string;
+  institution: string | null;
+  last4: string | null;
+  accountType: string | null;
+  currency: string | null;
+}
+
+export interface VaultAnalyzedRow extends VaultImportPreviewRow {
+  displayName: string;
+  merchantHint: string | null;
+  personHint: string | null;
+  categoryHint: string | null;
+  subcategoryHint: string | null;
+  businessHint: boolean;
+  kind: ImportTransactionKind;
+  /** Fora de receita e despesa: transferência própria, fatura, estorno. */
+  neutral: boolean;
+  installmentNumber: number | null;
+  installmentTotal: number | null;
+  confidence: ImportConfidence;
+}
+
+export interface VaultImportTotals {
+  linhas: number;
+  entradas: string;
+  saidas: string;
+  novas: number;
+  duplicadas: number;
+  jaImportadas: number;
+  revisar: number;
+  invalidas: number;
+  milweb: number;
+  neutras: number;
+}
+
+export interface VaultImportAnalysis {
+  format: VaultImportFormat;
+  fileHash: string;
+  fileName: string;
+  identity: VaultImportIdentity;
+  match: VaultImportMatch;
+  suggestion: VaultImportSuggestion | null;
+  detection: {
+    confidence: ImportConfidence;
+    pendencias: string[];
+    ignoradas: string[];
+    settings: VaultImportSettings;
+  } | null;
+  headers: string[];
+  delimiter: string | null;
+  periodStart: string | null;
+  periodEnd: string | null;
+  totals: VaultImportTotals;
+  alreadyImported: boolean;
+  rows: VaultAnalyzedRow[];
+}

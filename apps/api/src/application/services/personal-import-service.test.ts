@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
+import { confirmImportSchema } from "../dto/personal-import.dto.js";
 import type {
   PersonalAccount,
   PersonalCreditCard,
@@ -47,15 +48,15 @@ const settingsBr: ImportProfileSettings = {
   columnMap: { date: "Data", description: "Histórico", amount: "Valor" },
 };
 
-function makeFakes() {
+function makeFakes(over: { institution?: string | null; last4?: string | null } = {}) {
   const account: PersonalAccount = {
     id: "acc-1",
     vaultId: VAULT,
     name: "Conta",
-    institution: null,
+    institution: over.institution ?? null,
     type: "CHECKING",
     currency: "BRL",
-    last4: null,
+    last4: over.last4 ?? null,
     reportedBalance: null,
     reportedBalanceAt: null,
     isActive: true,
@@ -213,7 +214,7 @@ function makeFakes() {
     statementRepo,
     classifier,
   );
-  return { service, transactions, statements, batches, classifierCalls };
+  return { service, transactions, statements, batches, classifierCalls, account, card };
 }
 
 let f: ReturnType<typeof makeFakes>;
@@ -481,5 +482,333 @@ describe("sanitizeFileName", () => {
   it("nunca devolve string vazia", () => {
     expect(sanitizeFileName("")).toBe("extrato");
     expect(sanitizeFileName("///")).toBe("extrato");
+  });
+});
+
+describe("análise: o arquivo primeiro, a conta depois", () => {
+  const OFX = `OFXHEADER:100
+<OFX>
+<SIGNONMSGSRSV1><SONRS><FI><ORG>Banco Exemplo<FID>260</FI></SONRS></SIGNONMSGSRSV1>
+<BANKMSGSRSV1><STMTTRNRS><STMTRS>
+<CURDEF>BRL
+<BANKACCTFROM><BANKID>260<ACCTID>1234567-8<ACCTTYPE>CHECKING</BANKACCTFROM>
+<BANKTRANLIST>
+<DTSTART>20260801
+<DTEND>20260831
+<STMTTRN><TRNTYPE>DEBIT<DTPOSTED>20260805<TRNAMT>-120.00<FITID>a1<MEMO>ANTHROPIC CLAUDE AI</STMTTRN>
+<STMTTRN><TRNTYPE>DEBIT<DTPOSTED>20260806<TRNAMT>-45.90<FITID>a2<MEMO>IFOOD*RESTAURANTE</STMTTRN>
+<STMTTRN><TRNTYPE>CREDIT<DTPOSTED>20260810<TRNAMT>5000.00<FITID>a3<MEMO>SALARIO</STMTTRN>
+<STMTTRN><TRNTYPE>DEBIT<DTPOSTED>20260815<TRNAMT>-800.00<FITID>a4<MEMO>PAGAMENTO DE FATURA CARTAO</STMTTRN>
+</BANKTRANLIST>
+<LEDGERBAL><BALAMT>2450.75<DTASOF>20260831</LEDGERBAL>
+</STMTRS></STMTTRNRS></BANKMSGSRSV1>
+</OFX>`;
+
+  it("NÃO exige conta: analisa só com o arquivo", async () => {
+    // É a mudança de fluxo. Antes, sem conta a chamada nem começava.
+    const f = makeFakes();
+    const r = await f.service.analyze(VAULT, { fileName: "extrato.ofx", content: OFX });
+    expect(r.rows).toHaveLength(4);
+  });
+
+  it("lê a identidade que o arquivo declara", async () => {
+    const f = makeFakes();
+    const r = await f.service.analyze(VAULT, { fileName: "extrato.ofx", content: OFX });
+
+    expect(r.identity).toMatchObject({
+      kind: "account",
+      institution: "Banco Exemplo",
+      last4: "5678",
+      accountType: "CHECKING",
+      currency: "BRL",
+      balance: "2450.75",
+    });
+  });
+
+  it("usa o período declarado no arquivo, não o deduzido das linhas", async () => {
+    // Um mês sem movimentação tem período e não tem data nenhuma.
+    const f = makeFakes();
+    const r = await f.service.analyze(VAULT, { fileName: "extrato.ofx", content: OFX });
+    expect(r.periodStart?.toISOString().slice(0, 10)).toBe("2026-08-01");
+    expect(r.periodEnd?.toISOString().slice(0, 10)).toBe("2026-08-31");
+  });
+
+  it("casa com a conta cadastrada pelos 4 últimos dígitos", async () => {
+    const f = makeFakes({ last4: "5678", institution: "Banco Exemplo" });
+    const r = await f.service.analyze(VAULT, { fileName: "extrato.ofx", content: OFX });
+
+    expect(r.match.level).toBe("exata");
+    expect(r.match.selectedId).toBe("acc-1");
+    expect(r.match.reason).toContain("5678");
+  });
+
+  it("sem correspondência, sugere criar com o que o arquivo trouxe", async () => {
+    const f = makeFakes({ last4: "0000" });
+    const r = await f.service.analyze(VAULT, { fileName: "extrato.ofx", content: OFX });
+
+    expect(r.match.selectedId).toBeNull();
+    expect(r.suggestion).toMatchObject({
+      kind: "account",
+      name: "Banco Exemplo ··5678",
+      last4: "5678",
+      accountType: "CHECKING",
+    });
+  });
+
+  it("a escolha da pessoa ganha do casamento automático", async () => {
+    const f = makeFakes({ last4: "0000" });
+    const r = await f.service.analyze(VAULT, {
+      fileName: "extrato.ofx",
+      content: OFX,
+      accountId: "acc-1",
+    });
+    expect(r.match.selectedId).toBe("acc-1");
+  });
+
+  it("sem origem, a deduplicação fica vazia em vez de mentir", async () => {
+    // A chave de duplicidade inclui a conta. Calculada sem ela, não
+    // corresponderia a nada e toda linha pareceria nova.
+    const f = makeFakes({ last4: "0000" });
+    const r = await f.service.analyze(VAULT, { fileName: "extrato.ofx", content: OFX });
+    expect(r.rows.every((row) => row.fingerprint === null)).toBe(true);
+  });
+});
+
+describe("análise: o que ela infere de cada linha", () => {
+  const linha = async (memo: string) => {
+    const ofx = `<OFX><BANKACCTFROM><ACCTID>1111</ACCTID></BANKACCTFROM><STMTTRN><DTPOSTED>20260805<TRNAMT>-10.00<FITID>x<MEMO>${memo}</STMTTRN></OFX>`;
+    const f = makeFakes({ last4: "1111" });
+    const r = await f.service.analyze(VAULT, { fileName: "e.ofx", content: ofx });
+    return r.rows[0]!;
+  };
+
+  it("nome legível, mantendo a descrição original", async () => {
+    const row = await linha("ANTHROPIC CLAUDE AI SUBSCR");
+    expect(row.displayName).toBe("Anthropic / Claude");
+    expect(row.description).toBe("ANTHROPIC CLAUDE AI SUBSCR");
+  });
+
+  it("categoria e classificação MilWeb, com confiança alta", async () => {
+    const row = await linha("ANTHROPIC CLAUDE AI");
+    expect(row.categoryHint).toBe("Trabalho");
+    expect(row.subcategoryHint).toBe("IA");
+    expect(row.businessHint).toBe(true);
+    expect(row.confidence).toBe("alta");
+  });
+
+  it("gasto pessoal não vira MilWeb", async () => {
+    const row = await linha("IFOOD*RESTAURANTE DO ZE");
+    expect(row.categoryHint).toBe("Alimentação");
+    expect(row.businessHint).toBe(false);
+  });
+
+  it("pagamento de fatura é marcado como neutro", async () => {
+    // Não é despesa nova: a despesa foi a compra no cartão.
+    const row = await linha("PAGAMENTO DE FATURA CARTAO");
+    expect(row.kind).toBe("PAGAMENTO_FATURA");
+    expect(row.neutral).toBe(true);
+  });
+
+  it("parcela é extraída sem sumir da descrição", async () => {
+    const row = await linha("LOJA MOVEIS PARC 02/10");
+    expect(row.installmentNumber).toBe(2);
+    expect(row.installmentTotal).toBe(10);
+    expect(row.description).toContain("02/10");
+  });
+
+  it("o que não reconhece fica com confiança baixa, para revisão", async () => {
+    const row = await linha("ESTABELECIMENTO 99887766");
+    expect(row.categoryHint).toBeNull();
+    expect(row.confidence).toBe("baixa");
+  });
+});
+
+describe("análise: os totais do cabeçalho", () => {
+  it("entradas e saídas não contam o que é neutro", async () => {
+    // Mesma regra do resumo do mês. Números diferentes nas duas telas fariam a
+    // pessoa desconfiar dos dois.
+    const ofx = `<OFX><BANKACCTFROM><ACCTID>1111</ACCTID></BANKACCTFROM>
+<STMTTRN><DTPOSTED>20260805<TRNAMT>-120.00<FITID>a<MEMO>MERCADO</STMTTRN>
+<STMTTRN><DTPOSTED>20260806<TRNAMT>5000.00<FITID>b<MEMO>SALARIO</STMTTRN>
+<STMTTRN><DTPOSTED>20260807<TRNAMT>-800.00<FITID>c<MEMO>PAGAMENTO DE FATURA</STMTTRN>
+</OFX>`;
+    const f = makeFakes({ last4: "1111" });
+    const r = await f.service.analyze(VAULT, { fileName: "e.ofx", content: ofx });
+
+    expect(r.totals.entradas).toBe("5000.00");
+    expect(r.totals.saidas).toBe("120.00"); // sem os 800 da fatura
+    expect(r.totals.neutras).toBe(1);
+    expect(r.totals.linhas).toBe(3);
+  });
+
+  it("conta quantas precisam de revisão e quantas são da MilWeb", async () => {
+    const ofx = `<OFX><BANKACCTFROM><ACCTID>1111</ACCTID></BANKACCTFROM>
+<STMTTRN><DTPOSTED>20260805<TRNAMT>-120.00<FITID>a<MEMO>ANTHROPIC CLAUDE</STMTTRN>
+<STMTTRN><DTPOSTED>20260806<TRNAMT>-30.00<FITID>b<MEMO>XPTO 44718899</STMTTRN>
+</OFX>`;
+    const f = makeFakes({ last4: "1111" });
+    const r = await f.service.analyze(VAULT, { fileName: "e.ofx", content: ofx });
+
+    expect(r.totals.milweb).toBe(1);
+    expect(r.totals.revisar).toBe(1);
+  });
+});
+
+describe("análise de CSV", () => {
+  const CSV = `Data;Histórico;Valor
+05/08/2026;MERCADO BOM PRECO;-1.234,56
+15/08/2026;SALARIO;5.000,00`;
+
+  it("detecta separador, decimal, ordem da data e colunas sozinho", async () => {
+    const f = makeFakes();
+    const r = await f.service.analyze(VAULT, { fileName: "extrato.csv", content: CSV });
+
+    expect(r.format).toBe("CSV");
+    expect(r.detection?.confidence).toBe("alta");
+    expect(r.detection?.settings).toMatchObject({
+      delimiter: ";",
+      decimalSeparator: ",",
+      dateOrder: "DMY",
+      hasHeader: true,
+    });
+    expect(r.rows).toHaveLength(2);
+  });
+
+  it("CSV não se descreve: identidade vazia e conta perguntada", async () => {
+    const f = makeFakes();
+    const r = await f.service.analyze(VAULT, { fileName: "extrato.csv", content: CSV });
+
+    expect(r.identity.kind).toBeNull();
+    expect(r.match.level).toBe("nenhuma");
+    expect(r.match.reason).toMatch(/não diz se é conta ou cartão/i);
+  });
+
+  it("mapeamento corrigido na tela é respeitado sem novo upload", async () => {
+    const f = makeFakes();
+    const r = await f.service.analyze(VAULT, {
+      fileName: "extrato.csv",
+      content: CSV,
+      settings: {
+        delimiter: ";",
+        decimalSeparator: ",",
+        dateOrder: "DMY",
+        hasHeader: true,
+        invertSign: true,
+        columnMap: { date: 0, description: 1, amount: 2 },
+      },
+    });
+    // invertSign: o que era saída vira entrada.
+    expect(r.rows[0]!.direction).toBe("IN");
+  });
+});
+
+describe("defeitos encontrados usando o fluxo de verdade", () => {
+  const OFX = `<OFX><BANKACCTFROM><ACCTID>1111</ACCTID></BANKACCTFROM>
+<STMTTRN><DTPOSTED>20260805<TRNAMT>-120.00<FITID>d1<MEMO>MERCADO</STMTTRN>
+<STMTTRN><DTPOSTED>20260806<TRNAMT>5000.00<FITID>d2<MEMO>SALARIO</STMTTRN>
+<STMTTRN><DTPOSTED>20260807<TRNAMT>-800.00<FITID>d3<MEMO>PAGAMENTO DE FATURA</STMTTRN>
+<STMTTRN><DTPOSTED>20260808<TRNAMT>-99.90<FITID>d4<MEMO>XPTO 998877</STMTTRN>
+</OFX>`;
+
+  it("sem conta escolhida, as linhas NÃO viram todas recusadas", async () => {
+    // A deduplicação não roda sem origem, e o status vinha dela: sem conta,
+    // nenhuma linha tinha fingerprint e o arquivo inteiro aparecia como
+    // recusado, com totais zerados, antes de a pessoa escolher qualquer coisa.
+    const f = makeFakes({ last4: "0000" }); // nenhuma conta casa
+    const r = await f.service.analyze(VAULT, { fileName: "e.ofx", content: OFX });
+
+    expect(r.match.selectedId).toBeNull();
+    expect(r.rows.every((row) => row.status === "NEW")).toBe(true);
+    expect(r.totals.invalidas).toBe(0);
+  });
+
+  it("e os totais aparecem mesmo antes de escolher a conta", async () => {
+    const f = makeFakes({ last4: "0000" });
+    const r = await f.service.analyze(VAULT, { fileName: "e.ofx", content: OFX });
+
+    expect(r.totals.entradas).toBe("5000.00");
+    expect(r.totals.saidas).toBe("219.90"); // 120 + 99,90; a fatura é neutra
+    // Duas: a linha XPTO (não reconhecida) e o SALARIO. As 14 categorias do
+    // Cofre são de DESPESA -- não existe "Recebimentos" --, então entrada fica
+    // sem categoria de propósito. Empurrar salário para "Outros" seria pior:
+    // esconderia num balde a linha que mais importa do mês.
+    expect(r.totals.revisar).toBe(2);
+  });
+
+  it("linha com erro de leitura continua sendo recusada, com ou sem conta", async () => {
+    // A correção não pode ter afrouxado o que É inválido de verdade.
+    const semData = `<OFX><BANKACCTFROM><ACCTID>1111</ACCTID></BANKACCTFROM>
+<STMTTRN><TRNAMT>-10.00<FITID>x<MEMO>SEM DATA</STMTTRN></OFX>`;
+    const f = makeFakes({ last4: "0000" });
+    const r = await f.service.analyze(VAULT, { fileName: "e.ofx", content: semData });
+
+    expect(r.rows[0]!.status).toBe("INVALID");
+    expect(r.totals.invalidas).toBe(1);
+  });
+
+  it("a data que a análise devolve é aceita pela confirmação", async () => {
+    // O ciclo completo da própria API respondia 422: a análise serializa
+    // `Date` como ISO e a confirmação exigia só AAAA-MM-DD.
+    const f = makeFakes({ last4: "1111" });
+    const r = await f.service.analyze(VAULT, { fileName: "e.ofx", content: OFX });
+    const novas = r.rows.filter((row) => row.status === "NEW");
+
+    const body = confirmImportSchema.safeParse({
+      accountId: "acc-1",
+      cardId: null,
+      fileName: r.fileName,
+      fileHash: r.fileHash,
+      format: r.format,
+      // Exatamente como a análise devolve, passando por JSON como na rede.
+      rows: JSON.parse(JSON.stringify(novas)).map((row: Record<string, unknown>) => ({
+        line: row.line,
+        date: row.date,
+        description: row.description,
+        amount: row.amount,
+        direction: row.direction,
+        externalId: row.externalId,
+      })),
+      ignored: [],
+    });
+
+    expect(body.success).toBe(true);
+    if (body.success) {
+      // E normaliza para o formato que o resto do sistema usa.
+      expect(body.data.rows[0]!.date).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    }
+  });
+
+  it("página web disfarçada de extrato é recusada com mensagem que explica", async () => {
+    // Sessão do banco expirada devolve o HTML da tela de login com o nome
+    // `extrato.ofx`. Antes, isso virava linhas inválidas e a pessoa conferia
+    // uma por uma um problema que era do arquivo inteiro.
+    const f = makeFakes();
+    await expect(
+      f.service.analyze(VAULT, {
+        fileName: "extrato.ofx",
+        content: "<!DOCTYPE html>\n<html><body>Sua sessão expirou</body></html>",
+      }),
+    ).rejects.toThrow(/sessão do banco expira/i);
+  });
+
+  it("CSV cujas linhas nenhuma pode ser lida é recusado como arquivo, não como linhas", async () => {
+    const f = makeFakes();
+    await expect(
+      f.service.analyze(VAULT, {
+        fileName: "coisa.csv",
+        content: "aaa;bbb;ccc\nxxx;yyy;zzz\nkkk;jjj;lll",
+      }),
+    ).rejects.toThrow(/Nenhuma linha deste arquivo/i);
+  });
+
+  it("mas mês sem movimentação continua sendo resultado vazio, não erro", async () => {
+    // Cabeçalho certo, nenhuma linha de dado: é legítimo.
+    const f = makeFakes();
+    const r = await f.service.analyze(VAULT, {
+      fileName: "vazio.csv",
+      content: "Data;Histórico;Valor",
+    });
+    expect(r.rows).toHaveLength(0);
+    expect(r.totals.linhas).toBe(0);
   });
 });

@@ -19,6 +19,7 @@ import type {
   UpdateTransactionBody,
 } from "../../../application/dto/personal-finance.dto.js";
 import type {
+  AnalyzeImportBody,
   ConfirmImportBody,
   CreateImportProfileBody,
   ImportHistoryQuery,
@@ -266,6 +267,17 @@ export class PersonalFinanceController {
   };
 
   // ----- Importação -----
+
+  /**
+   * Análise: recebe só o arquivo e devolve tudo que dá pra saber dele.
+   *
+   * Não grava nada, e é por isso que pode rodar assim que a pessoa solta o
+   * arquivo na tela.
+   */
+  analyzeImport = async (req: Request, res: Response): Promise<void> => {
+    const { vaultId } = requireVaultContext(req);
+    res.json(await this.imports.analyze(vaultId, req.body as AnalyzeImportBody));
+  };
 
   previewImport = async (req: Request, res: Response): Promise<void> => {
     const { vaultId } = requireVaultContext(req);

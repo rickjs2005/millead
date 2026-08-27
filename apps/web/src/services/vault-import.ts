@@ -1,5 +1,6 @@
 import { api } from "./api-client";
 import type {
+  VaultImportAnalysis,
   VaultImportBatch,
   VaultImportFormat,
   VaultImportPreview,
@@ -34,7 +35,27 @@ export interface ConfirmPayload {
   ignored: Array<{ line: number; code: string }>;
 }
 
+export interface AnalyzePayload {
+  fileName: string;
+  content: string;
+  /** Só quando a pessoa escolhe ou corrige a origem. */
+  accountId?: string | null;
+  cardId?: string | null;
+  profileId?: string | null;
+  settings?: VaultImportSettings | null;
+}
+
 export const vaultImportService = {
+  /**
+   * Analisa o arquivo sem exigir conta.
+   *
+   * Como a pré-visualização, é uma ação, não um estado do servidor — por isso
+   * vira mutation nos hooks e nunca entra em cache: o conteúdo do extrato não
+   * pode ficar guardado na memória do React Query.
+   */
+  analyze: (payload: AnalyzePayload) =>
+    api.post<VaultImportAnalysis>("/api/v1/vault/imports/analyze", payload),
+
   preview: (payload: PreviewPayload) =>
     api.post<VaultImportPreview>("/api/v1/vault/imports/preview", payload),
   confirm: (payload: ConfirmPayload) =>

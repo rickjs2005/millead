@@ -17,6 +17,7 @@ import type {
   PersonalTransactionRepository,
 } from "../../domain/repositories/personal-transaction-repository.js";
 import { parseCsv } from "./import-csv.js";
+import { parseImportedDate } from "./import-date.js";
 import {
   classifyImportRows,
   summarizeClassification,
@@ -29,6 +30,17 @@ import {
   type MappedRow,
 } from "./import-mapper.js";
 import { parseOfx } from "./import-ofx.js";
+import { detectCsvSettings, scoreSettings, type Confidence } from "./import-autodetect.js";
+import { emptyIdentity, identityFromOfx, type ImportIdentity } from "./import-identity.js";
+import {
+  matchOrigin,
+  suggestOrigin,
+  type OriginMatch,
+  type SuggestedOrigin,
+} from "./import-origin-match.js";
+import { describeMerchant } from "./merchant-display.js";
+import { guessCategory } from "./category-keywords.js";
+import { guessKind, type TransactionKind } from "./transaction-kind.js";
 import { resolveStatementPeriod } from "./statement-period.js";
 import { buildFingerprint } from "./transaction-fingerprint.js";
 import { normalizeDescription } from "./transaction-text.js";
@@ -108,6 +120,81 @@ export interface ConfirmImportInput extends ImportOrigin {
   ignored: SafeImportError[];
 }
 
+/**
+ * O que a análise devolve — tudo que o sistema conseguiu ler do arquivo
+ * sozinho, antes de a pessoa escolher qualquer coisa.
+ *
+ * É a peça que inverte o fluxo: antes, escolher a conta vinha primeiro e o
+ * arquivo depois; a conta estava escrita dentro do arquivo o tempo todo.
+ */
+export interface AnalyzedRow extends PreviewRow {
+  /** Nome legível. A descrição original continua em `description`. */
+  displayName: string;
+  merchantHint: string | null;
+  personHint: string | null;
+  categoryHint: string | null;
+  subcategoryHint: string | null;
+  /** Sugestão de que é gasto da MilWeb. */
+  businessHint: boolean;
+  /** COMPRA, TRANSFERENCIA, PAGAMENTO_FATURA, ESTORNO... */
+  kind: TransactionKind;
+  /** Fora de receita e despesa (transferência própria, fatura, estorno). */
+  neutral: boolean;
+  installmentNumber: number | null;
+  installmentTotal: number | null;
+  /** `alta` preenche sozinho; `media` preenche e destaca; `baixa` pede revisão. */
+  confidence: Confidence;
+}
+
+export interface AnalyzeInput {
+  fileName: string;
+  content: string;
+  /** Opcional: quando a pessoa já escolheu, ou quando o casamento foi exato. */
+  accountId?: string | null;
+  cardId?: string | null;
+  /** Mapeamento corrigido na tela, para reanalisar sem novo upload. */
+  settings?: ImportProfileSettings | null;
+  profileId?: string | null;
+}
+
+export interface AnalyzeResult {
+  format: PersonalImportFormat;
+  fileHash: string;
+  fileName: string;
+  /** O que o arquivo declara sobre si — banco, conta, período, saldo. */
+  identity: ImportIdentity;
+  /** Casamento com o que já está cadastrado. */
+  match: OriginMatch;
+  /** Formulário pré-preenchido, quando não há correspondência. */
+  suggestion: SuggestedOrigin | null;
+  /** Só CSV: mapeamento detectado e o que ficou pendente. */
+  detection: {
+    confidence: Confidence;
+    pendencias: string[];
+    ignoradas: string[];
+    settings: ImportProfileSettings;
+  } | null;
+  headers: string[];
+  delimiter: string | null;
+  periodStart: Date | null;
+  periodEnd: Date | null;
+  /** Totais do arquivo, para conferir antes de importar. */
+  totals: {
+    linhas: number;
+    entradas: string;
+    saidas: string;
+    novas: number;
+    duplicadas: number;
+    jaImportadas: number;
+    revisar: number;
+    invalidas: number;
+    milweb: number;
+    neutras: number;
+  };
+  alreadyImported: boolean;
+  rows: AnalyzedRow[];
+}
+
 export class PersonalImportService {
   constructor(
     private readonly imports: PersonalImportRepository,
@@ -116,6 +203,238 @@ export class PersonalImportService {
     private readonly statements: PersonalStatementRepository,
     private readonly classifier: TransactionClassifier,
   ) {}
+
+  // ----- Análise: o arquivo primeiro, a conta depois -----
+
+  /**
+   * Lê o arquivo e devolve tudo que dá para saber dele sozinho.
+   *
+   * ## Por que isto existe
+   *
+   * O fluxo anterior pedia a conta antes de olhar o arquivo — e a conta está
+   * escrita dentro do arquivo. Pedir que a pessoa repita o que o OFX já declara
+   * é trabalho que o código faz, e é fonte de erro: escolher a conta errada num
+   * seletor associa o extrato ao lugar errado, e isso só aparece meses depois,
+   * num saldo que não fecha.
+   *
+   * ## Ordem das decisões
+   *
+   * 1. Formato (OFX ou CSV) — pelo conteúdo, nunca pela extensão.
+   * 2. Identidade: banco, conta/cartão, tipo, moeda, período, saldo.
+   * 3. Casamento com o que já existe. Só preenche sozinho quando a evidência é
+   *    única — ver `import-origin-match`.
+   * 4. Leitura das linhas, com mapeamento detectado no caso do CSV.
+   * 5. Enriquecimento: nome legível, categoria, fornecedor, tipo, parcela.
+   * 6. Deduplicação — **só quando a origem já é conhecida**, porque a chave de
+   *    duplicidade inclui a conta. Sem origem, a coluna fica vazia em vez de
+   *    afirmar que está tudo novo.
+   *
+   * Nada aqui grava: é leitura pura sobre o texto que veio na requisição.
+   */
+  async analyze(vaultId: string, input: AnalyzeInput): Promise<AnalyzeResult> {
+    const fileHash = sha256(input.content);
+    const format = detectFormat(input.content);
+    const fileName = sanitizeFileName(input.fileName);
+
+    const identity = format === "OFX" ? identityFromOfx(input.content) : emptyIdentity();
+
+    const [accounts, cards] = await Promise.all([
+      this.accounts.listAccounts(vaultId, false),
+      this.accounts.listCards(vaultId, false),
+    ]);
+    const candidatos = (
+      lista: ReadonlyArray<{
+        id: string;
+        name: string;
+        institution: string | null;
+        last4: string | null;
+      }>,
+    ) => lista.map((c) => ({ id: c.id, name: c.name, institution: c.institution, last4: c.last4 }));
+
+    const match = matchOrigin(identity, candidatos(accounts), candidatos(cards));
+
+    // A escolha da pessoa ganha do casamento automático, sempre.
+    const escolhida = input.accountId ?? input.cardId ?? null;
+    const accountId = input.accountId ?? (match.kind === "account" ? match.selectedId : null);
+    const cardId = input.cardId ?? (match.kind === "card" ? match.selectedId : null);
+    const sourceId = accountId ?? cardId;
+
+    const lido =
+      format === "OFX" ? this.readOfx(input.content) : await this.readCsv(vaultId, input);
+    const rows = await this.enrich(vaultId, lido.rows, sourceId);
+
+    const datas = rows.flatMap((row) => (row.date ? [row.date.getTime()] : []));
+    const anterior = sourceId
+      ? await this.imports.findBatchByHash(vaultId, { accountId, cardId }, fileHash)
+      : null;
+
+    return {
+      format,
+      fileHash,
+      fileName,
+      identity,
+      match: escolhida ? { ...match, selectedId: escolhida, level: "exata" } : match,
+      suggestion: match.level === "nenhuma" ? suggestOrigin(identity) : null,
+      detection: lido.detection,
+      headers: lido.headers,
+      delimiter: lido.delimiter,
+      // O período declarado no arquivo vale mais que o deduzido das linhas: um
+      // mês sem movimentação tem período e não tem data nenhuma.
+      periodStart:
+        parseImportedDate(identity.periodStart ?? "", "YMD") ??
+        (datas.length ? new Date(Math.min(...datas)) : null),
+      periodEnd:
+        parseImportedDate(identity.periodEnd ?? "", "YMD") ??
+        (datas.length ? new Date(Math.max(...datas)) : null),
+      totals: totalsOf(rows),
+      alreadyImported: anterior !== null,
+      rows,
+    };
+  }
+
+  /**
+   * Acrescenta a cada linha o que dá para inferir sem gravar nada.
+   *
+   * A deduplicação só entra quando a origem é conhecida: a chave inclui a
+   * conta, e calculá-la sem ela produziria uma chave que não corresponde a
+   * nada — e toda linha pareceria nova.
+   */
+  private async enrich(
+    vaultId: string,
+    rows: MappedRow[],
+    sourceId: string | null,
+  ): Promise<AnalyzedRow[]> {
+    const comChave = rows.map((row) => ({
+      ...row,
+      fingerprint: sourceId ? fingerprintFor(row, sourceId) : null,
+      amount: row.amountCents === null ? null : formatMoney(row.amountCents),
+    }));
+
+    // Sem origem, a deduplicação não roda -- e é por isso que o status não pode
+    // sair dela. `classifyImportRows` marca INVALID toda linha sem fingerprint,
+    // e sem conta NENHUMA linha tem fingerprint: o arquivo inteiro apareceria
+    // como recusado, com totais zerados, antes mesmo de a pessoa escolher a
+    // conta. O que a linha é (válida ou não) depende só dos erros de leitura;
+    // se ela já existe no Cofre é outra pergunta, e essa só tem resposta com a
+    // conta em mãos.
+    const statuses = sourceId
+      ? classifyImportRows(
+          comChave,
+          await this.transactions.findExistingFingerprints(
+            vaultId,
+            comChave.flatMap((row) => (row.fingerprint ? [row.fingerprint] : [])),
+          ),
+        )
+      : comChave.map((row): ImportRowStatus => (row.errors.length > 0 ? "INVALID" : "NEW"));
+
+    return comChave.map((row, index) => {
+      const merchant = describeMerchant(row.description);
+      const categoria = guessCategory(row.description);
+      const tipo = guessKind(row.description, null);
+
+      return {
+        ...row,
+        status: statuses[index]!,
+        displayName: merchant.name,
+        merchantHint: merchant.merchantHint,
+        personHint: merchant.personHint,
+        categoryHint: categoria?.category ?? null,
+        subcategoryHint: categoria?.subcategory ?? null,
+        businessHint: categoria?.business ?? false,
+        kind: tipo.kind,
+        neutral: tipo.neutral,
+        installmentNumber: merchant.installment?.number ?? null,
+        installmentTotal: merchant.installment?.total ?? null,
+        confidence: rowConfidence(categoria?.confidence, tipo.confidence),
+      };
+    });
+  }
+
+  private readOfx(content: string) {
+    return { ...this.previewOfx(content), detection: null };
+  }
+
+  /**
+   * Lê o CSV escolhendo o melhor mapeamento disponível.
+   *
+   * A ordem é: o que a pessoa corrigiu na tela > perfil salvo **que funciona
+   * neste arquivo** > detecção automática.
+   *
+   * O perfil salvo é conferido antes de valer, e isso importa: um modelo do
+   * Nubank aplicado a um extrato do Itaú produziria linhas inválidas em
+   * silêncio, e a pessoa conferiria linha a linha um problema que é do
+   * mapeamento inteiro. Ler vinte linhas para descobrir isso é barato.
+   */
+  private async readCsv(vaultId: string, input: AnalyzeInput) {
+    assertNotMarkup(input.content);
+    const doc = parseCsv(input.content, input.settings?.delimiter);
+    if (doc.rows.length === 0) throw new ValidationError("Arquivo vazio ou ilegível.");
+
+    const salvo = await this.resolveSettings(vaultId, {
+      fileName: input.fileName,
+      content: input.content,
+      accountId: input.accountId ?? null,
+      cardId: input.cardId ?? null,
+      profileId: input.profileId ?? null,
+      settings: null,
+    });
+    const detectado = detectCsvSettings(doc);
+
+    if (input.settings) {
+      assertMappingMatchesHeader(doc.rows[0] ?? [], input.settings);
+      return {
+        headers: doc.rows[0] ?? [],
+        delimiter: doc.delimiter,
+        rows: mapCsvRows(doc, input.settings),
+        detection: {
+          confidence: "alta" as const,
+          pendencias: [],
+          ignoradas: [],
+          settings: input.settings,
+        },
+      };
+    }
+
+    if (salvo && scoreSettings(doc, salvo) >= 0.8) {
+      assertMappingMatchesHeader(doc.rows[0] ?? [], salvo);
+      return {
+        headers: doc.rows[0] ?? [],
+        delimiter: doc.delimiter,
+        rows: mapCsvRows(doc, salvo),
+        detection: {
+          confidence: "alta" as const,
+          pendencias: [],
+          ignoradas: [],
+          settings: salvo,
+        },
+      };
+    }
+
+    if (detectado) {
+      assertMappingMatchesHeader(doc.rows[0] ?? [], detectado.settings);
+      const linhas = mapCsvRows(doc, detectado.settings);
+      assertLegivel(linhas);
+      return {
+        headers: doc.rows[0] ?? [],
+        delimiter: doc.delimiter,
+        rows: linhas,
+        detection: {
+          confidence: detectado.confidence,
+          pendencias: detectado.pendencias,
+          ignoradas: detectado.ignoradas,
+          settings: detectado.settings,
+        },
+      };
+    }
+
+    // Nem detecção nem perfil: a tela mostra as colunas e pergunta.
+    return {
+      headers: doc.rows[0] ?? [],
+      delimiter: doc.delimiter,
+      rows: [] as MappedRow[],
+      detection: null,
+    };
+  }
 
   // ----- Pré-visualização -----
 
@@ -561,4 +880,104 @@ function assertMappingMatchesHeader(header: string[], settings: ImportProfileSet
         "Confira o mapeamento — ou se o arquivo enviado é mesmo o extrato.",
     );
   }
+}
+
+/**
+ * A confiança de uma linha — o que decide se ela pede revisão.
+ *
+ * ## O que entra na conta, e o que não
+ *
+ * Entram **categoria** e **tipo**. Não entra o nome legível do fornecedor, e
+ * essa exclusão é deliberada: o nome é cosmético, a descrição original fica
+ * sempre à vista ao lado dele, e nenhuma decisão de dinheiro depende dele.
+ *
+ * A primeira versão incluía o nome, e o resultado foi inútil: "POSTO
+ * IPIRANGA" tem categoria certa (Transporte, alta) mas não está na tabela de
+ * fornecedores conhecidos, então a linha inteira caía para "baixa". Com quase
+ * todo extrato assim, "a revisar" marcava tudo — e uma marcação que aparece em
+ * tudo não distingue nada, então ninguém olha.
+ *
+ * ## Sem categoria é sempre baixa
+ *
+ * É o caso que realmente pede uma pessoa: o sistema não soube dizer o que a
+ * linha é. Entre as categorizadas, vale a menor confiança entre categoria e
+ * tipo — preencher com destaque é melhor que preencher e esquecer.
+ */
+export function rowConfidence(
+  categoria: "alta" | "media" | undefined,
+  tipo: "alta" | "media",
+): Confidence {
+  if (categoria === undefined) return "baixa";
+  return categoria === "media" || tipo === "media" ? "media" : "alta";
+}
+
+/** Os números do cabeçalho da prévia, para conferir antes de importar. */
+export function totalsOf(rows: ReadonlyArray<AnalyzedRow>): AnalyzeResult["totals"] {
+  let entradas = 0;
+  let saidas = 0;
+
+  for (const row of rows) {
+    if (row.amountCents === null || row.status === "INVALID") continue;
+    // Neutras (transferência própria, fatura, estorno) ficam fora dos dois
+    // totais -- é a mesma regra do resumo do mês, e mostrar diferente aqui
+    // faria os dois números discordarem na cara da pessoa.
+    if (row.neutral) continue;
+    if (row.direction === "IN") entradas += row.amountCents;
+    else if (row.direction === "OUT") saidas += row.amountCents;
+  }
+
+  return {
+    linhas: rows.length,
+    entradas: formatMoney(entradas),
+    saidas: formatMoney(saidas),
+    novas: rows.filter((r) => r.status === "NEW").length,
+    // As duas duplicidades andam juntas no total, mas a linha diz qual é:
+    // "já no Cofre" você esperava; "repetida no arquivo" quase sempre é
+    // surpresa.
+    duplicadas: rows.filter((r) => r.status === "DUPLICATE_FILE").length,
+    jaImportadas: rows.filter((r) => r.status === "DUPLICATE_VAULT").length,
+    revisar: rows.filter((r) => r.status !== "INVALID" && r.confidence === "baixa").length,
+    invalidas: rows.filter((r) => r.status === "INVALID").length,
+    milweb: rows.filter((r) => r.businessHint).length,
+    neutras: rows.filter((r) => r.neutral).length,
+  };
+}
+
+/**
+ * O arquivo é uma página web, não um extrato?
+ *
+ * É o caso mais comum de "arquivo errado": a sessão do banco expira e o
+ * download devolve o HTML da tela de login, com o nome `extrato.ofx`. Esse
+ * arquivo passa por qualquer checagem de extensão, e o leitor de CSV o engole
+ * sem reclamar — vira uma linha só, ou várias inválidas.
+ *
+ * Falhar aqui, com esta mensagem, é o que separa "o arquivo está errado" de
+ * "as linhas estão erradas". Sem isso a pessoa conferiria linha por linha um
+ * problema que é do arquivo inteiro.
+ */
+function assertNotMarkup(content: string): void {
+  const inicio = content.trimStart().slice(0, 200).toLowerCase();
+  if (inicio.startsWith("<!doctype") || inicio.startsWith("<html") || inicio.startsWith("<?xml")) {
+    throw new ValidationError(
+      "Este arquivo é uma página web, não um extrato. Isso costuma acontecer quando a " +
+        "sessão do banco expira durante o download — entre de novo e baixe outra vez.",
+    );
+  }
+}
+
+/**
+ * O mapeamento produziu alguma linha legível?
+ *
+ * Um extrato de mês sem movimentação é legítimo: cabeçalho certo, nenhuma
+ * linha de dado, resultado vazio. O que não é legítimo é ter linhas e nenhuma
+ * delas ser lida — isso significa que o arquivo não tem a forma que aparenta,
+ * e é diferente de "algumas linhas com problema".
+ */
+function assertLegivel(rows: readonly MappedRow[]): void {
+  if (rows.length === 0) return;
+  if (rows.some((row) => row.errors.length === 0)) return;
+  throw new ValidationError(
+    "Nenhuma linha deste arquivo pôde ser lida como movimentação. Confira se é mesmo um " +
+      "extrato, ou ajuste o mapeamento das colunas.",
+  );
 }

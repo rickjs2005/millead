@@ -20,6 +20,7 @@ import {
   updateTransactionSchema,
 } from "../../../application/dto/personal-finance.dto.js";
 import {
+  analyzeImportSchema,
   confirmImportSchema,
   createImportProfileSchema,
   importHistoryQuerySchema,
@@ -188,6 +189,13 @@ export function createVaultDataRoutes(
     asyncHandler(controller.updateImportProfile),
   );
   router.delete("/imports/profiles/:id", asyncHandler(controller.deleteImportProfile));
+
+  // Análise: só o arquivo, sem exigir conta. Também não grava nada.
+  router.post(
+    "/imports/analyze",
+    validateBody(analyzeImportSchema),
+    asyncHandler(controller.analyzeImport),
+  );
 
   // Pré-visualização NÃO grava nada: lê, interpreta e devolve o que entraria.
   router.post(

@@ -67,6 +67,7 @@ const ROTAS: ReadonlyArray<{ method: "get" | "post" | "patch" | "put" | "delete"
     { method: "patch", path: "/transactions/abc/classification" },
     { method: "get", path: "/imports" },
     { method: "post", path: "/imports" },
+    { method: "post", path: "/imports/analyze" },
     { method: "post", path: "/imports/preview" },
     { method: "get", path: "/imports/profiles" },
     { method: "post", path: "/imports/profiles" },
