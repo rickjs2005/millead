@@ -27,6 +27,8 @@ const ruleShape = {
   matchAmountMax: money.nullable().default(null),
   setMerchantId: z.string().min(1).nullable().default(null),
   setCategoryId: z.string().min(1).nullable().default(null),
+  /** Vincula a cobrança a uma assinatura do Cofre. */
+  setSubscriptionId: z.string().min(1).nullable().default(null),
   businessPercent: percent.nullable().default(null),
 };
 
@@ -60,6 +62,7 @@ export const updateRuleSchema = z.object({
   matchAmountMax: money.nullable().optional(),
   setMerchantId: z.string().min(1).nullable().optional(),
   setCategoryId: z.string().min(1).nullable().optional(),
+  setSubscriptionId: z.string().min(1).nullable().optional(),
   businessPercent: percent.nullable().optional(),
 });
 export type UpdateRuleBody = z.infer<typeof updateRuleSchema>;
@@ -72,6 +75,7 @@ export type UpdateRuleBody = z.infer<typeof updateRuleSchema>;
 export const correctClassificationSchema = z.object({
   merchantId: z.string().min(1).nullable().optional(),
   categoryId: z.string().min(1).nullable().optional(),
+  subscriptionId: z.string().min(1).nullable().optional(),
   businessPercent: percent.nullable().optional(),
   createRule: z
     .object({

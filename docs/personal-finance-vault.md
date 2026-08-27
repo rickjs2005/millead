@@ -5,10 +5,10 @@ de uma exigência simples e incomum no resto do sistema: nenhum membro da
 equipe pode ver, consultar ou inferir o que está aqui — nem quem tem papel
 Owner ou Admin na organização.
 
-> **Estado atual: Fase 4 de 10.** Segurança, núcleo financeiro, importação de
-> OFX/CSV e classificação automática prontos e testados. Assinaturas, dívidas,
-> integração com o financeiro da MilWeb, dashboard e exportação são as fases
-> seguintes — ver [Roadmap](#roadmap).
+> **Estado atual: Fase 5 de 10.** Segurança, núcleo financeiro, importação,
+> classificação automática e assinaturas com alertas prontos e testados.
+> Dívidas, integração com o financeiro da MilWeb, dashboard e exportação são as
+> fases seguintes — ver [Roadmap](#roadmap).
 
 ## A decisão que define o módulo: sem RBAC
 
@@ -537,6 +537,120 @@ aconteceu, e uma falha na classificação não pode desfazê-la; as linhas ficam
 | `POST /vault/classification/run`               | Passar a cascata nas pendentes        |
 | `PATCH /vault/transactions/:id/classification` | Corrigir, opcionalmente criando regra |
 
+## Assinaturas e alertas (fase 5)
+
+### Primeiro, um vazamento fechado
+
+`PushSender` só tinha `sendToOrg` — que alcança **todos** os dispositivos
+inscritos na organização. Certo para "briefing concluído"; errado para "Claude
+renova amanhã — R$120". A porta ganhou `sendToUser`, e o Cofre só usa essa. Um
+alerta financeiro pessoal no navegador da equipe seria exatamente o vazamento
+que o módulo inteiro existe para impedir, por uma porta que ninguém está
+olhando.
+
+### Entrega sem depender do worker
+
+O ambiente é gratuito e o processo dorme. A verificação tem dois níveis, e o
+**primeiro é o que garante**:
+
+1. `refresh()` roda a cada abertura do app e do Cofre, recalcula tudo do zero e
+   grava o que falta.
+2. Push é a segunda camada, best-effort. Se o worker estiver dormindo, você vê
+   os alertas na central do mesmo jeito.
+
+Como a verificação roda a toda abertura, a idempotência deixa de ser detalhe de
+implementação e passa a ser o que impede a tela de encher de repetição. Quem
+garante é o `dedupeKey` (`tipo:âncora:data`), com unique no banco: rodar duas
+vezes no mesmo dia produz exatamente as mesmas chaves e a segunda passada grava
+zero.
+
+### Uma cobrança nunca vira assinatura
+
+Assinatura é uma afirmação sobre o futuro — "isso vai ser cobrado de novo" — e
+afirmar isso com uma ocorrência só é adivinhação. A partir de duas cobranças
+compatíveis vira **sugestão** (`POSSIBLE_NEW_SUBSCRIPTION`), nunca cadastro
+automático: uma assinatura criada sozinha começaria a gerar alertas que você
+não pediu, com valor e data que ninguém conferiu.
+
+Detecção: intervalos ~30 dias (janela de 6) → mensal; ~365 (janela de 20) →
+anual; intervalos consistentes entre si → personalizado. Valores fora da
+tolerância, ou intervalos irregulares, não viram nada — compra recorrente no
+mesmo lugar não é assinatura.
+
+O **valor esperado é o da cobrança mais recente**, não a média: é o preço que
+vale hoje. Uma média puxaria o esperado para baixo depois de um reajuste e
+geraria alerta de variação na cobrança seguinte, que estaria certa.
+
+### Os oito alertas
+
+| Tipo                                                    | Quando                                                |
+| ------------------------------------------------------- | ----------------------------------------------------- |
+| `RENEWS_TODAY` / `TOMORROW` / `IN_3_DAYS` / `IN_7_DAYS` | Marcos de antecedência, respeitando `alertDaysBefore` |
+| `PRICE_CHANGED`                                         | Cobrança fora da tolerância — **nos dois sentidos**   |
+| `POSSIBLE_DUPLICATE`                                    | Duas ativas do mesmo fornecedor com valor parecido    |
+| `MISSING_CHARGE`                                        | Renovação passou e nada apareceu                      |
+| `POSSIBLE_NEW_SUBSCRIPTION`                             | Recorrência detectada sem assinatura cadastrada       |
+
+Detalhes que evitam alerta ruim:
+
+- **Assinatura pausada ou cancelada não gera nada.** Você pausou justamente
+  para parar de ser lembrado.
+- **`MISSING_CHARGE` tem 3 dias de folga.** Banco atrasa; acusar no dia
+  seguinte geraria falso positivo toda vez, e alerta que erra é alerta que você
+  para de ler.
+- **Duplicata gera um alerta por PAR**, não um por assinatura, e no máximo um
+  por mês. Dois avisos dizendo a mesma coisa dobrariam o contador sem
+  informação nova.
+- **Variação de preço alerta na queda também.** Queda grande costuma ser
+  mudança de plano ou cobrança parcial, e vale saber tanto quanto um aumento.
+- **Tolerância padrão de 10%.** Assinatura em dólar oscila com o câmbio todo
+  mês; tolerância zero geraria alerta em toda cobrança.
+
+### Renovação calculada da última cobrança
+
+Sempre a partir da cobrança que **realmente aconteceu**, não iterando de uma
+data ideal. Uma assinatura cobrada em 31/01 cai em 28/02, e a próxima sai de
+28/02 — não volta para o dia 31. É deliberado: a data que importa é a que o
+banco cobrou.
+
+**Extrato antigo não empurra a renovação para trás.** Importar meses passados
+não pode reescrever a próxima renovação com uma data que já passou.
+
+Mudar a periodicidade recalcula a próxima renovação — senão o alerta
+continuaria no ritmo antigo e chegaria no dia errado sem nada denunciando.
+
+### O nível 4 da cascata deixou de ser `null`
+
+A classificação agora resolve a assinatura pelo fornecedor, e a regra ganhou
+`setSubscriptionId` (a coluna aditiva prometida na fase 4). O exemplo do Claude
+fecha: cobrança `ANTHROPIC` → fornecedor Claude → Trabalho/IA → assinatura
+Claude → última cobrança registrada → próxima renovação calculada → "Claude
+renova amanhã — valor esperado R$120".
+
+O elo com a assinatura **empresarial** (`CostSubscription`) existe como
+`costSubscriptionId`, **sem FK**: `cost_subscriptions` pertence à organização e
+este modelo pertence ao Cofre — uma FK entre os dois mundos daria ao banco um
+caminho de leitura que a aplicação inteira existe para impedir. O elo é
+resolvido na fase 7, com verificação de posse dos dois lados.
+
+### Central de alertas
+
+`PENDING` e `SNOOZED` com prazo vencido aparecem; lidos somem. **Adiar tem
+prazo** — adiar sem data seria esconder para sempre, que não é o que a palavra
+promete.
+
+### API
+
+| Rota                                        | O que faz                                       |
+| ------------------------------------------- | ----------------------------------------------- |
+| `GET/POST /vault/subscriptions`             | Listar e criar                                  |
+| `GET/PATCH/DELETE /vault/subscriptions/:id` | Detalhe, editar, remover                        |
+| `POST /vault/alerts/refresh`                | Verificação completa — é o que a abertura chama |
+| `GET /vault/alerts`                         | Central de alertas                              |
+| `GET /vault/alerts/count`                   | Badge                                           |
+| `PATCH /vault/alerts/:id/read`              | Marcar como lido                                |
+| `PATCH /vault/alerts/:id/snooze`            | Adiar até uma data                              |
+
 ## Configuração
 
 ```bash
@@ -549,7 +663,7 @@ Gere o segredo com `openssl rand -base64 48`.
 
 ## Testes
 
-311 testes cobrem as quatro fases, todos sem banco e sem HTTP real (exceto os
+391 testes cobrem as cinco fases, todos sem banco e sem HTTP real (exceto os
 de rota, que sobem Express numa porta efêmera).
 
 **Fase 1 — segurança:**
@@ -596,6 +710,15 @@ de rota, que sobem Express numa porta efêmera).
 | `classification-cascade.test.ts`          | Os 5 níveis na ordem certa; preenchimento de lacunas sem sobrescrever; **recorrência não vira voto de maioria**; exemplo do Claude.        |
 | `personal-classification-service.test.ts` | Recusa regra sem condição e sem ação; **automático não sobrescreve divisão manual**; correção não mexe no passado; sem regra fica PENDING. |
 
+**Fase 5 — assinaturas e alertas:**
+
+| Arquivo                                 | O que prova                                                                                                                                      |
+| --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `subscription-schedule.test.ts`         | Mensal/anual/personalizado; dia 31 encolhe no mês curto; 29/02 anual cai em 28/02; CUSTOM sem intervalo é erro.                                  |
+| `subscription-detection.test.ts`        | **Uma cobrança nunca vira assinatura**; valor esperado é o mais recente, não a média; intervalos irregulares não viram nada.                     |
+| `subscription-alerts.test.ts`           | Os 4 marcos + antecedência; pausada não alerta; folga antes de acusar cobrança faltando; duplicata é um alerta por par; chaves estáveis.         |
+| `personal-subscription-service.test.ts` | Exemplo do Claude ponta a ponta; **rodar duas vezes não duplica**; extrato antigo não empurra renovação; push só pro dono; adiar volta no prazo. |
+
 ## Roadmap
 
 | #   | Fase                                                                   | Estado |
@@ -604,7 +727,7 @@ de rota, que sobem Express numa porta efêmera).
 | 2   | Contas, cartões, categorias, fornecedores, transações, splits, faturas | ○      |
 | 3   | Importação OFX/CSV e deduplicação                                      | ✓      |
 | 4   | Classificação e regras determinísticas                                 | ✓      |
-| 5   | Assinaturas e alertas                                                  | ○      |
+| 5   | Assinaturas e alertas                                                  | ✓      |
 | 6   | Dívidas e pagamentos                                                   | ○      |
 | 7   | Ponte com o financeiro da MilWeb (`BusinessExpense`)                   | ○      |
 | 8   | Dashboard e drill-down                                                 | ○      |

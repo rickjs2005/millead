@@ -31,6 +31,7 @@ const transactionSelect = {
   amountBrl: true,
   source: true,
   importBatchId: true,
+  subscriptionId: true,
   externalId: true,
   fingerprint: true,
   status: true,

@@ -134,6 +134,7 @@ export class PersonalTransactionService {
       source: "MANUAL",
       // Lançamento manual não vem de arquivo nenhum.
       importBatchId: null,
+      subscriptionId: null,
       externalId: null,
       // Nulo de propósito: dois lançamentos manuais idênticos no mesmo dia são
       // duas despesas reais, e um fingerprint faria o segundo colidir com o
@@ -240,6 +241,7 @@ export class PersonalTransactionService {
       amountBrl: input.amount,
       source: "MANUAL" as const,
       importBatchId: null,
+      subscriptionId: null,
       externalId: null,
       fingerprint: null,
       status: "CONFIRMED" as const,
@@ -324,6 +326,7 @@ export class PersonalTransactionService {
         source: "MANUAL",
         // Lançamento manual não vem de arquivo nenhum.
         importBatchId: null,
+        subscriptionId: null,
         externalId: null,
         fingerprint: null,
         status: "CONFIRMED",

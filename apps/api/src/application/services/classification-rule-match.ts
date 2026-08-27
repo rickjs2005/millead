@@ -28,6 +28,8 @@ export interface ClassificationRule {
 
   setMerchantId: string | null;
   setCategoryId: string | null;
+  /** Assinatura que a regra vincula à cobrança. */
+  setSubscriptionId: string | null;
   /** Percentual da movimentação que é despesa da empresa, como string. */
   businessPercent: string | null;
 }

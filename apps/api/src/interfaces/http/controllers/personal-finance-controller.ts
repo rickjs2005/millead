@@ -31,8 +31,18 @@ import type {
   CreateRuleBody,
   UpdateRuleBody,
 } from "../../../application/dto/personal-classification.dto.js";
+import type {
+  CreateSubscriptionBody,
+  SnoozeAlertBody,
+  SubscriptionQuery,
+  UpdateSubscriptionBody,
+} from "../../../application/dto/personal-subscription.dto.js";
 import type { PersonalAccountService } from "../../../application/services/personal-account-service.js";
 import type { PersonalClassificationService } from "../../../application/services/personal-classification-service.js";
+import {
+  todayUtc,
+  type PersonalSubscriptionService,
+} from "../../../application/services/personal-subscription-service.js";
 import type { PersonalImportService } from "../../../application/services/personal-import-service.js";
 import type { PersonalCatalogService } from "../../../application/services/personal-catalog-service.js";
 import type { PersonalTransactionService } from "../../../application/services/personal-transaction-service.js";
@@ -54,6 +64,7 @@ export class PersonalFinanceController {
     private readonly transactions: PersonalTransactionService,
     private readonly imports: PersonalImportService,
     private readonly classification: PersonalClassificationService,
+    private readonly subscriptions: PersonalSubscriptionService,
   ) {}
 
   // ----- Contas -----
@@ -326,6 +337,7 @@ export class PersonalFinanceController {
       await this.classification.createRule(vaultId, {
         ...body,
         isActive: true,
+        setSubscriptionId: body.setSubscriptionId,
         matchAmountMinCents: toCents(body.matchAmountMin),
         matchAmountMaxCents: toCents(body.matchAmountMax),
       }),
@@ -366,6 +378,80 @@ export class PersonalFinanceController {
         req.body as CorrectClassificationBody,
       ),
     );
+  };
+
+  // ----- Assinaturas -----
+
+  listSubscriptions = async (req: Request, res: Response): Promise<void> => {
+    const { vaultId } = requireVaultContext(req);
+    const { status } = req.validatedQuery as SubscriptionQuery;
+    res.json(await this.subscriptions.list(vaultId, status ?? null));
+  };
+
+  getSubscription = async (req: Request, res: Response): Promise<void> => {
+    const { vaultId } = requireVaultContext(req);
+    res.json(await this.subscriptions.get(vaultId, req.params.id!));
+  };
+
+  createSubscription = async (req: Request, res: Response): Promise<void> => {
+    const { vaultId } = requireVaultContext(req);
+    const body = req.body as CreateSubscriptionBody;
+    const { expectedAmount, ...rest } = body;
+    res
+      .status(201)
+      .json(
+        await this.subscriptions.create(vaultId, {
+          ...rest,
+          expectedCents: parseMoney(expectedAmount),
+        }),
+      );
+  };
+
+  updateSubscription = async (req: Request, res: Response): Promise<void> => {
+    const { vaultId } = requireVaultContext(req);
+    const { expectedAmount, ...rest } = req.body as UpdateSubscriptionBody;
+    res.json(
+      await this.subscriptions.update(vaultId, req.params.id!, {
+        ...rest,
+        ...(expectedAmount !== undefined ? { expectedCents: parseMoney(expectedAmount) } : {}),
+      }),
+    );
+  };
+
+  deleteSubscription = async (req: Request, res: Response): Promise<void> => {
+    const { vaultId } = requireVaultContext(req);
+    await this.subscriptions.delete(vaultId, req.params.id!);
+    res.status(204).send();
+  };
+
+  // ----- Alertas -----
+
+  /** Roda a verificação e devolve o que está pendente. É o que a abertura do
+   *  Cofre chama -- o push é a segunda camada, não a garantia. */
+  refreshAlerts = async (req: Request, res: Response): Promise<void> => {
+    const { vaultId, ownerUserId } = requireVaultContext(req);
+    res.json(await this.subscriptions.refresh(vaultId, todayUtc(), ownerUserId));
+  };
+
+  listAlerts = async (req: Request, res: Response): Promise<void> => {
+    const { vaultId } = requireVaultContext(req);
+    res.json(await this.subscriptions.listAlerts(vaultId, todayUtc()));
+  };
+
+  countAlerts = async (req: Request, res: Response): Promise<void> => {
+    const { vaultId } = requireVaultContext(req);
+    res.json({ count: await this.subscriptions.countAlerts(vaultId, todayUtc()) });
+  };
+
+  markAlertRead = async (req: Request, res: Response): Promise<void> => {
+    const { vaultId } = requireVaultContext(req);
+    res.json(await this.subscriptions.markAlertRead(vaultId, req.params.id!));
+  };
+
+  snoozeAlert = async (req: Request, res: Response): Promise<void> => {
+    const { vaultId } = requireVaultContext(req);
+    const { until } = req.body as SnoozeAlertBody;
+    res.json(await this.subscriptions.snoozeAlert(vaultId, req.params.id!, until));
   };
 
   // ----- Faturas -----

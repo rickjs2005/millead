@@ -31,6 +31,12 @@ import {
   createRuleSchema,
   updateRuleSchema,
 } from "../../../application/dto/personal-classification.dto.js";
+import {
+  createSubscriptionSchema,
+  snoozeAlertSchema,
+  subscriptionQuerySchema,
+  updateSubscriptionSchema,
+} from "../../../application/dto/personal-subscription.dto.js";
 import { asyncHandler } from "../async-handler.js";
 import type { PersonalFinanceController } from "../controllers/personal-finance-controller.js";
 import { validateBody, validateQuery } from "../middlewares/validate.js";
@@ -189,6 +195,37 @@ export function createVaultDataRoutes(
     "/classification/run",
     validateBody(classificationRunSchema),
     asyncHandler(controller.runClassification),
+  );
+
+  // ----- Assinaturas -----
+  router.get(
+    "/subscriptions",
+    validateQuery(subscriptionQuerySchema),
+    asyncHandler(controller.listSubscriptions),
+  );
+  router.post(
+    "/subscriptions",
+    validateBody(createSubscriptionSchema),
+    asyncHandler(controller.createSubscription),
+  );
+  router.get("/subscriptions/:id", asyncHandler(controller.getSubscription));
+  router.patch(
+    "/subscriptions/:id",
+    validateBody(updateSubscriptionSchema),
+    asyncHandler(controller.updateSubscription),
+  );
+  router.delete("/subscriptions/:id", asyncHandler(controller.deleteSubscription));
+
+  // ----- Alertas -----
+  // "/alerts/refresh" e "/alerts/count" ANTES de "/alerts/:id".
+  router.post("/alerts/refresh", asyncHandler(controller.refreshAlerts));
+  router.get("/alerts/count", asyncHandler(controller.countAlerts));
+  router.get("/alerts", asyncHandler(controller.listAlerts));
+  router.patch("/alerts/:id/read", asyncHandler(controller.markAlertRead));
+  router.patch(
+    "/alerts/:id/snooze",
+    validateBody(snoozeAlertSchema),
+    asyncHandler(controller.snoozeAlert),
   );
 
   // ----- Faturas -----

@@ -7,6 +7,7 @@ import type {
   PersonalRuleRepository,
   UpdateRuleInput,
 } from "../../domain/repositories/personal-rule-repository.js";
+import type { PersonalSubscriptionRepository } from "../../domain/repositories/personal-subscription-repository.js";
 import type {
   PersonalTransactionRepository,
   SplitInput,
@@ -43,6 +44,8 @@ export interface CorrectClassificationInput {
   merchantId?: string | null;
   categoryId?: string | null;
   businessPercent?: string | null;
+  /** Vincula a cobrança a uma assinatura. */
+  subscriptionId?: string | null;
   /** Quando presente, cria uma regra para as PRÓXIMAS movimentações. Não
    *  reclassifica o passado — "criar regra para as próximas" é literal. */
   createRule?: {
@@ -67,6 +70,7 @@ export class PersonalClassificationService implements TransactionClassifier {
     private readonly rules: PersonalRuleRepository,
     private readonly catalog: PersonalCatalogRepository,
     private readonly transactions: PersonalTransactionRepository,
+    private readonly subscriptions: PersonalSubscriptionRepository,
   ) {}
 
   // ----- Regras -----
@@ -117,6 +121,7 @@ export class PersonalClassificationService implements TransactionClassifier {
       | "externalId"
       | "amountBrl"
       | "merchantId"
+      | "subscriptionId"
     >,
   ): Promise<ClassificationOutcome> {
     const origin = { accountId: transaction.accountId, cardId: transaction.cardId };
@@ -145,12 +150,27 @@ export class PersonalClassificationService implements TransactionClassifier {
         }
       : null;
 
+    // Nível 4: assinatura já cadastrada daquele fornecedor. Depende do
+    // fornecedor ter sido resolvido antes (por alias ou já gravado) -- sem
+    // fornecedor não há como amarrar a cobrança a uma assinatura sem adivinhar
+    // pela descrição, que é justamente o trabalho das regras.
+    const merchantId = transaction.merchantId ?? aliasMatch?.merchantId ?? null;
+    const subscription = merchantId
+      ? await this.subscriptions.findActiveByMerchant(vaultId, merchantId)
+      : null;
+
     const context: CascadeContext = {
       externalIdMatch: externalIdMatch ? { ...externalIdMatch, businessPercent: null } : null,
       rules,
       aliasMatch,
-      // Fase 5.
-      subscriptionMatch: null,
+      subscriptionMatch: subscription
+        ? {
+            merchantId: subscription.merchantId,
+            categoryId: subscription.categoryId,
+            businessPercent: null,
+            subscriptionId: subscription.id,
+          }
+        : null,
       recurrenceMatch: resolveRecurrence(history),
     };
 
@@ -158,7 +178,7 @@ export class PersonalClassificationService implements TransactionClassifier {
       normalizedDescription: transaction.normalizedDescription,
       accountId: transaction.accountId,
       cardId: transaction.cardId,
-      merchantId: transaction.merchantId ?? aliasMatch?.merchantId ?? null,
+      merchantId,
       amountCents: parseMoney(transaction.amountBrl),
     };
 
@@ -172,6 +192,7 @@ export class PersonalClassificationService implements TransactionClassifier {
     await this.transactions.update(vaultId, transaction.id, {
       merchantId: outcome.merchantId ?? transaction.merchantId,
       categoryId: outcome.categoryId ?? transaction.categoryId,
+      subscriptionId: outcome.subscriptionId ?? transaction.subscriptionId,
       // Classificada sai de pendente; sem categoria, continua esperando você.
       status: outcome.needsReview ? "PENDING" : "CONFIRMED",
     });
@@ -241,6 +262,7 @@ export class PersonalClassificationService implements TransactionClassifier {
     const updated = await this.transactions.update(vaultId, transactionId, {
       ...(input.merchantId !== undefined ? { merchantId: input.merchantId } : {}),
       ...(input.categoryId !== undefined ? { categoryId: input.categoryId } : {}),
+      ...(input.subscriptionId !== undefined ? { subscriptionId: input.subscriptionId } : {}),
       // Você revisou: sai de pendente. Sem categoria, continua pendente.
       status: categoryId ? "CONFIRMED" : "PENDING",
     });
@@ -265,6 +287,7 @@ export class PersonalClassificationService implements TransactionClassifier {
         matchAmountMaxCents: null,
         setMerchantId: input.merchantId ?? null,
         setCategoryId: input.categoryId ?? null,
+        setSubscriptionId: input.subscriptionId ?? null,
         businessPercent: input.businessPercent ?? null,
       });
     }
@@ -325,6 +348,7 @@ export class PersonalClassificationService implements TransactionClassifier {
       matchAmountMaxCents: rule.matchAmountMaxCents ?? null,
       setMerchantId: rule.setMerchantId ?? null,
       setCategoryId: rule.setCategoryId ?? null,
+      setSubscriptionId: rule.setSubscriptionId ?? null,
       businessPercent: rule.businessPercent ?? null,
     };
 

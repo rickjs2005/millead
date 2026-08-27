@@ -108,7 +108,8 @@ tarefas. Design completo em
 `PersonalCategory` · `PersonalMerchant` · `PersonalMerchantAlias` ·
 `PersonalTransaction` · `PersonalTransactionSplit` · `PersonalStatement` ·
 `PersonalImportBatch` · `PersonalImportProfile` ·
-`PersonalClassificationRule`
+`PersonalClassificationRule` ·
+`PersonalSubscription` · `PersonalSubscriptionAlert`
 
 **Unica tabela do schema SEM `organizationId`, de proposito.** O dono e o
 usuario (`ownerUserId`, com `@unique`), nao a organizacao. A coluna
@@ -184,8 +185,25 @@ Classificacao (fase 4):
   normalizar na escrita e o que faz a comparacao ser igualdade simples.
 - A ligacao com assinatura entra na fase 5 como coluna aditiva.
 
-As tabelas das fases seguintes (assinaturas, dividas) seguem a mesma regra:
-dono pelo Cofre, nunca por organizacao.
+Assinaturas e alertas (fase 5):
+
+- `personal_subscription_alerts.dedupe_key` com unique `(vault_id, dedupe_key)`
+  e' o que torna a verificacao a cada abertura do app idempotente. Um unique
+  com `subscription_id` anulavel NAO resolveria: o Postgres aceita N nulos, e
+  os alertas sem assinatura se multiplicariam.
+- `personal_subscriptions.cost_subscription_id` aponta pra assinatura
+  EMPRESARIAL **sem FK**, de proposito: `cost_subscriptions` pertence a
+  organizacao e a assinatura pessoal pertence ao Cofre -- uma FK entre os dois
+  mundos daria ao banco um caminho de leitura que a aplicacao existe pra
+  impedir. O elo e resolvido na fase 7, com posse verificada dos dois lados.
+- Cinco CHECKs: intervalo so em CUSTOM (e CUSTOM sempre com intervalo),
+  intervalo plausivel, valor positivo, tolerancia e antecedencia em faixa.
+- Colunas aditivas: `personal_transactions.subscription_id` (qual assinatura a
+  cobranca paga) e `personal_classification_rules.set_subscription_id` (a
+  coluna prometida na fase 4).
+
+As tabelas da fase seguinte (dividas) seguem a mesma regra: dono pelo Cofre,
+nunca por organizacao.
 
 ### 7. Billing
 

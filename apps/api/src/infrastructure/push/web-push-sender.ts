@@ -23,6 +23,20 @@ export class WebPushSender implements PushSender {
   async sendToOrg(organizationId: string, payload: PushPayload): Promise<void> {
     if (!this.enabled) return;
     const subs = await prisma.pushSubscription.findMany({ where: { organizationId } });
+    await this.deliver(subs, payload);
+  }
+
+  /** Só os dispositivos daquele usuário -- ver o comentário na porta. */
+  async sendToUser(userId: string, payload: PushPayload): Promise<void> {
+    if (!this.enabled) return;
+    const subs = await prisma.pushSubscription.findMany({ where: { userId } });
+    await this.deliver(subs, payload);
+  }
+
+  private async deliver(
+    subs: Array<{ id: string; endpoint: string; p256dh: string; auth: string }>,
+    payload: PushPayload,
+  ): Promise<void> {
     if (!subs.length) return;
     const body = JSON.stringify(payload);
     await Promise.allSettled(

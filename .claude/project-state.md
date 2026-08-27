@@ -224,18 +224,57 @@ novos -> **793 na API** (1052 no monorepo). type-check, lint e build limpos.
 
 **Ainda nao ha tela** -- telas sao a fase 8.
 
+## Trabalho de 27/08/2026 — Cofre Financeiro, Fase 5 (assinaturas e alertas)
+
+Mesma branch `feat/cofre-financeiro`, **nao mergeada, nao deployada**.
+
+**Primeiro, o vazamento anotado na fase 1 foi fechado**: `PushSender` so tinha
+`sendToOrg` e um alerta de assinatura pessoal iria pro navegador de toda a
+equipe. A porta ganhou `sendToUser`, e o Cofre so usa essa.
+
+Decisoes que valem lembrar:
+
+- **A verificacao a cada abertura do app e a GARANTIA; push e a segunda
+  camada.** No free tier o worker dorme, entao ele nunca pode ser a unica via.
+  Como o calculo roda a toda abertura, a idempotencia deixa de ser detalhe e
+  vira o que impede a tela de encher -- garantida por `dedupeKey`
+  (`tipo:ancora:data`) com unique no banco.
+- **Uma cobranca nunca vira assinatura.** Duas compativeis viram SUGESTAO,
+  nunca cadastro automatico: assinatura criada sozinha geraria alertas que
+  ninguem pediu, com valor e data que ninguem conferiu.
+- **Valor esperado e o da cobranca mais recente, nao a media.** Media puxaria o
+  esperado pra baixo depois de reajuste e geraria alerta de variacao na
+  cobranca seguinte, que estaria certa.
+- **Renovacao sai da cobranca que realmente aconteceu**, e extrato antigo nao
+  empurra a proxima renovacao pra tras.
+- Folgas que evitam alerta ruim: pausada nao alerta, cobranca faltando tem 3
+  dias de tolerancia, duplicata e um aviso por PAR (e um por mes), tolerancia
+  de preco padrao 10% (assinatura em dolar oscila todo mes).
+- **`costSubscriptionId` sem FK**: `cost_subscriptions` e da organizacao e a
+  assinatura pessoal e do Cofre -- FK entre os dois mundos daria ao banco um
+  caminho de leitura que a aplicacao existe pra impedir. Resolvido na fase 7.
+
+O nivel 4 da cascata (SUBSCRIPTION) deixou de ser `null`, e a regra ganhou
+`setSubscriptionId` -- a coluna aditiva prometida na fase 4. O exemplo do
+Claude fecha ponta a ponta com teste.
+
+Migration `20260828010000_add_personal_subscriptions` **aplicada em producao**
+(aditiva: 2 tabelas, 4 enums, 2 colunas anulaveis, 5 CHECKs, RLS verificados).
+80 testes novos -> **873 na API** (1132 no monorepo). type-check, lint e build
+limpos.
+
+**Ainda nao ha tela** -- telas sao a fase 8.
+
 ## Bloqueios
 - Pendências registradas em memória (`millead-pendencias-seguranca`) ainda em aberto: ZapSign não configurado no Render (contratos não são assináveis de verdade em produção), 2 achados baixos de segurança (landing de IA sem sanitização própria, tokens em localStorage), permissões próprias de Contratos/Landing pages pendentes de migração.
 
 ## Próxima ação
 
-**Fase 5 do Cofre**: assinaturas e alertas de renovacao. A base ja esta
-pronta: o nivel `SUBSCRIPTION` da cascata ja existe (chega null hoje), e a
-regra ja tem lugar reservado pra `subscriptionId` como coluna aditiva.
+**Fase 6 do Cofre**: dividas (pessoas que me devem e valores que eu devo),
+com pagamentos parciais e a regra de que Pix de quitacao NAO e renda.
 
-Ponto de atencao anotado na fase 1 e ainda valido: `PushSender` so tem
-`sendToOrg` -- alerta de assinatura pessoal iria pro navegador de toda a
-equipe. Precisa de `sendToUser` ANTES de qualquer notificacao do Cofre.
+Decidir tambem, com o Rick: puxar as telas (fase 8) pra antes. Sao cinco fases
+construidas sem nada visivel -- tudo so por API.
 
 Antes de usar o Cofre e preciso definir `VAULT_SESSION_SECRET` no `.env` e no
 Render — sem ela o modulo inteiro responde 404 de proposito.

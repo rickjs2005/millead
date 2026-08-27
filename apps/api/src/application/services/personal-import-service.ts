@@ -323,6 +323,9 @@ export class PersonalImportService {
       amountBrl: candidate.row.amount,
       source: input.format,
       importBatchId: batch.id,
+      // A assinatura é resolvida pela classificação, logo depois -- aqui a
+      // linha ainda é só o que o banco mandou.
+      subscriptionId: null,
       externalId: candidate.row.externalId,
       fingerprint: candidate.fingerprint,
       // Nasce PENDENTE: a linha veio do banco, mas ainda não passou pela sua

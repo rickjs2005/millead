@@ -216,9 +216,9 @@ Detalhes de design, estados, idempotência e como testar à mão:
 ## Cofre Financeiro (área pessoal do dono da conta)
 
 Área privada em `/cofre` para finanças pessoais, separada do financeiro da
-MilWeb. **Fases 1 a 4 de 10 concluídas**: segurança, núcleo financeiro,
-importação de extrato e classificação automática. Assinaturas, dívidas e a
-ponte com o Centro de Custos entram nas fases seguintes.
+MilWeb. **Fases 1 a 5 de 10 concluídas**: segurança, núcleo financeiro,
+importação de extrato, classificação automática e assinaturas com alertas.
+Dívidas e a ponte com o Centro de Custos entram nas fases seguintes.
 
 Segurança:
 
@@ -284,6 +284,19 @@ Classificação automática (**sem IA, por decisão**):
 - **O automático nunca sobrescreve rateio que você fez à mão.**
 - "Corrigir só esta" ou "criar regra para as próximas" — criar regra não mexe
   no passado.
+
+Assinaturas e alertas:
+
+- **`PushSender` ganhou `sendToUser`.** Antes só existia `sendToOrg`, que
+  mandaria "Claude renova amanhã — R$120" pro navegador de toda a equipe.
+- **Verificação a cada abertura do app é a garantia**; push é a segunda
+  camada. No free tier o worker dorme, então ele nunca pode ser a única via.
+- **Idempotente por chave** (`tipo:âncora:data`): recalcular todo dia não
+  multiplica o mesmo aviso.
+- **Uma cobrança nunca vira assinatura** — a partir de duas compatíveis vira
+  sugestão, nunca cadastro automático.
+- Oito alertas, com as folgas que evitam falso positivo: pausada não alerta,
+  cobrança faltando tem 3 dias de tolerância, duplicata é um aviso por par.
 
 Requer `VAULT_SESSION_SECRET` no `.env` — sem ela o módulo inteiro responde
 404 (fecha, não degrada). Design completo, decisões e roadmap em

@@ -2035,6 +2035,8 @@ model PersonalVault {
   importBatches   PersonalImportBatch[]
   importProfiles  PersonalImportProfile[]
   rules           PersonalClassificationRule[]
+  subscriptions   PersonalSubscription[]
+  alerts          PersonalSubscriptionAlert[]
 
   @@map("personal_vaults")
 }
@@ -2139,6 +2141,7 @@ model PersonalAccount {
   importBatches   PersonalImportBatch[]
   importProfiles  PersonalImportProfile[]
   rules           PersonalClassificationRule[]
+  subscriptions   PersonalSubscription[]
 
   @@index([vaultId, isActive])
   @@map("personal_accounts")
@@ -2171,6 +2174,7 @@ model PersonalCreditCard {
   importBatches  PersonalImportBatch[]
   importProfiles PersonalImportProfile[]
   rules          PersonalClassificationRule[]
+  subscriptions  PersonalSubscription[]
 
   @@index([vaultId, isActive])
   @@map("personal_credit_cards")
@@ -2203,7 +2207,8 @@ model PersonalCategory {
   transactions PersonalTransaction[]
   splits       PersonalTransactionSplit[]
   merchants    PersonalMerchant[]
-  rules        PersonalClassificationRule[]
+  rules         PersonalClassificationRule[]
+  subscriptions PersonalSubscription[]
 
   @@unique([vaultId, systemKey])
   @@unique([vaultId, parentId, name])
@@ -2229,6 +2234,7 @@ model PersonalMerchant {
   transactions    PersonalTransaction[]
   rulesMatching   PersonalClassificationRule[] @relation("RuleMatchMerchant")
   rulesSetting    PersonalClassificationRule[] @relation("RuleSetMerchant")
+  subscriptions   PersonalSubscription[]
 
   @@unique([vaultId, name])
   @@index([vaultId, isActive])
@@ -2325,6 +2331,9 @@ model PersonalTransaction {
   /// Lote de importacao de origem -- a procedencia da linha. SetNull: apagar
   /// o registro do lote nao pode levar as movimentacoes junto.
   importBatchId String? @map("import_batch_id")
+  /// Assinatura que esta cobranca paga. E o que permite dizer "esta e a
+  /// cobranca do Claude deste mes" sem adivinhar pela descricao de novo.
+  subscriptionId String? @map("subscription_id")
   /// FITID do OFX (ou equivalente), como veio.
   externalId String? @map("external_id")
   /// Chave de deduplicacao das importacoes. Quando existe FITID, e derivada
@@ -2360,9 +2369,11 @@ model PersonalTransaction {
   merchant  PersonalMerchant?   @relation(fields: [merchantId], references: [id], onDelete: SetNull)
   category  PersonalCategory?   @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   statement PersonalStatement?  @relation(fields: [statementId], references: [id], onDelete: SetNull)
-  importBatch PersonalImportBatch? @relation(fields: [importBatchId], references: [id], onDelete: SetNull)
+  importBatch  PersonalImportBatch?  @relation(fields: [importBatchId], references: [id], onDelete: SetNull)
+  subscription PersonalSubscription? @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
 
   splits PersonalTransactionSplit[]
+  alerts PersonalSubscriptionAlert[]
 
   @@unique([vaultId, fingerprint])
   @@index([vaultId, transactionDate])
@@ -2374,6 +2385,7 @@ model PersonalTransaction {
   @@index([cardId])
   @@index([statementId])
   @@index([importBatchId])
+  @@index([vaultId, subscriptionId])
   @@map("personal_transactions")
 }
 
@@ -2585,9 +2597,8 @@ model PersonalClassificationRule {
   /// a proporcao nao.
   businessPercent Decimal? @map("business_percent") @db.Decimal(5, 2)
 
-  /// A ligacao com assinatura entra na FASE 5, junto com a tabela de
-  /// assinaturas -- como coluna aditiva. Criar a FK agora apontaria pra uma
-  /// tabela que ainda nao existe.
+  /// Assinatura que a regra vincula. Era a coluna aditiva prometida na fase 4.
+  setSubscriptionId String? @map("set_subscription_id")
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -2598,7 +2609,154 @@ model PersonalClassificationRule {
   matchCard     PersonalCreditCard? @relation(fields: [matchCardId], references: [id], onDelete: Cascade)
   setMerchant   PersonalMerchant? @relation("RuleSetMerchant", fields: [setMerchantId], references: [id], onDelete: SetNull)
   setCategory   PersonalCategory? @relation(fields: [setCategoryId], references: [id], onDelete: SetNull)
+  setSubscription PersonalSubscription? @relation(fields: [setSubscriptionId], references: [id], onDelete: SetNull)
 
   @@index([vaultId, isActive, priority])
   @@map("personal_classification_rules")
+}
+
+// -------------------------------------------------------------------
+// Cofre Financeiro -- assinaturas e alertas (fase 5).
+// -------------------------------------------------------------------
+
+enum PersonalSubscriptionPeriod {
+  MONTHLY
+  YEARLY
+  /// Intervalo proprio em dias (trimestral, semestral, semanal...).
+  CUSTOM
+
+  @@map("personal_subscription_period")
+}
+
+enum PersonalSubscriptionStatus {
+  ACTIVE
+  PAUSED
+  CANCELED
+
+  @@map("personal_subscription_status")
+}
+
+enum PersonalAlertType {
+  RENEWS_TODAY
+  RENEWS_TOMORROW
+  RENEWS_IN_3_DAYS
+  RENEWS_IN_7_DAYS
+  /// Cobranca fora da tolerancia de variacao configurada.
+  PRICE_CHANGED
+  /// Duas assinaturas ativas parecem ser a mesma coisa.
+  POSSIBLE_DUPLICATE
+  /// A renovacao passou e nenhuma cobranca apareceu.
+  MISSING_CHARGE
+  /// Cobranca recorrente detectada que ainda nao tem assinatura cadastrada.
+  POSSIBLE_NEW_SUBSCRIPTION
+
+  @@map("personal_alert_type")
+}
+
+enum PersonalAlertStatus {
+  PENDING
+  READ
+  SNOOZED
+
+  @@map("personal_alert_status")
+}
+
+/// Assinatura pessoal (Claude, Netflix, academia...).
+model PersonalSubscription {
+  id      String @id @default(cuid())
+  vaultId String @map("vault_id")
+  name    String
+
+  merchantId String? @map("merchant_id")
+  categoryId String? @map("category_id")
+  /// Onde ela cai. Pode ser nulo enquanto voce nao souber.
+  accountId String? @map("account_id")
+  cardId    String? @map("card_id")
+
+  expectedAmount Decimal          @map("expected_amount") @db.Decimal(14, 2)
+  currency       PersonalCurrency @default(BRL)
+
+  period             PersonalSubscriptionPeriod @default(MONTHLY)
+  /// So em CUSTOM. Um CHECK garante que os dois andam juntos.
+  customIntervalDays Int?                       @map("custom_interval_days")
+
+  lastChargeAt  DateTime? @map("last_charge_at") @db.Date
+  nextRenewalAt DateTime? @map("next_renewal_at") @db.Date
+
+  /// Com quantos dias de antecedencia voce quer ser avisado.
+  alertDaysBefore Int @default(7) @map("alert_days_before")
+  /// Quanto o valor pode variar sem virar alerta, em porcentagem. Assinatura
+  /// em dolar oscila com o cambio todo mes -- tolerancia zero geraria alerta
+  /// em toda cobranca e voce pararia de ler os alertas.
+  priceTolerancePct Decimal @default(10) @map("price_tolerance_pct") @db.Decimal(5, 2)
+
+  status    PersonalSubscriptionStatus @default(ACTIVE)
+  autoRenew Boolean                    @default(true) @map("auto_renew")
+
+  /// Vinculo com a assinatura EMPRESARIAL da MilWeb (`CostSubscription`).
+  /// Sem FK de proposito: `cost_subscriptions` pertence a organizacao e este
+  /// modelo pertence ao Cofre -- uma FK entre os dois mundos daria ao banco um
+  /// caminho de leitura que a aplicacao inteira existe pra impedir. O elo e
+  /// resolvido na fase 7, com verificacao de posse dos dois lados.
+  costSubscriptionId String? @map("cost_subscription_id")
+
+  notes String?
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  vault    PersonalVault       @relation(fields: [vaultId], references: [id], onDelete: Cascade)
+  merchant PersonalMerchant?   @relation(fields: [merchantId], references: [id], onDelete: SetNull)
+  category PersonalCategory?   @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  account  PersonalAccount?    @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  card     PersonalCreditCard? @relation(fields: [cardId], references: [id], onDelete: SetNull)
+
+  charges PersonalTransaction[]
+  alerts  PersonalSubscriptionAlert[]
+  rules   PersonalClassificationRule[]
+
+  @@index([vaultId, status])
+  @@index([vaultId, nextRenewalAt])
+  @@map("personal_subscriptions")
+}
+
+/// Alerta de assinatura.
+///
+/// `dedupeKey` e o que torna a geracao idempotente: o alerta e recalculado a
+/// cada abertura do app, e sem uma chave estavel "Claude renova amanha"
+/// nasceria de novo a cada consulta. A chave junta tipo + assinatura (ou
+/// movimentacao) + data de referencia -- exatamente o que o pedido descreve.
+///
+/// Um unique com `subscription_id` anulavel NAO resolveria: o Postgres aceita
+/// N nulos, e os alertas sem assinatura (nova assinatura detectada) se
+/// multiplicariam.
+model PersonalSubscriptionAlert {
+  id      String @id @default(cuid())
+  vaultId String @map("vault_id")
+
+  subscriptionId String? @map("subscription_id")
+  /// Movimentacao que originou o alerta (variacao de preco, nova assinatura).
+  transactionId  String? @map("transaction_id")
+
+  type          PersonalAlertType
+  referenceDate DateTime          @map("reference_date") @db.Date
+  dedupeKey     String            @map("dedupe_key")
+
+  status      PersonalAlertStatus @default(PENDING)
+  snoozedUntil DateTime?          @map("snoozed_until") @db.Date
+  readAt      DateTime?           @map("read_at")
+
+  /// Dados prontos pra exibir (nome, valor esperado, valor cobrado). Fica no
+  /// Cofre, atras da sessao elevada, como todo o resto.
+  payload Json?
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  vault        PersonalVault         @relation(fields: [vaultId], references: [id], onDelete: Cascade)
+  subscription PersonalSubscription? @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  transaction  PersonalTransaction?  @relation(fields: [transactionId], references: [id], onDelete: SetNull)
+
+  @@unique([vaultId, dedupeKey])
+  @@index([vaultId, status, referenceDate])
+  @@map("personal_subscription_alerts")
 }

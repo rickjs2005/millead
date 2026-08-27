@@ -121,6 +121,8 @@ export interface PersonalTransaction {
   /** Lote de importação de origem — a procedência da linha. Nulo em
    *  lançamento manual. */
   importBatchId: string | null;
+  /** Assinatura que esta cobrança paga. */
+  subscriptionId: string | null;
   externalId: string | null;
   fingerprint: string | null;
   status: PersonalTransactionStatus;

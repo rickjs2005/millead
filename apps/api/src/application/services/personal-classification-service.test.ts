@@ -12,6 +12,7 @@ import type {
   PersonalRule,
   PersonalRuleRepository,
 } from "../../domain/repositories/personal-rule-repository.js";
+import type { PersonalSubscriptionRepository } from "../../domain/repositories/personal-subscription-repository.js";
 import type {
   PersonalTransactionRepository,
   SplitInput,
@@ -43,6 +44,7 @@ function transaction(over: Partial<PersonalTransaction> = {}): PersonalTransacti
     amountBrl: "120.00",
     source: "OFX",
     importBatchId: null,
+    subscriptionId: null,
     externalId: null,
     fingerprint: "calc:x",
     status: "PENDING",
@@ -159,7 +161,18 @@ function makeFakes() {
     sumByStatement: async () => "0",
   };
 
-  const service = new PersonalClassificationService(ruleRepo, catalog, transactionRepo);
+  // Repositório de assinaturas de mentira: o nível SUBSCRIPTION tem teste
+  // próprio no serviço de assinaturas; aqui interessa a cascata sem ele.
+  const subscriptionRepo = {
+    findActiveByMerchant: async () => null,
+  } as unknown as PersonalSubscriptionRepository;
+
+  const service = new PersonalClassificationService(
+    ruleRepo,
+    catalog,
+    transactionRepo,
+    subscriptionRepo,
+  );
   return { service, rules, transactions, splits, transactionRepo };
 }
 
@@ -181,6 +194,7 @@ const regraClaude: CreateRuleInput = {
   matchAmountMaxCents: null,
   setMerchantId: MERCHANT_CLAUDE,
   setCategoryId: CAT_IA,
+  setSubscriptionId: null,
   businessPercent: "100.00",
 };
 

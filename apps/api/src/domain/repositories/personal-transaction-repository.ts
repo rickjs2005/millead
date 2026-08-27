@@ -36,6 +36,8 @@ export interface CreateTransactionInput {
   /** Lote de importação de origem. Nulo em lançamento manual. */
   importBatchId: string | null;
   externalId: string | null;
+  /** Assinatura que esta cobrança paga. */
+  subscriptionId: string | null;
   /** Nulo em lançamento manual — ver o comentário do campo no schema. */
   fingerprint: string | null;
   status: PersonalTransactionStatus;
@@ -59,6 +61,7 @@ export type UpdateTransactionInput = Partial<
     | "statementId"
     | "installmentNumber"
     | "installmentTotal"
+    | "subscriptionId"
   >
 >;
 

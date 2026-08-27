@@ -38,6 +38,9 @@ export interface ClassificationCandidate {
   merchantId: string | null;
   categoryId: string | null;
   businessPercent: string | null;
+  /** Assinatura que esta cobrança paga. Preenchido pelo nível SUBSCRIPTION e
+   *  por regra com assinatura vinculada. */
+  subscriptionId?: string | null;
 }
 
 export interface CascadeContext {
@@ -46,21 +49,21 @@ export interface CascadeContext {
   rules: readonly ClassificationRule[];
   /** Fornecedor resolvido por alias, com a categoria padrão dele. */
   aliasMatch: ClassificationCandidate | null;
-  /** Fase 5. Hoje sempre null — o parâmetro existe pra a ordem da cascata já
-   *  estar certa quando as assinaturas chegarem. */
+  /** Assinatura cadastrada que casa com esta cobrança (por fornecedor). */
   subscriptionMatch: ClassificationCandidate | null;
   /** Mesma descrição normalizada, já classificada por você e sempre igual. */
   recurrenceMatch: ClassificationCandidate | null;
 }
 
 export type ResolvedBy = Partial<
-  Record<"merchantId" | "categoryId" | "businessPercent", ClassificationLevel>
+  Record<"merchantId" | "categoryId" | "businessPercent" | "subscriptionId", ClassificationLevel>
 >;
 
 export interface ClassificationOutcome {
   merchantId: string | null;
   categoryId: string | null;
   businessPercent: string | null;
+  subscriptionId: string | null;
   /** Qual regra casou, quando o nível RULE participou. */
   ruleId: string | null;
   resolvedBy: ResolvedBy;
@@ -77,6 +80,7 @@ export function classifyTransaction(
     merchantId: null,
     categoryId: null,
     businessPercent: null,
+    subscriptionId: null,
     ruleId: null,
     resolvedBy: {},
     needsReview: true,
@@ -91,6 +95,7 @@ export function classifyTransaction(
       merchantId: matched.setMerchantId,
       categoryId: matched.setCategoryId,
       businessPercent: matched.businessPercent,
+      subscriptionId: matched.setSubscriptionId,
     });
     // Só registra a regra se ela realmente contribuiu com algo -- uma regra
     // que casou mas cujos campos já estavam preenchidos por um nível acima
@@ -98,7 +103,8 @@ export function classifyTransaction(
     if (
       before.merchantId !== outcome.merchantId ||
       before.categoryId !== outcome.categoryId ||
-      before.businessPercent !== outcome.businessPercent
+      before.businessPercent !== outcome.businessPercent ||
+      before.subscriptionId !== outcome.subscriptionId
     ) {
       outcome.ruleId = matched.id;
     }
@@ -131,6 +137,10 @@ function apply(
   if (outcome.businessPercent === null && candidate.businessPercent !== null) {
     outcome.businessPercent = candidate.businessPercent;
     outcome.resolvedBy.businessPercent = level;
+  }
+  if (outcome.subscriptionId === null && (candidate.subscriptionId ?? null) !== null) {
+    outcome.subscriptionId = candidate.subscriptionId!;
+    outcome.resolvedBy.subscriptionId = level;
   }
 }
 

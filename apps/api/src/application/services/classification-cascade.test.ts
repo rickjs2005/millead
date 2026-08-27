@@ -35,6 +35,7 @@ const rule = (over: Partial<ClassificationRule> = {}): ClassificationRule => ({
   matchAmountMaxCents: null,
   setMerchantId: null,
   setCategoryId: null,
+  setSubscriptionId: null,
   businessPercent: null,
   ...over,
 });

@@ -28,6 +28,7 @@ export interface PersonalRule {
 
   setMerchantId: string | null;
   setCategoryId: string | null;
+  setSubscriptionId: string | null;
   /** Percentual (0-100) como string decimal. */
   businessPercent: string | null;
 }

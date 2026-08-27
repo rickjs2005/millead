@@ -15,6 +15,7 @@ import { ProjectChecklistService } from "../application/services/project-checkli
 import { PersonalAccountService } from "../application/services/personal-account-service.js";
 import { PersonalCatalogService } from "../application/services/personal-catalog-service.js";
 import { PersonalClassificationService } from "../application/services/personal-classification-service.js";
+import { PersonalSubscriptionService } from "../application/services/personal-subscription-service.js";
 import { PersonalImportService } from "../application/services/personal-import-service.js";
 import { PersonalTransactionService } from "../application/services/personal-transaction-service.js";
 import { PersonalVaultService } from "../application/services/personal-vault-service.js";
@@ -88,6 +89,7 @@ import { PrismaPersonalAccountRepository } from "../infrastructure/prisma/prisma
 import { PrismaPersonalCatalogRepository } from "../infrastructure/prisma/prisma-personal-catalog-repository.js";
 import { PrismaPersonalImportRepository } from "../infrastructure/prisma/prisma-personal-import-repository.js";
 import { PrismaPersonalRuleRepository } from "../infrastructure/prisma/prisma-personal-rule-repository.js";
+import { PrismaPersonalSubscriptionRepository } from "../infrastructure/prisma/prisma-personal-subscription-repository.js";
 import { PrismaPersonalStatementRepository } from "../infrastructure/prisma/prisma-personal-statement-repository.js";
 import { PrismaPersonalTransactionRepository } from "../infrastructure/prisma/prisma-personal-transaction-repository.js";
 import { PrismaPersonalVaultRepository } from "../infrastructure/prisma/prisma-personal-vault-repository.js";
@@ -151,6 +153,8 @@ export interface Container {
   requireOwner: RequestHandler;
   personalVaultController: PersonalVaultController;
   personalFinanceController: PersonalFinanceController;
+  /** Exposto pro job de alertas (fase 5) e pro proximo passo. */
+  personalSubscriptionService: PersonalSubscriptionService;
   /** Exposto pro próximo passo: as rotas de dados do Cofre (fases seguintes)
    *  montam sob este middleware, nunca sob `requirePermission`. */
   requireVault: RequestHandler;
@@ -215,6 +219,10 @@ export function buildContainer(): Container {
   const personalStatementRepository = new PrismaPersonalStatementRepository();
   const personalImportRepository = new PrismaPersonalImportRepository();
   const personalRuleRepository = new PrismaPersonalRuleRepository();
+  const personalSubscriptionRepository = new PrismaPersonalSubscriptionRepository();
+  // Instancia propria do push: os alertas do Cofre usam `sendToUser`, nunca
+  // `sendToOrg` -- ver o comentario na porta PushSender.
+  const vaultPushSender = new WebPushSender();
   const auditLogger = new AuditLogger(auditLogRepository);
 
   // Cofre Financeiro. Criado aqui, antes dos use-cases de auth, porque
@@ -235,6 +243,12 @@ export function buildContainer(): Container {
     personalRuleRepository,
     personalCatalogRepository,
     personalTransactionRepository,
+    personalSubscriptionRepository,
+  );
+  const personalSubscriptionService = new PersonalSubscriptionService(
+    personalSubscriptionRepository,
+    personalCatalogRepository,
+    vaultPushSender,
   );
   const personalImportService = new PersonalImportService(
     personalImportRepository,
@@ -487,6 +501,7 @@ export function buildContainer(): Container {
     personalTransactionService,
     personalImportService,
     personalClassificationService,
+    personalSubscriptionService,
   );
   const requireVault = createRequireVault(personalVaultRepository, vaultSessionService);
 
@@ -518,6 +533,7 @@ export function buildContainer(): Container {
     personalVaultController,
     personalFinanceController,
     personalVaultService,
+    personalSubscriptionService,
     requireVault,
     membershipRepository,
     auditLogger,

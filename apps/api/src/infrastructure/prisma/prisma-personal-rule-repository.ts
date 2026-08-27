@@ -22,6 +22,7 @@ const ruleSelect = {
   matchAmountMax: true,
   setMerchantId: true,
   setCategoryId: true,
+  setSubscriptionId: true,
   businessPercent: true,
 } as const;
 
