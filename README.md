@@ -216,11 +216,11 @@ Detalhes de design, estados, idempotência e como testar à mão:
 ## Cofre Financeiro (área pessoal do dono da conta)
 
 Área privada em `/cofre` para finanças pessoais, separada do financeiro da
-MilWeb. **Fase 1 de 10 concluída**: toda a camada de segurança. Contas,
-cartões, movimentações, importação de OFX/CSV, assinaturas, dívidas e a ponte
-com o Centro de Custos entram nas fases seguintes.
+MilWeb. **Fases 1 e 2 de 10 concluídas**: segurança e núcleo financeiro.
+Importação de OFX/CSV, classificação, assinaturas, dívidas e a ponte com o
+Centro de Custos entram nas fases seguintes.
 
-O que já está de pé:
+Segurança:
 
 - **Não usa RBAC, de propósito.** `ADMIN_PERMISSIONS` é `ALL_PERMISSIONS`
   menos billing — uma permissão `vault:*` nova entraria sozinha no papel Admin
@@ -237,6 +237,26 @@ O que já está de pé:
 - **404, nunca 403**: quem não é dono não descobre que o Cofre existe.
 - **Auditoria fora da trilha da organização** (`organizationId` null) e sem
   nenhum valor financeiro.
+
+Núcleo financeiro (contas, cartões, categorias, fornecedores, movimentações,
+divisões e faturas):
+
+- **Contas e cartões guardam só os 4 últimos dígitos** — nunca número
+  completo, validade ou código de segurança.
+- **Rateio (pessoal / reembolsável / empresarial) vive só nas divisões.** A
+  movimentação não carrega booleano "é empresarial": dois lugares dizendo a
+  mesma coisa é como nasce contagem dupla. Os indicadores são derivados na
+  leitura.
+- **Pagamento de fatura não é despesa nova** — a compra no cartão já foi a
+  despesa. A saída nasce marcada como transferência e não entra na fatura que
+  quita.
+- **Transferência entre contas próprias são duas linhas ligadas**, fora dos
+  totais de receita e despesa.
+- **Dinheiro somado em centavos inteiros e datas sempre em UTC** — as duas
+  fontes clássicas de total que erra sem ninguém ver.
+- **Seis CHECKs no banco** (origem única, valor positivo, parcela coerente…) e
+  FKs `Restrict`: cadastro com histórico se desativa, não se apaga.
+- Filtros por competência **ou** caixa, nunca misturados sem rótulo.
 
 Requer `VAULT_SESSION_SECRET` no `.env` — sem ela o módulo inteiro responde
 404 (fecha, não degrada). Design completo, decisões e roadmap em

@@ -10,6 +10,7 @@ import { errorHandler } from "../interfaces/http/middlewares/error-handler.js";
 import { createAiRoutes } from "../interfaces/http/routes/ai-routes.js";
 import { createAuditRoutes } from "../interfaces/http/routes/audit-routes.js";
 import { createNotificationRoutes } from "../interfaces/http/routes/notification-routes.js";
+import { createVaultDataRoutes } from "../interfaces/http/routes/vault-data-routes.js";
 import { createVaultRoutes } from "../interfaces/http/routes/vault-routes.js";
 import { createAuthRoutes } from "../interfaces/http/routes/auth-routes.js";
 import {
@@ -110,6 +111,17 @@ export function createApp(container: Container): Express {
     "/api/v1/vault",
     createVaultRoutes(
       container.personalVaultController,
+      container.authenticate,
+      container.requireVault,
+    ),
+  );
+  // Dados do Cofre, no mesmo prefixo. Router separado porque TODAS as rotas
+  // dele exigem sessão elevada -- `requireVault` é aplicado uma vez, no
+  // router, e não rota a rota.
+  app.use(
+    "/api/v1/vault",
+    createVaultDataRoutes(
+      container.personalFinanceController,
       container.authenticate,
       container.requireVault,
     ),

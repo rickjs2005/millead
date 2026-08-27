@@ -5,10 +5,10 @@ de uma exigência simples e incomum no resto do sistema: nenhum membro da
 equipe pode ver, consultar ou inferir o que está aqui — nem quem tem papel
 Owner ou Admin na organização.
 
-> **Estado atual: Fase 1 de 10.** A segurança está pronta e testada. Contas,
-> cartões, movimentações, importação de OFX/CSV, classificação, assinaturas,
-> dívidas, integração com o financeiro da MilWeb, dashboard e exportação são
-> as fases seguintes — ver [Roadmap](#roadmap).
+> **Estado atual: Fase 2 de 10.** Segurança e núcleo financeiro prontos e
+> testados. Importação de OFX/CSV, classificação, assinaturas, dívidas,
+> integração com o financeiro da MilWeb, dashboard e exportação são as fases
+> seguintes — ver [Roadmap](#roadmap).
 
 ## A decisão que define o módulo: sem RBAC
 
@@ -192,6 +192,117 @@ reautenticação aconteceu.
   continua válido, e sem essa saída cada request ao Cofre fechado gastaria um
   refresh (rotacionando o refresh token à toa).
 
+## Núcleo financeiro (fase 2)
+
+Oito tabelas: contas, cartões, categorias, fornecedores, aliases,
+movimentações, divisões e faturas. Todas penduradas em `vaultId`, e todas as
+rotas atrás de `requireVault`.
+
+### Decisões que mudam o resultado da conta
+
+**Nenhum booleano "é empresarial" na movimentação.** A `PersonalTransaction`
+não guarda `isBusiness` nem `isReimbursable`: quem manda no rateio são as
+`PersonalTransactionSplit`, e os indicadores são **derivados** a cada leitura
+(`split-allocation.ts`). Dois lugares dizendo a mesma coisa é como nasce
+contagem dupla — o risco número um deste módulo. A API continua devolvendo
+`isBusiness`, `businessAmount` e `personalConsumption`; eles só não existem no
+banco. Sem divisão nenhuma, a movimentação é 100% pessoal; com divisões
+parciais, o resto continua pessoal.
+
+**Valor sempre positivo, direção explícita.** Sinal negativo é ambíguo entre
+bancos (uns mandam crédito negativo, outros débito) e vira erro silencioso de
+soma. `direction` (`IN`/`OUT`) não tem como ser mal lida, e um CHECK garante
+`amount > 0`.
+
+**Dinheiro é somado em centavos inteiros** (`vault-money.ts`). `0.1 + 0.2` em
+ponto flutuante é `0.30000000000000004`, e um total que erra no último centavo
+passa despercebido até alguém conferir na mão.
+
+**Datas em UTC, sempre** (`vault-date.ts`). `new Date(2026, 7, 27)` usa o fuso
+da máquina: num servidor a leste do meridiano a data "anda" um dia pra trás e o
+lançamento troca de mês. Tudo usa `Date.UTC`.
+
+**Total de fatura é recalculado, nunca incrementado.** Um acumulador
+dessincroniza no primeiro estorno e ninguém percebe até a fatura não bater com
+o banco.
+
+**Pagamento de fatura não é despesa nova.** A compra no cartão já foi a
+despesa; o pagamento é o dinheiro saindo da conta. A saída nasce
+`isTransfer: true` e **não** é vinculada à fatura que quita — vinculá-la
+somaria o pagamento ao total que ele paga.
+
+**Transferência entre contas próprias são duas linhas**, ligadas por
+`transferPairId`, ambas `isTransfer`. As duas contas precisam do lançamento
+para bater com o extrato, e a marca as mantém fora dos totais de receita e
+despesa. A listagem esconde transferências por padrão.
+
+### O que nunca é guardado
+
+Número completo de conta; número completo, validade ou código de segurança de
+cartão. Só `last4`, e só para você distinguir dois cartões do mesmo banco na
+tela.
+
+### Categorias: por que `systemKey`
+
+Você pode renomear qualquer categoria. Por isso a lógica nunca procura por
+nome: "Transferências" tem `systemKey: "transfer"`, e renomear para
+"Movimentação interna" não quebra nada. Categorias que você criar têm
+`systemKey` nulo — nenhuma regra depende delas. A árvore tem **um nível só**; o
+service recusa subcategoria de subcategoria.
+
+A árvore padrão nasce junto com o Cofre, pela porta `VaultProvisioner`, e o
+provisionamento é idempotente e auto-corretivo: `POST /vault` semeia sempre,
+inclusive quando o Cofre já existia, então uma falha de rede numa tentativa
+anterior se conserta sozinha em vez de deixar um Cofre sem categoria nenhuma.
+
+### Deduplicação (a base da fase 3)
+
+`fingerprint` tem **um índice só** (`@@unique([vaultId, fingerprint])`) com
+duas estratégias: com FITID a chave é derivada só dele (banco que reescreve a
+descrição continua sendo a mesma transação); sem FITID, sai de origem + data +
+valor + direção + descrição normalizada. A prioridade mora em como a chave é
+montada, não numa regra de leitura que algum caminho novo possa esquecer.
+
+Em lançamento manual o fingerprint é **nulo**: dois cafés de R$5 no mesmo dia
+são duas despesas reais, e um unique pegaria o segundo como duplicata.
+
+### Invariantes no banco
+
+Seis CHECKs, porque são regras de dinheiro — deixá-las só na aplicação
+significa que um bug futuro grava número errado em silêncio:
+
+| Constraint                                   | Impede                                                   |
+| -------------------------------------------- | -------------------------------------------------------- |
+| `personal_transactions_origem_unica`         | linha sem origem, ou contada duas vezes (conta E cartão) |
+| `personal_transactions_valor_positivo`       | valor zero ou negativo                                   |
+| `personal_transactions_parcela_coerente`     | "parcela 13 de 12"                                       |
+| `personal_transaction_splits_valor_positivo` | divisão que não divide nada                              |
+| `personal_credit_cards_dias_validos`         | fechamento/vencimento fora do calendário                 |
+| `personal_statements_valores_nao_negativos`  | fatura com pagamento negativo                            |
+
+### Cadastro com histórico não se apaga
+
+Conta, cartão e categoria em uso respondem **409 com instrução de desativar**,
+nunca apagam junto o histórico. A FK é `Restrict` de propósito.
+
+### API do núcleo
+
+Tudo sob `/api/v1/vault`, tudo atrás de `requireVault`, nada com RBAC.
+
+| Recurso       | Rotas                                                                                                                             |
+| ------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| Contas        | `GET/POST /accounts`, `GET/PATCH/DELETE /accounts/:id`                                                                            |
+| Cartões       | `GET/POST /cards`, `GET/PATCH/DELETE /cards/:id`                                                                                  |
+| Categorias    | `GET/POST /categories`, `PATCH/DELETE /categories/:id`                                                                            |
+| Fornecedores  | `GET/POST /merchants`, `GET/PATCH/DELETE /merchants/:id`, `POST /merchants/:id/aliases`, `DELETE /merchants/:id/aliases/:aliasId` |
+| Movimentações | `GET/POST /transactions`, `GET/PATCH/DELETE /transactions/:id`, `PUT /transactions/:id/splits`, `POST /transactions/transfers`    |
+| Faturas       | `GET /statements`, `GET /statements/:id`, `POST /statements/:id/payments`                                                         |
+
+A listagem aceita `basis=ACCRUAL|CASH` (competência ou caixa), intervalo de
+datas, conta, cartão, categoria, fornecedor, fatura, status, direção, busca e
+paginação. **Os dois regimes nunca se misturam sem rótulo** — o filtro decide
+qual coluna de data é usada, inclusive na ordenação.
+
 ## Configuração
 
 ```bash
@@ -204,8 +315,10 @@ Gere o segredo com `openssl rand -base64 48`.
 
 ## Testes
 
-41 testes cobrem esta fase, todos sem banco e sem HTTP real (exceto os de
-rota, que sobem Express numa porta efêmera):
+165 testes cobrem as duas fases, todos sem banco e sem HTTP real (exceto os
+de rota, que sobem Express numa porta efêmera).
+
+**Fase 1 — segurança:**
 
 | Arquivo                             | O que prova                                                                                                                                   |
 | ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -214,6 +327,20 @@ rota, que sobem Express numa porta efêmera):
 | `require-vault.test.ts`             | Sessão normal não substitui a elevada; token de outro usuário dá 404; "Bloquear agora" mata token já emitido; sem segredo o módulo some.      |
 | `jwt-vault-session-service.test.ts` | Token do `JWT_ACCESS_SECRET` não abre o Cofre; escopo errado, expirado e `alg:none` recusados.                                                |
 | `vault-routes.test.ts`              | **Usuário sem permissão nenhuma chega ao controller** — é o teste que cai se alguém "consertar" o módulo pondo `requirePermission` nas rotas. |
+
+**Fase 2 — núcleo:**
+
+| Arquivo                                | O que prova                                                                                                                                     |
+| -------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| `vault-money.test.ts`                  | Soma em centavos é exata; três casas decimais são erro, não arredondamento.                                                                     |
+| `vault-date.test.ts`                   | A data não desliza de dia; dia 31 encolhe em fevereiro (inclusive bissexto).                                                                    |
+| `transaction-text.test.ts`             | Normalização idempotente; "08/2026" não vira "parcela 8 de 2026".                                                                               |
+| `transaction-fingerprint.test.ts`      | FITID vence a descrição; mesmo FITID em contas diferentes não colide.                                                                           |
+| `split-allocation.test.ts`             | Rateio não passa do valor nem por um centavo; gasto empresarial sai do consumo pessoal.                                                         |
+| `statement-period.test.ts`             | Compra antes/depois do fechamento; virada de ano; vencimento anterior ao fechamento; fatura zerada não vira PAGA.                               |
+| `default-categories.test.ts`           | Chaves de sistema únicas; pais antes das filhas.                                                                                                |
+| `personal-transaction-service.test.ts` | **Pagamento de fatura não vira despesa nova**; estorno recalcula o total; transferência sai dos totais; moeda estrangeira exige o valor em BRL. |
+| `vault-data-routes.test.ts`            | As 31 rotas de dados exigem sessão elevada, uma a uma — mais um teste que falha se alguém registrar rota nova fora da lista.                    |
 
 ## Roadmap
 

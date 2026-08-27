@@ -12,6 +12,9 @@ import { EstimateService } from "../application/services/estimate-service.js";
 import { MessageService } from "../application/services/message-service.js";
 import { PostSaleSettingsService } from "../application/services/post-sale-settings-service.js";
 import { ProjectChecklistService } from "../application/services/project-checklist-service.js";
+import { PersonalAccountService } from "../application/services/personal-account-service.js";
+import { PersonalCatalogService } from "../application/services/personal-catalog-service.js";
+import { PersonalTransactionService } from "../application/services/personal-transaction-service.js";
 import { PersonalVaultService } from "../application/services/personal-vault-service.js";
 import { ReceivableService } from "../application/services/receivable-service.js";
 import { CompanyService } from "../application/services/company-service.js";
@@ -79,6 +82,10 @@ import { PrismaSocialRepository } from "../infrastructure/prisma/prisma-social-r
 import { PrismaTagRepository } from "../infrastructure/prisma/prisma-tag-repository.js";
 import { PrismaTaskRepository } from "../infrastructure/prisma/prisma-task-repository.js";
 import { buildPostSaleOnboardingService } from "./post-sale-factory.js";
+import { PrismaPersonalAccountRepository } from "../infrastructure/prisma/prisma-personal-account-repository.js";
+import { PrismaPersonalCatalogRepository } from "../infrastructure/prisma/prisma-personal-catalog-repository.js";
+import { PrismaPersonalStatementRepository } from "../infrastructure/prisma/prisma-personal-statement-repository.js";
+import { PrismaPersonalTransactionRepository } from "../infrastructure/prisma/prisma-personal-transaction-repository.js";
 import { PrismaPersonalVaultRepository } from "../infrastructure/prisma/prisma-personal-vault-repository.js";
 import { PrismaUserRepository } from "../infrastructure/prisma/prisma-user-repository.js";
 import { PrismaTeamRepository } from "../infrastructure/prisma/prisma-team-repository.js";
@@ -95,6 +102,7 @@ import { ContractController } from "../interfaces/http/controllers/contract-cont
 import { CostController } from "../interfaces/http/controllers/cost-controller.js";
 import { EstimateController } from "../interfaces/http/controllers/estimate-controller.js";
 import { MessageController } from "../interfaces/http/controllers/message-controller.js";
+import { PersonalFinanceController } from "../interfaces/http/controllers/personal-finance-controller.js";
 import { PersonalVaultController } from "../interfaces/http/controllers/personal-vault-controller.js";
 import { ReceivableController } from "../interfaces/http/controllers/receivable-controller.js";
 import { CompanyController } from "../interfaces/http/controllers/company-controller.js";
@@ -138,6 +146,7 @@ export interface Container {
   authenticate: RequestHandler;
   requireOwner: RequestHandler;
   personalVaultController: PersonalVaultController;
+  personalFinanceController: PersonalFinanceController;
   /** Exposto pro próximo passo: as rotas de dados do Cofre (fases seguintes)
    *  montam sob este middleware, nunca sob `requirePermission`. */
   requireVault: RequestHandler;
@@ -196,18 +205,32 @@ export function buildContainer(): Container {
   const accessTokenService = new JwtAccessTokenService();
   const vaultSessionService = new JwtVaultSessionService();
   const personalVaultRepository = new PrismaPersonalVaultRepository();
+  const personalAccountRepository = new PrismaPersonalAccountRepository();
+  const personalCatalogRepository = new PrismaPersonalCatalogRepository();
+  const personalTransactionRepository = new PrismaPersonalTransactionRepository();
+  const personalStatementRepository = new PrismaPersonalStatementRepository();
   const auditLogger = new AuditLogger(auditLogRepository);
 
   // Cofre Financeiro. Criado aqui, antes dos use-cases de auth, porque
   // logout e troca de senha dependem dele (pela porta VaultLocker) pra
   // fechar as sessões elevadas. Note que NÃO passa por `requirePermission`
   // em lugar nenhum -- ver o comentário em routes/vault-routes.ts.
+  const personalCatalogService = new PersonalCatalogService(personalCatalogRepository);
+  const personalAccountService = new PersonalAccountService(personalAccountRepository);
+  const personalTransactionService = new PersonalTransactionService(
+    personalTransactionRepository,
+    personalAccountRepository,
+    personalStatementRepository,
+  );
   const personalVaultService = new PersonalVaultService(
     personalVaultRepository,
     userRepository,
     passwordHasher,
     vaultSessionService,
     auditLogger,
+    // Provisiona a árvore de categorias na criação do Cofre, pela porta
+    // estreita VaultProvisioner.
+    personalCatalogService,
   );
   const activityLogger = new ActivityLogger(activityRepository);
   const sessionIssuer = new SessionIssuer(accessTokenService, refreshTokenRepository);
@@ -437,6 +460,11 @@ export function buildContainer(): Container {
   const requireOwner = createRequireOwner(userRepository, env.OWNER_EMAIL);
 
   const personalVaultController = new PersonalVaultController(personalVaultService);
+  const personalFinanceController = new PersonalFinanceController(
+    personalAccountService,
+    personalCatalogService,
+    personalTransactionService,
+  );
   const requireVault = createRequireVault(personalVaultRepository, vaultSessionService);
 
   return {
@@ -465,6 +493,7 @@ export function buildContainer(): Container {
     authenticate,
     requireOwner,
     personalVaultController,
+    personalFinanceController,
     personalVaultService,
     requireVault,
     membershipRepository,

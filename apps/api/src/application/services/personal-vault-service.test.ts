@@ -48,6 +48,7 @@ function setup(
   };
   // Tipado explicitamente pra o tsc enxergar os argumentos em `mock.calls` --
   // é neles que os testes de privacidade da auditoria olham.
+  const provisioner = { seedDefaults: vi.fn(async () => undefined) };
   const audit = {
     log: vi.fn<
       (
@@ -64,8 +65,9 @@ function setup(
     hasher as never,
     sessions as never,
     audit as never,
+    provisioner as never,
   );
-  return { service, vaults, users, hasher, sessions, audit };
+  return { service, vaults, users, hasher, sessions, audit, provisioner };
 }
 
 describe("PersonalVaultService — posse", () => {
@@ -85,6 +87,21 @@ describe("PersonalVaultService — posse", () => {
     const { service, vaults } = setup();
     vaults.create.mockResolvedValueOnce(null);
     await expect(service.create(OWNER, CTX)).resolves.toEqual({ created: false });
+  });
+
+  it("criar provisiona as categorias padrão", async () => {
+    const { service, provisioner } = setup();
+    await service.create(OWNER, CTX);
+    expect(provisioner.seedDefaults).toHaveBeenCalledWith("vault-1");
+  });
+
+  it("provisiona de novo mesmo se o Cofre já existia -- auto-corretivo", async () => {
+    // Se o provisionamento falhou numa tentativa anterior, o Cofre ficaria sem
+    // categoria nenhuma e sem caminho de volta. Semear sempre conserta.
+    const { service, vaults, provisioner } = setup();
+    vaults.create.mockResolvedValueOnce(null);
+    await service.create(OWNER, CTX);
+    expect(provisioner.seedDefaults).toHaveBeenCalledWith("vault-1");
   });
 });
 

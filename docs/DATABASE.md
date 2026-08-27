@@ -104,7 +104,9 @@ tarefas. Design completo em
 
 ### 6. Cofre Financeiro (financas pessoais do dono)
 
-`PersonalVault`
+`PersonalVault` · `PersonalAccount` · `PersonalCreditCard` ·
+`PersonalCategory` · `PersonalMerchant` · `PersonalMerchantAlias` ·
+`PersonalTransaction` · `PersonalTransactionSplit` · `PersonalStatement`
 
 **Unica tabela do schema SEM `organizationId`, de proposito.** O dono e o
 usuario (`ownerUserId`, com `@unique`), nao a organizacao. A coluna
@@ -127,9 +129,31 @@ Campos que carregam decisao:
   anterior morre na hora; e o que faz "Bloquear agora", o logout e a troca de
   senha serem revogacao de verdade, e nao so limpeza de cookie.
 
-As tabelas das fases seguintes (contas, cartoes, transacoes, importacoes,
-assinaturas, dividas) seguem a mesma regra: dono por `ownerUserId`, nunca por
-organizacao.
+As tabelas do nucleo penduram em `vaultId` (e nao em `ownerUserId`): os dois
+provariam a mesma coisa, mas `req.vault` so existe DEPOIS que `requireVault`
+confirmou a posse -- filtrar pelo `vaultId` e filtrar exatamente pelo que foi
+autorizado, sem uma segunda coluna que alguem possa esquecer de checar.
+
+Decisoes de modelagem do nucleo (fase 2):
+
+- **Sem booleano de rateio na movimentacao.** `isBusiness`/`isReimbursable`
+  NAO existem como coluna: quem manda e `PersonalTransactionSplit`, e os
+  indicadores sao derivados na leitura. Dois lugares dizendo a mesma coisa e
+  como nasce contagem dupla.
+- **Valor sempre positivo + `direction` explicita.** Sinal negativo e ambiguo
+  entre bancos e vira erro silencioso de soma.
+- **`fingerprint` com um unique so** (`vaultId, fingerprint`) cobrindo duas
+  estrategias: derivado do FITID quando existe, calculado quando nao. Nulo em
+  lancamento manual -- dois cafes de R$5 no mesmo dia sao duas despesas reais.
+- **Seis CHECKs** que o Prisma nao expressa: origem unica (conta XOR cartao),
+  valor positivo, parcela coerente, divisao positiva, dias de cartao validos e
+  fatura sem pagamento negativo. Sao regras de dinheiro -- deixa-las so na
+  aplicacao significa gravar numero errado em silencio.
+- **FKs `Restrict`** em conta e cartao: apagar cadastro nao pode levar o
+  historico financeiro junto. A API responde 409 pedindo pra desativar.
+
+As tabelas das fases seguintes (importacoes, regras, assinaturas, dividas)
+seguem a mesma regra: dono pelo Cofre, nunca por organizacao.
 
 ### 7. Billing
 

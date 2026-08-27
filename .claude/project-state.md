@@ -103,15 +103,49 @@ branco antes de lista). Ou seja, `format:check` ja falha na `main` — o CI
 provavelmente esta vermelho por isso. Reverti os arquivos nao relacionados
 para nao poluir a branch; consertar isso e uma tarefa a parte.
 
+## Trabalho de 27/08/2026 — Cofre Financeiro, Fase 2 (nucleo)
+
+Commit na mesma branch `feat/cofre-financeiro`, **nao mergeada, nao deployada**.
+Oito tabelas novas (contas, cartoes, categorias, fornecedores, aliases,
+movimentacoes, divisoes, faturas), penduradas em `vaultId`, todas as rotas
+atras de `requireVault`, nenhuma com RBAC.
+
+Decisoes que valem lembrar:
+
+- **`isBusiness`/`isReimbursable` NAO viraram coluna.** O rateio mora so nas
+  divisoes e os indicadores sao derivados na leitura. Foi um desvio consciente
+  da lista de campos do pedido do Rick -- a API continua expondo os
+  indicadores, so nao os persiste. Motivo: dois lugares dizendo a mesma coisa
+  e como nasce contagem dupla, que e o risco numero um do modulo.
+- **Pagamento de fatura nasce como transferencia** e nao e vinculado a fatura
+  que quita (senao somaria ao total que paga). Coberto por teste.
+- **Seis CHECKs no banco** (origem unica conta XOR cartao, valor positivo,
+  parcela coerente, divisao positiva, dias de cartao validos, fatura sem
+  pagamento negativo) -- o Prisma nao expressa nenhum deles.
+- **Dinheiro em centavos inteiros** (`vault-money.ts`) e **datas em UTC**
+  (`vault-date.ts`), com teste especifico pro deslize de dia por fuso.
+- `fingerprint` com um unique so cobrindo FITID e calculo; nulo em lancamento
+  manual pra dois cafes iguais no mesmo dia nao colidirem.
+
+Migration `20260827160000_add_personal_vault_core` **aplicada em producao**
+(aditiva; verificado: 9 tabelas do Cofre com RLS, 6 CHECKs presentes, dados
+preservados). 124 testes novos -> **642 na API** (777 no monorepo).
+type-check, lint e build limpos.
+
+**Ainda nao ha tela pro nucleo** -- as telas sao a fase 8 do plano acordado.
+Hoje o nucleo so e acessivel pela API.
+
 ## Bloqueios
 - Pendências registradas em memória (`millead-pendencias-seguranca`) ainda em aberto: ZapSign não configurado no Render (contratos não são assináveis de verdade em produção), 2 achados baixos de segurança (landing de IA sem sanitização própria, tokens em localStorage), permissões próprias de Contratos/Landing pages pendentes de migração.
 
 ## Próxima ação
 
-**Fase 2 do Cofre** (contas, cartoes, categorias, fornecedores, transacoes,
-splits, faturas) na branch `feat/cofre-financeiro`. Antes de usar a Fase 1 e
-preciso definir `VAULT_SESSION_SECRET` no `.env` e no Render — sem ela o
-modulo inteiro responde 404 de proposito.
+**Fase 3 do Cofre**: importacao OFX/CSV com pre-visualizacao, mapeamento de
+colunas e deduplicacao. A base ja esta pronta (fingerprint, normalizacao de
+descricao, `findExistingFingerprints`).
+
+Antes de usar o Cofre e preciso definir `VAULT_SESSION_SECRET` no `.env` e no
+Render — sem ela o modulo inteiro responde 404 de proposito.
 
 ### Pendencias anteriores (verificadas em 27/08)
 **Ligar a automação**: Configurações > Automação (estágio de ganho "Fechado",

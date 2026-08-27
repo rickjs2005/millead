@@ -2024,5 +2024,366 @@ model PersonalVault {
 
   owner User @relation(fields: [ownerUserId], references: [id], onDelete: Cascade)
 
+  accounts     PersonalAccount[]
+  cards        PersonalCreditCard[]
+  categories   PersonalCategory[]
+  merchants    PersonalMerchant[]
+  aliases      PersonalMerchantAlias[]
+  transactions PersonalTransaction[]
+  splits       PersonalTransactionSplit[]
+  statements   PersonalStatement[]
+
   @@map("personal_vaults")
+}
+
+// -------------------------------------------------------------------
+// Cofre Financeiro -- nucleo (fase 2): contas, cartoes, categorias,
+// fornecedores, movimentacoes, divisoes e faturas.
+//
+// Tudo pendura em `vaultId`, nao em `ownerUserId`. Os dois provariam a
+// mesma coisa (o Cofre e 1:1 com o usuario), mas `requireVault` so
+// preenche `req.vault` DEPOIS de confirmar que aquele Cofre e de quem
+// pediu -- entao filtrar pelo `vaultId` e filtrar exatamente pelo que foi
+// autorizado, sem uma segunda coluna que alguem possa esquecer de checar.
+// -------------------------------------------------------------------
+
+enum PersonalAccountType {
+  CHECKING
+  SAVINGS
+  DIGITAL_WALLET
+  /// Carteira "Dinheiro" -- destino dos saques, que sao transferencia, nao gasto.
+  CASH
+
+  @@map("personal_account_type")
+}
+
+enum PersonalCurrency {
+  BRL
+  USD
+  EUR
+
+  @@map("personal_currency")
+}
+
+enum PersonalTransactionDirection {
+  IN
+  OUT
+
+  @@map("personal_transaction_direction")
+}
+
+enum PersonalTransactionSource {
+  OFX
+  CSV
+  MANUAL
+
+  @@map("personal_transaction_source")
+}
+
+enum PersonalTransactionStatus {
+  PENDING
+  CONFIRMED
+  IGNORED
+  REVERSED
+
+  @@map("personal_transaction_status")
+}
+
+enum PersonalSplitKind {
+  PERSONAL
+  REIMBURSABLE
+  BUSINESS
+
+  @@map("personal_split_kind")
+}
+
+enum PersonalStatementStatus {
+  OPEN
+  CLOSED
+  PARTIAL
+  PAID
+  OVERDUE
+
+  @@map("personal_statement_status")
+}
+
+/// Conta bancaria, carteira digital ou dinheiro em especie.
+///
+/// `last4` e o UNICO fragmento de numero guardado -- nunca o numero completo
+/// da conta. Serve pra voce distinguir duas contas do mesmo banco na tela, e
+/// nada mais; nao ha fluxo aqui que precise do numero inteiro.
+model PersonalAccount {
+  id          String              @id @default(cuid())
+  vaultId     String              @map("vault_id")
+  name        String
+  institution String?
+  type        PersonalAccountType
+  currency    PersonalCurrency    @default(BRL)
+  last4       String?             @db.VarChar(4)
+  /// Saldo INFORMADO por voce, com a data em que informou. Nao e saldo
+  /// calculado: sem extrato completo desde a abertura da conta, somar
+  /// movimentacoes daria um numero errado com cara de certo.
+  reportedBalance   Decimal?  @map("reported_balance") @db.Decimal(14, 2)
+  reportedBalanceAt DateTime? @map("reported_balance_at")
+  isActive          Boolean   @default(true) @map("is_active")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  vault        PersonalVault        @relation(fields: [vaultId], references: [id], onDelete: Cascade)
+  transactions PersonalTransaction[]
+  /// Cartoes que sao pagos por esta conta.
+  paidCards    PersonalCreditCard[] @relation("CardPaymentAccount")
+
+  @@index([vaultId, isActive])
+  @@map("personal_accounts")
+}
+
+/// Cartao de credito. Guarda `last4`, e mais nada que identifique o plastico:
+/// nunca numero completo, validade ou codigo de seguranca -- esses tres juntos
+/// sao o que permite uma compra, e nenhum fluxo deste modulo precisa deles.
+model PersonalCreditCard {
+  id          String   @id @default(cuid())
+  vaultId     String   @map("vault_id")
+  name        String
+  institution String?
+  last4       String?  @db.VarChar(4)
+  limitAmount Decimal? @map("limit_amount") @db.Decimal(14, 2)
+  /// Dia do mes (1-31). Compras depois do fechamento caem na fatura seguinte.
+  closingDay Int @map("closing_day")
+  dueDay     Int @map("due_day")
+  /// Conta usada pra pagar a fatura. SetNull: apagar a conta nao pode levar o
+  /// historico do cartao junto.
+  paymentAccountId String?  @map("payment_account_id")
+  isActive         Boolean  @default(true) @map("is_active")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  vault          PersonalVault         @relation(fields: [vaultId], references: [id], onDelete: Cascade)
+  paymentAccount PersonalAccount?      @relation("CardPaymentAccount", fields: [paymentAccountId], references: [id], onDelete: SetNull)
+  transactions   PersonalTransaction[]
+  statements     PersonalStatement[]
+
+  @@index([vaultId, isActive])
+  @@map("personal_credit_cards")
+}
+
+/// Categoria ou subcategoria (um nivel so de profundidade, garantido no
+/// service). Criadas por voce, renomeaveis e desativaveis.
+///
+/// `systemKey` existe porque o NOME nao serve de identificador: voce pode
+/// renomear "Transferencias" pra "Movimentacao interna", e a regra que diz
+/// "transferencia nao e gasto" nao pode parar de funcionar por causa disso.
+/// Categoria que voce criar do zero tem `systemKey` nulo.
+model PersonalCategory {
+  id        String  @id @default(cuid())
+  vaultId   String  @map("vault_id")
+  parentId  String? @map("parent_id")
+  name      String
+  systemKey String? @map("system_key")
+  /// Cor opcional pra leitura rapida nos graficos.
+  color     String?
+  sortOrder Int      @default(0) @map("sort_order")
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  vault    PersonalVault      @relation(fields: [vaultId], references: [id], onDelete: Cascade)
+  parent   PersonalCategory?  @relation("CategoryParent", fields: [parentId], references: [id], onDelete: Restrict)
+  children PersonalCategory[] @relation("CategoryParent")
+
+  transactions PersonalTransaction[]
+  splits       PersonalTransactionSplit[]
+  merchants    PersonalMerchant[]
+
+  @@unique([vaultId, systemKey])
+  @@unique([vaultId, parentId, name])
+  @@index([vaultId, isActive])
+  @@map("personal_categories")
+}
+
+/// Fornecedor normalizado (Claude, iFood, Vercel). O que aparece no extrato
+/// sao os aliases; o fornecedor e o nome que voce quer ver no relatorio.
+model PersonalMerchant {
+  id                String   @id @default(cuid())
+  vaultId           String   @map("vault_id")
+  name              String
+  /// Categoria sugerida quando um alias deste fornecedor casa.
+  defaultCategoryId String?  @map("default_category_id")
+  isActive          Boolean  @default(true) @map("is_active")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  vault           PersonalVault           @relation(fields: [vaultId], references: [id], onDelete: Cascade)
+  defaultCategory PersonalCategory?       @relation(fields: [defaultCategoryId], references: [id], onDelete: SetNull)
+  aliases         PersonalMerchantAlias[]
+  transactions    PersonalTransaction[]
+
+  @@unique([vaultId, name])
+  @@index([vaultId, isActive])
+  @@map("personal_merchants")
+}
+
+/// Como o fornecedor aparece no extrato: ANTHROPIC, CLAUDE.AI, CLAUDE PRO ->
+/// todos apontam pro fornecedor "Claude".
+///
+/// `alias` e guardado JA NORMALIZADO (maiusculas, sem acento, sem ruido) --
+/// normalizar na escrita e o que permite o unique fazer o trabalho de
+/// deduplicacao, em vez de depender de toda leitura lembrar de normalizar.
+model PersonalMerchantAlias {
+  id         String   @id @default(cuid())
+  vaultId    String   @map("vault_id")
+  merchantId String   @map("merchant_id")
+  alias      String
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  vault    PersonalVault    @relation(fields: [vaultId], references: [id], onDelete: Cascade)
+  merchant PersonalMerchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+
+  @@unique([vaultId, alias])
+  @@index([merchantId])
+  @@map("personal_merchant_aliases")
+}
+
+/// Fatura de cartao. Um mes de referencia por cartao.
+model PersonalStatement {
+  id      String @id @default(cuid())
+  vaultId String @map("vault_id")
+  cardId  String @map("card_id")
+  /// Primeiro dia do mes de referencia (guardado como data pra ordenar e
+  /// comparar sem parsing de string).
+  referenceMonth DateTime                @map("reference_month") @db.Date
+  closingDate    DateTime                @map("closing_date") @db.Date
+  dueDate        DateTime                @map("due_date") @db.Date
+  totalAmount    Decimal                 @default(0) @map("total_amount") @db.Decimal(14, 2)
+  paidAmount     Decimal                 @default(0) @map("paid_amount") @db.Decimal(14, 2)
+  status         PersonalStatementStatus @default(OPEN)
+  createdAt      DateTime                @default(now()) @map("created_at")
+  updatedAt      DateTime                @updatedAt @map("updated_at")
+
+  vault        PersonalVault         @relation(fields: [vaultId], references: [id], onDelete: Cascade)
+  card         PersonalCreditCard    @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  transactions PersonalTransaction[]
+
+  @@unique([cardId, referenceMonth])
+  @@index([vaultId, dueDate])
+  @@map("personal_statements")
+}
+
+/// Uma movimentacao. Vive numa conta OU num cartao, nunca nos dois -- um CHECK
+/// no banco garante isso (ver a migration), porque uma linha com os dois nulos
+/// nao teria origem e uma com os dois preenchidos seria contada duas vezes.
+///
+/// Valor SEMPRE positivo, com `direction` explicito. Sinal negativo e ambiguo
+/// entre bancos (uns mandam credito negativo, outros debito) e vira erro
+/// silencioso de soma; direcao separada nao tem como ser mal lida.
+model PersonalTransaction {
+  id        String  @id @default(cuid())
+  vaultId   String  @map("vault_id")
+  accountId String? @map("account_id")
+  cardId    String? @map("card_id")
+
+  /// Quando a compra aconteceu (regime de competencia).
+  transactionDate DateTime  @map("transaction_date") @db.Date
+  /// Quando o dinheiro entrou/saiu de fato (regime de caixa). Nulo enquanto
+  /// nao compensou -- as duas visoes precisam de datas separadas, e uma so
+  /// coluna forcaria escolher um regime pra sempre.
+  settlementDate DateTime? @map("settlement_date") @db.Date
+
+  /// Exatamente como veio do banco. Nunca reescrita: e a prova do que o
+  /// extrato dizia quando a classificacao for revista.
+  originalDescription String
+  /// Versao limpa, usada por regras e pelo fingerprint.
+  normalizedDescription String @map("normalized_description")
+
+  merchantId String? @map("merchant_id")
+  categoryId String? @map("category_id")
+
+  direction PersonalTransactionDirection
+  amount    Decimal                      @db.Decimal(14, 2)
+  currency  PersonalCurrency             @default(BRL)
+  /// Preenchidos so quando a cobranca veio em outra moeda.
+  originalAmount   Decimal?          @map("original_amount") @db.Decimal(14, 2)
+  originalCurrency PersonalCurrency? @map("original_currency")
+  /// O que efetivamente saiu em reais (ja com IOF/spread). E a coluna que todo
+  /// relatorio soma -- converter na leitura reescreveria o passado sempre que
+  /// o cambio mudasse.
+  amountBrl Decimal @map("amount_brl") @db.Decimal(14, 2)
+
+  source PersonalTransactionSource
+  /// FITID do OFX (ou equivalente), como veio.
+  externalId String? @map("external_id")
+  /// Chave de deduplicacao das importacoes. Quando existe FITID, e derivada
+  /// DELE; sem FITID, e derivada de conta+data+valor+direcao+descricao. Um
+  /// unique so, duas estrategias -- a prioridade mora em como a chave e
+  /// montada, nao em dois indices concorrentes.
+  ///
+  /// NULA em lancamento manual, de proposito: dois cafes de R$5 no mesmo dia
+  /// sao duas despesas reais, e um unique pegaria o segundo como duplicata.
+  fingerprint String? @map("fingerprint")
+
+  status PersonalTransactionStatus @default(CONFIRMED)
+  note   String?
+
+  statementId       String? @map("statement_id")
+  installmentNumber Int?    @map("installment_number")
+  installmentTotal  Int?    @map("installment_total")
+
+  /// Transferencia entre contas proprias ou pagamento de fatura: move
+  /// dinheiro, mas nao e receita nem despesa. Fica FORA dos totais de consumo
+  /// -- ver docs/personal-finance-vault.md.
+  isTransfer Boolean @default(false) @map("is_transfer")
+  /// Contraparte da transferencia, quando conhecida -- e o que permite nao
+  /// contar a mesma movimentacao duas vezes nos dois lados.
+  transferPairId String? @unique @map("transfer_pair_id")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  vault     PersonalVault       @relation(fields: [vaultId], references: [id], onDelete: Cascade)
+  account   PersonalAccount?    @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  card      PersonalCreditCard? @relation(fields: [cardId], references: [id], onDelete: Restrict)
+  merchant  PersonalMerchant?   @relation(fields: [merchantId], references: [id], onDelete: SetNull)
+  category  PersonalCategory?   @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  statement PersonalStatement?  @relation(fields: [statementId], references: [id], onDelete: SetNull)
+
+  splits PersonalTransactionSplit[]
+
+  @@unique([vaultId, fingerprint])
+  @@index([vaultId, transactionDate])
+  @@index([vaultId, settlementDate])
+  @@index([vaultId, status])
+  @@index([vaultId, categoryId])
+  @@index([vaultId, merchantId])
+  @@index([accountId])
+  @@index([cardId])
+  @@index([statementId])
+  @@map("personal_transactions")
+}
+
+/// Divisao de uma movimentacao: a compra de R$300 que tem R$100 seu, R$100 que
+/// alguem te devolve e R$100 da MilWeb.
+///
+/// As divisoes sao a UNICA fonte de verdade do rateio -- a transacao nao
+/// carrega booleano "e empresarial"/"e reembolsavel". Dois lugares dizendo a
+/// mesma coisa e exatamente como nasce contagem dupla, que e o risco numero um
+/// deste modulo. Sem divisao nenhuma, a movimentacao e 100% pessoal; com
+/// divisoes, o que sobrar do valor continua sendo pessoal.
+model PersonalTransactionSplit {
+  id            String            @id @default(cuid())
+  vaultId       String            @map("vault_id")
+  transactionId String            @map("transaction_id")
+  kind          PersonalSplitKind
+  amount        Decimal           @db.Decimal(14, 2)
+  categoryId    String?           @map("category_id")
+  note          String?
+  createdAt     DateTime          @default(now()) @map("created_at")
+  updatedAt     DateTime          @updatedAt @map("updated_at")
+
+  vault       PersonalVault       @relation(fields: [vaultId], references: [id], onDelete: Cascade)
+  transaction PersonalTransaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  category    PersonalCategory?   @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+
+  @@index([transactionId])
+  @@index([vaultId, kind])
+  @@map("personal_transaction_splits")
 }

@@ -4,6 +4,7 @@ import type { PersonalVaultRepository } from "../../domain/repositories/personal
 import type { UserRepository } from "../../domain/repositories/user-repository.js";
 import type { PasswordHasher } from "../../domain/services/password-hasher.js";
 import type { VaultLocker } from "../../domain/services/vault-locker.js";
+import type { VaultProvisioner } from "../../domain/services/vault-provisioner.js";
 import type { VaultSessionService } from "../../domain/services/vault-session-service.js";
 import type { AuditContext, AuditLogger } from "./audit-logger.js";
 import { attemptsRemaining, isLocked, lockoutFor } from "./vault-lockout.js";
@@ -27,6 +28,7 @@ export class PersonalVaultService implements VaultLocker {
     private readonly passwordHasher: PasswordHasher,
     private readonly sessions: VaultSessionService,
     private readonly audit: AuditLogger,
+    private readonly provisioner: VaultProvisioner,
   ) {}
 
   /** Contexto de auditoria do Cofre: `organizationId` SEMPRE null. O Cofre não
@@ -58,6 +60,15 @@ export class PersonalVaultService implements VaultLocker {
    */
   async create(userId: string, ctx: AuditContext): Promise<{ created: boolean }> {
     const vault = await this.vaults.create(userId);
+
+    // Semeia SEMPRE, inclusive quando o Cofre já existia. É idempotente, e
+    // torna a operação auto-corretiva: se o provisionamento falhou numa
+    // tentativa anterior (rede, timeout), a próxima chamada conserta em vez de
+    // deixar um Cofre sem categoria nenhuma e sem caminho de volta.
+    const target = vault ?? (await this.vaults.findByOwner(userId));
+    if (!target) throw new NotFoundError(NOT_FOUND);
+    await this.provisioner.seedDefaults(target.id);
+
     if (!vault) return { created: false }; // já tinha um; idempotente de propósito
     await this.audit.log(this.auditContext(ctx), "vault.created", {
       entityType: "personal_vault",
