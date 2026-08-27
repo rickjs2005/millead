@@ -171,6 +171,7 @@ export interface Container {
   /** Exposto pro próximo passo: as rotas de dados do Cofre (fases seguintes)
    *  montam sob este middleware, nunca sob `requirePermission`. */
   requireVault: RequestHandler;
+  vaultSessionService: JwtVaultSessionService;
   personalVaultService: PersonalVaultService;
   membershipRepository: MembershipRepository;
   auditLogger: AuditLogger;
@@ -592,6 +593,7 @@ export function buildContainer(): Container {
     personalVaultService,
     personalSubscriptionService,
     requireVault,
+    vaultSessionService,
     membershipRepository,
     auditLogger,
   };

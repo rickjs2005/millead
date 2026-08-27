@@ -59,10 +59,17 @@ function stubController(overrides: Partial<Record<string, RequestHandler>> = {})
  *  dele, e o middleware de verdade tem teste próprio (require-vault.test.ts). */
 const passthroughVault: RequestHandler = (_req, _res, next) => next();
 
-function buildApp(controller: PersonalVaultController, authenticate = fakeAuthenticate()) {
+function buildApp(
+  controller: PersonalVaultController,
+  authenticate = fakeAuthenticate(),
+  configured = true,
+) {
   const app = express();
   app.use(express.json());
-  app.use("/api/v1/vault", createVaultRoutes(controller, authenticate, passthroughVault));
+  app.use(
+    "/api/v1/vault",
+    createVaultRoutes(controller, authenticate, passthroughVault, { configured }),
+  );
   app.use(errorHandler);
   return app;
 }
@@ -144,5 +151,53 @@ describe("createVaultRoutes", () => {
 
     expect(res.status).toBe(401);
     expect(controller.status).not.toHaveBeenCalled();
+  });
+});
+
+describe("sem VAULT_SESSION_SECRET, o módulo inteiro some", () => {
+  // Encontrado no primeiro deploy em produção, com a variável ainda ausente no
+  // Render: `/status` respondia 200 e `/unlock` estourava 500. A tela mostrava
+  // "Criar Cofre" pra um Cofre que já existia, e o botão de abrir quebrava --
+  // um estado que parece defeito do sistema, não configuração faltando.
+  const ROTAS: ReadonlyArray<{ method: "get" | "post"; path: string; body?: unknown }> = [
+    { method: "get", path: "/status" },
+    { method: "post", path: "/" },
+    { method: "post", path: "/unlock", body: { password: "seja-la-qual-for" } },
+    { method: "post", path: "/lock" },
+    { method: "get", path: "/session" },
+  ];
+
+  it.each(ROTAS)("$method $path responde 404", async ({ method, path, body }) => {
+    const controller = stubController();
+    const base = await listen(buildApp(controller, fakeAuthenticate(), false));
+
+    const res = await fetch(`${base}/api/v1/vault${path}`, {
+      method,
+      headers: { "content-type": "application/json" },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+
+    // 404, e não 500 nem 200: sem o segredo o módulo tem de ficar
+    // indistinguível de um que nunca existiu -- inclusive pra quem sonda de
+    // fora, pra quem a diferença entre 500 e 404 já denunciaria que existe
+    // algo ali meio instalado.
+    expect(res.status).toBe(404);
+  });
+
+  it("nenhuma delas alcança o controller", async () => {
+    const controller = stubController();
+    const base = await listen(buildApp(controller, fakeAuthenticate(), false));
+
+    for (const { method, path, body } of ROTAS) {
+      await fetch(`${base}/api/v1/vault${path}`, {
+        method,
+        headers: { "content-type": "application/json" },
+        body: body === undefined ? undefined : JSON.stringify(body),
+      });
+    }
+
+    for (const [nome, fn] of Object.entries(controller)) {
+      expect(fn, `controller.${nome} não devia ter sido chamado`).not.toHaveBeenCalled();
+    }
   });
 });

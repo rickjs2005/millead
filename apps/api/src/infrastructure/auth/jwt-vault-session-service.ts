@@ -32,9 +32,14 @@ export class JwtVaultSessionService implements VaultSessionService {
     expiresInSeconds: number;
   } {
     if (!this.configured) {
-      // Inalcançável pelas rotas (o middleware fecha antes), mas explodir aqui
-      // é melhor que assinar com string vazia se algum caminho novo esquecer
-      // de checar `configured`.
+      // Rede de segurança, não invariante. A versão anterior deste comentário
+      // afirmava que isto era inalcançável "porque o middleware fecha antes" —
+      // e estava errado: `requireVault` só protege as rotas de DENTRO, e
+      // `/vault/unlock` fica de fora por construção (é ela que cria a sessão).
+      // Sem segredo, o desbloqueio chegava aqui e virava 500 em produção.
+      // Hoje o router inteiro é fechado com 404 antes (ver vault-routes.ts), e
+      // este throw volta a ser o que devia ser: proteção contra assinar com
+      // string vazia se algum caminho novo esquecer de checar `configured`.
       throw new Error("VAULT_SESSION_SECRET não configurado.");
     }
 

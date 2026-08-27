@@ -121,6 +121,7 @@ export function createApp(container: Container): Express {
       container.personalVaultController,
       container.authenticate,
       container.requireVault,
+      container.vaultSessionService,
     ),
   );
   // Dados do Cofre, no mesmo prefixo. Router separado porque TODAS as rotas
