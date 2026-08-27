@@ -1,4 +1,5 @@
 import type { RefreshTokenRepository } from "../../../domain/repositories/refresh-token-repository.js";
+import type { VaultLocker } from "../../../domain/services/vault-locker.js";
 import { hashToken } from "../../../infrastructure/auth/refresh-token-generator.js";
 import type { LogoutInput } from "../../dto/auth.dto.js";
 import type { AuditLogger } from "../../services/audit-logger.js";
@@ -8,6 +9,7 @@ export class LogoutUseCase {
   constructor(
     private readonly refreshTokenRepository: RefreshTokenRepository,
     private readonly auditLogger: AuditLogger,
+    private readonly vaultLocker: VaultLocker,
   ) {}
 
   /** Idempotente de propósito: logout nunca falha por token já inválido/ausente. */
@@ -16,6 +18,10 @@ export class LogoutUseCase {
     if (!stored || stored.revokedAt) return;
 
     await this.refreshTokenRepository.revoke(stored.id);
+    // Sair da conta fecha o Cofre de verdade (corta as sessões elevadas no
+    // servidor), não só apaga o cookie. Sem isto, sair num computador
+    // emprestado deixaria a sessão do Cofre válida pelos minutos restantes.
+    await this.vaultLocker.lockOnLogout(stored.userId);
     await this.auditLogger.log(
       { organizationId: stored.organizationId, userId: stored.userId, ...meta },
       "auth.logout",

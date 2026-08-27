@@ -26,6 +26,9 @@ const APP_PREFIXES = [
   "/briefings",
   "/audit",
   "/receivables",
+  // O Cofre também exige sessão de app antes de qualquer HTML sair. A
+  // reautenticação dele é uma segunda porta, depois desta -- não substitui.
+  "/cofre",
   "/settings",
   "/videos",
   "/admin",

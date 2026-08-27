@@ -70,13 +70,14 @@ tarefas. Design completo em
   diferente e carrega uma trava de unicidade diferente — e é a trava, não a
   leitura, que faz o reenvio do webhook ser seguro:
 
-  | Tabela | Unique | Pergunta |
-  | --- | --- | --- |
-  | `automation_executions` | `(organizationId, eventType, contractId)` | "este contrato já disparou?" |
-  | `automation_steps` | `(executionId, key)` | "esta etapa já rodou?" |
-  | `automation_artifacts` | `(executionId, key)` | "este artefato já foi criado?" |
+  | Tabela                  | Unique                                    | Pergunta                       |
+  | ----------------------- | ----------------------------------------- | ------------------------------ |
+  | `automation_executions` | `(organizationId, eventType, contractId)` | "este contrato já disparou?"   |
+  | `automation_steps`      | `(executionId, key)`                      | "esta etapa já rodou?"         |
+  | `automation_artifacts`  | `(executionId, key)`                      | "este artefato já foi criado?" |
 
   Um `result Json` no step cobriria a leitura mas não daria trava nenhuma.
+
 - `AutomationArtifact.refId` **não é FK**: aponta pra tabelas diferentes
   conforme o `type` (lead, briefing, projeto, tarefa, plano). Se a entidade
   for apagada, o link na tela some — em vez de FK quebrada ou cascata
@@ -101,7 +102,127 @@ tarefas. Design completo em
   todo o CRM, e o vínculo forte já vive em `automation_artifacts`. A
   referência ao contrato vai na descrição da tarefa (com link).
 
-### 6. Billing
+### 6. Cofre Financeiro (financas pessoais do dono)
+
+`PersonalVault` · `PersonalAccount` · `PersonalCreditCard` ·
+`PersonalCategory` · `PersonalMerchant` · `PersonalMerchantAlias` ·
+`PersonalTransaction` · `PersonalTransactionSplit` · `PersonalStatement` ·
+`PersonalImportBatch` · `PersonalImportProfile` ·
+`PersonalClassificationRule` ·
+`PersonalSubscription` · `PersonalSubscriptionAlert`
+
+**Unica tabela do schema SEM `organizationId`, de proposito.** O dono e o
+usuario (`ownerUserId`, com `@unique`), nao a organizacao. A coluna
+significaria "este dado pertence a organizacao", e e exatamente disso que o
+Cofre precisa nao participar: com ela, qualquer repositorio que filtrasse por
+tenant -- o padrao da casa -- devolveria dado financeiro pessoal a quem tem
+papel na empresa.
+
+Pela mesma razao o modulo **nao usa RBAC**: `ADMIN_PERMISSIONS` e
+`ALL_PERMISSIONS` menos billing, entao uma chave `vault:*` nova entraria
+sozinha no papel Admin de toda organizacao. A autorizacao e posse + sessao
+elevada. Detalhes em [personal-finance-vault.md](./personal-finance-vault.md).
+
+Campos que carregam decisao:
+
+- `failed_attempts` / `locked_until` -- lockout escalonado **persistido**. Em
+  memoria zeraria a cada cold start do Render free, devolvendo tentativas de
+  graca a quem esta atacando.
+- `sessions_invalidated_at` -- corte de sessoes elevadas. Todo token com `iat`
+  anterior morre na hora; e o que faz "Bloquear agora", o logout e a troca de
+  senha serem revogacao de verdade, e nao so limpeza de cookie.
+
+As tabelas do nucleo penduram em `vaultId` (e nao em `ownerUserId`): os dois
+provariam a mesma coisa, mas `req.vault` so existe DEPOIS que `requireVault`
+confirmou a posse -- filtrar pelo `vaultId` e filtrar exatamente pelo que foi
+autorizado, sem uma segunda coluna que alguem possa esquecer de checar.
+
+Decisoes de modelagem do nucleo (fase 2):
+
+- **Sem booleano de rateio na movimentacao.** `isBusiness`/`isReimbursable`
+  NAO existem como coluna: quem manda e `PersonalTransactionSplit`, e os
+  indicadores sao derivados na leitura. Dois lugares dizendo a mesma coisa e
+  como nasce contagem dupla.
+- **Valor sempre positivo + `direction` explicita.** Sinal negativo e ambiguo
+  entre bancos e vira erro silencioso de soma.
+- **`fingerprint` com um unique so** (`vaultId, fingerprint`) cobrindo duas
+  estrategias: derivado do FITID quando existe, calculado quando nao. Nulo em
+  lancamento manual -- dois cafes de R$5 no mesmo dia sao duas despesas reais.
+- **Seis CHECKs** que o Prisma nao expressa: origem unica (conta XOR cartao),
+  valor positivo, parcela coerente, divisao positiva, dias de cartao validos e
+  fatura sem pagamento negativo. Sao regras de dinheiro -- deixa-las so na
+  aplicacao significa gravar numero errado em silencio.
+- **FKs `Restrict`** em conta e cartao: apagar cadastro nao pode levar o
+  historico financeiro junto. A API responde 409 pedindo pra desativar.
+
+Importacao (fase 3):
+
+- **O arquivo bancario NAO e persistido.** `personal_import_batches` guarda
+  hash, nome higienizado, periodo, formato, contagens e erros por numero de
+  linha -- nada que reconstrua o extrato. Extrato e o documento mais sensivel
+  do Cofre, e um arquivo guardado "por precaucao" e um arquivo que pode vazar.
+- **`errors` e `[{ line, code }]`**, nunca a descricao bancaria. Ha teste que
+  falha se conteudo do extrato aparecer no erro.
+- **`personal_transactions.import_batch_id`** e a procedencia da linha
+  (SetNull: apagar o registro do lote nao leva as movimentacoes junto).
+- **`personal_import_profiles`** guarda o mapeamento de colunas por
+  banco/cartao: CSV de banco nao tem padrao, e remapear toda vez e o atrito
+  que faz a pessoa parar de importar.
+- A idempotencia da importacao vem do `createMany({ skipDuplicates: true })`
+  sobre o unique `(vault_id, fingerprint)` -- e o banco, nao a checagem da
+  pre-visualizacao, que impede a linha repetida de entrar.
+
+Classificacao (fase 4):
+
+- `personal_classification_rules` tem condicoes (contem/comeca/exato,
+  fornecedor, conta, cartao, faixa de valor) combinadas com E, e acoes
+  (fornecedor, categoria, percentual empresarial). `priority` menor roda
+  primeiro, com desempate por id -- sem ordem total, a mesma movimentacao
+  cairia em categorias diferentes entre execucoes.
+- Tres CHECKs: percentual em 0..100, faixa de valor coerente e
+  `match_type`/`match_value` sempre juntos.
+- `match_value` e gravado JA NORMALIZADO, igual a descricao da movimentacao --
+  normalizar na escrita e o que faz a comparacao ser igualdade simples.
+- A ligacao com assinatura entra na fase 5 como coluna aditiva.
+
+Assinaturas e alertas (fase 5):
+
+- `personal_subscription_alerts.dedupe_key` com unique `(vault_id, dedupe_key)`
+  e' o que torna a verificacao a cada abertura do app idempotente. Um unique
+  com `subscription_id` anulavel NAO resolveria: o Postgres aceita N nulos, e
+  os alertas sem assinatura se multiplicariam.
+- `personal_subscriptions.cost_subscription_id` aponta pra assinatura
+  EMPRESARIAL **sem FK**, de proposito: `cost_subscriptions` pertence a
+  organizacao e a assinatura pessoal pertence ao Cofre -- uma FK entre os dois
+  mundos daria ao banco um caminho de leitura que a aplicacao existe pra
+  impedir. O elo e resolvido na fase 7, com posse verificada dos dois lados.
+- Cinco CHECKs: intervalo so em CUSTOM (e CUSTOM sempre com intervalo),
+  intervalo plausivel, valor positivo, tolerancia e antecedencia em faixa.
+- Colunas aditivas: `personal_transactions.subscription_id` (qual assinatura a
+  cobranca paga) e `personal_classification_rules.set_subscription_id` (a
+  coluna prometida na fase 4).
+
+As tabelas de dividas (`personal_contacts`, `personal_debts`,
+`personal_debt_payments`) seguem a mesma regra: dono pelo Cofre, RLS ligada,
+nenhum dado sensivel de terceiro (sem CPF, conta ou chave Pix). Tres decisoes
+de modelagem que valem registro:
+
+- **Nao existe coluna de valor pago, saldo nem status de divida.** Os tres sao
+  derivados das baixas e da data de hoje. Uma divida vira ATRASADA pela
+  passagem do tempo, sem ninguem escrever nada -- uma coluna gravada estaria
+  errada toda madrugada. So `canceled_at` e coluna, porque so o cancelamento e
+  um evento.
+- **`personal_debt_payments.transaction_id` e UNIQUE.** Uma movimentacao baixa
+  no maximo uma divida; sem isso a mesma entrada de R$200 poderia baixar duas
+  dividas de R$200 e o banco teria inventado dinheiro. E o vinculo que sustenta
+  a regra "Pix de quitacao nao e renda".
+- **A soma das baixas x valor da divida NAO tem CHECK.** E a unica invariante
+  de dinheiro do Cofre que o Postgres nao consegue defender sozinho: ela
+  relaciona linhas de tabelas diferentes, e CHECK so enxerga a propria linha. O
+  gatilho que resolveria seria regra de negocio escondida no banco, longe dos
+  testes -- entao ela vive em `validatePayment`, no servico.
+
+### 7. Billing
 
 `Subscription` — genérico o bastante pra qualquer provedor de pagamento
 (Stripe ou não); nenhuma integração escolhida ainda.
@@ -154,3 +275,39 @@ O seed cria o usuário `rick@milweb.com.br` com senha definida por
 `SEED_OWNER_PASSWORD` (ou `millead-dev-only` se a env var não estiver
 setada — **trocar antes de rodar contra qualquer banco que não seja
 local**).
+
+### 7. Ponte entre o Cofre e o financeiro (fase 7)
+
+Duas tabelas ligam os dois mundos sem que nenhum enxergue o outro por inteiro:
+
+- **`business_expenses`** e o REALIZADO da empresa (o que de fato saiu, com
+  data). Vive no mundo multi-tenant, com `organization_id`. Nao confundir com
+  `cost_subscriptions`, que e o PLANEJADO, nem com `cost_usage_entries`, que
+  mede consumo de credito dentro de um plano ja contratado -- reusar aquela
+  tabela obrigaria toda despesa a pendurar numa assinatura e a virar uma
+  quantidade de creditos.
+- **`personal_business_allocations`** e o elo. E a UNICA tabela que sabe os dois
+  lados, e por isso e a unica que o financeiro nao le.
+
+Tres decisoes que valem registro:
+
+- **`business_expenses` nao tem coluna nenhuma apontando pro Cofre.** Quem tem
+  permissao no financeiro ve valor, data e a descricao que o dono escreveu --
+  e nao chega na movimentacao pessoal, na conta, no cartao nem nas outras
+  divisoes daquela compra.
+- **`personal_business_allocations.transaction_id` e UNIQUE.** E a chave de
+  idempotencia da ponte: uma compra gera no maximo uma despesa. A chave e a
+  movimentacao, e nao a divisao, porque as divisoes sao substituidas em bloco
+  -- corrigir o rateio troca o id da divisao, e a mesma compra seria enviada de
+  novo, dobrando o custo da empresa.
+- **A FK pro Cofre e Restrict; a FK pra despesa e Cascade.** Apagar a compra com
+  envio ativo deixaria uma despesa empresarial sem lastro (o servico recusa
+  antes, com 409). Apagar a despesa pelo financeiro, ao contrario, desfaz o
+  envio: o elo cai junto e o Cofre volta a mostrar "nao enviada", que e a
+  verdade.
+
+Nao existe FK entre `personal_subscriptions.cost_subscription_id` (ou
+`business_expenses.cost_subscription_id` visto do Cofre) e o mundo
+multi-tenant, de proposito -- uma chave estrangeira ali obrigaria o banco a
+conhecer os dois donos ao mesmo tempo. O preco e que a verificacao de posse vira
+responsabilidade de quem grava, e ela existe: `CostSubscriptionVerifier`.

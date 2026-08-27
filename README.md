@@ -89,13 +89,13 @@ pnpm --filter @millead/api dev:worker
 
 ## Scripts principais
 
-| Comando                          | O que faz                                                                       |
-| -------------------------------- | ------------------------------------------------------------------------------- |
-| `pnpm dev`                       | api + web em modo watch (via Turborepo)                                         |
-| `pnpm build`                     | build de produção de tudo                                                       |
-| `pnpm lint` / `pnpm type-check`  | qualidade em todo o monorepo                                                    |
-| `pnpm db:studio`                 | GUI do Prisma pra inspecionar o banco                                           |
-| `pnpm docker:up` / `docker:down` | sobe/derruba a infra local alternativa (opcional — o padrão é Supabase)         |
+| Comando                          | O que faz                                                               |
+| -------------------------------- | ----------------------------------------------------------------------- |
+| `pnpm dev`                       | api + web em modo watch (via Turborepo)                                 |
+| `pnpm build`                     | build de produção de tudo                                               |
+| `pnpm lint` / `pnpm type-check`  | qualidade em todo o monorepo                                            |
+| `pnpm db:studio`                 | GUI do Prisma pra inspecionar o banco                                   |
+| `pnpm docker:up` / `docker:down` | sobe/derruba a infra local alternativa (opcional — o padrão é Supabase) |
 
 ## Roadmap de fases
 
@@ -213,6 +213,107 @@ ou já atrasados — o prazo vem do contrato assinado.
 Detalhes de design, estados, idempotência e como testar à mão:
 [a spec](./docs/superpowers/specs/2026-08-26-post-sale-automation-design.md).
 
+## Cofre Financeiro (área pessoal do dono da conta)
+
+Área privada em `/cofre` para finanças pessoais, separada do financeiro da
+MilWeb. **Fases 1 a 5 de 10 concluídas, mais as telas**: segurança, núcleo
+financeiro, importação de extrato, classificação automática, assinaturas com
+alertas e a interface completa em `/cofre`. Dívidas e a ponte com o Centro de
+Custos entram nas fases seguintes.
+
+Segurança:
+
+- **Não usa RBAC, de propósito.** `ADMIN_PERMISSIONS` é `ALL_PERMISSIONS`
+  menos billing — uma permissão `vault:*` nova entraria sozinha no papel Admin
+  de toda organização. A autorização é **posse** (`PersonalVault.ownerUserId`,
+  unique) + **sessão elevada**. Cada usuário cria o seu Cofre; ninguém vê o de
+  ninguém.
+- **Reautenticação com a senha da conta**, sessão elevada própria de 15min de
+  inatividade, com segredo separado do access token (`VAULT_SESSION_SECRET`;
+  a API recusa subir em produção com os dois iguais).
+- **"Bloquear agora" revoga no servidor**, não só limpa o cookie. Logout e
+  troca de senha fecham o Cofre pelo mesmo caminho.
+- **Lockout escalonado persistido no banco** (5 tentativas → 1/5/15/60 min),
+  porque um contador em memória zeraria a cada cold start do Render free.
+- **404, nunca 403**: quem não é dono não descobre que o Cofre existe.
+- **Auditoria fora da trilha da organização** (`organizationId` null) e sem
+  nenhum valor financeiro.
+
+Núcleo financeiro (contas, cartões, categorias, fornecedores, movimentações,
+divisões e faturas):
+
+- **Contas e cartões guardam só os 4 últimos dígitos** — nunca número
+  completo, validade ou código de segurança.
+- **Rateio (pessoal / reembolsável / empresarial) vive só nas divisões.** A
+  movimentação não carrega booleano "é empresarial": dois lugares dizendo a
+  mesma coisa é como nasce contagem dupla. Os indicadores são derivados na
+  leitura.
+- **Pagamento de fatura não é despesa nova** — a compra no cartão já foi a
+  despesa. A saída nasce marcada como transferência e não entra na fatura que
+  quita.
+- **Transferência entre contas próprias são duas linhas ligadas**, fora dos
+  totais de receita e despesa.
+- **Dinheiro somado em centavos inteiros e datas sempre em UTC** — as duas
+  fontes clássicas de total que erra sem ninguém ver.
+- **Seis CHECKs no banco** (origem única, valor positivo, parcela coerente…) e
+  FKs `Restrict`: cadastro com histórico se desativa, não se apaga.
+- Filtros por competência **ou** caixa, nunca misturados sem rótulo.
+
+Importação de OFX/CSV:
+
+- **O arquivo bancário não é guardado** — nem em disco, nem em storage, nem
+  entre a pré-visualização e a confirmação. Fica só o registro do lote: hash,
+  nome higienizado, período e contagens.
+- **Pré-visualização não grava nada.** Você vê o que entraria, quantas linhas
+  são duplicatas e quais foram recusadas, antes de confirmar.
+- **Parsers próprios**, sem dependência nova: OFX 1.x (SGML, tags que não
+  fecham) e 2.x (XML), e CSV com aspas, CRLF e BOM.
+- **Reimportar não duplica**: o unique de fingerprint com `skipDuplicates` faz
+  a importação ser idempotente no banco, não só na conferência.
+- **Erros de linha são códigos**, nunca o texto do extrato.
+- Modelos de mapeamento por banco/cartão, porque CSV de banco não tem padrão.
+
+Classificação automática (**sem IA, por decisão**):
+
+- Cascata de 5 níveis: identificador externo → sua regra → alias de fornecedor
+  → assinatura (fase 5) → recorrência determinística. O que sobra fica
+  pendente esperando revisão.
+- **Cada nível preenche só o que os anteriores deixaram vazio.** Uma regra que
+  diz só "100% empresarial" não bloqueia o alias de resolver a categoria.
+- **Recorrência não é voto de maioria**: descrição que já foi pra duas
+  categorias diferentes volta pra revisão em vez de escolher a mais comum.
+- **O automático nunca sobrescreve rateio que você fez à mão.**
+- "Corrigir só esta" ou "criar regra para as próximas" — criar regra não mexe
+  no passado.
+
+Assinaturas e alertas:
+
+- **`PushSender` ganhou `sendToUser`.** Antes só existia `sendToOrg`, que
+  mandaria "Claude renova amanhã — R$120" pro navegador de toda a equipe.
+- **Verificação a cada abertura do app é a garantia**; push é a segunda
+  camada. No free tier o worker dorme, então ele nunca pode ser a única via.
+- **Idempotente por chave** (`tipo:âncora:data`): recalcular todo dia não
+  multiplica o mesmo aviso.
+- **Uma cobrança nunca vira assinatura** — a partir de duas compatíveis vira
+  sugestão, nunca cadastro automático.
+- Oito alertas, com as folgas que evitam falso positivo: pausada não alerta,
+  cobrança faltando tem 3 dias de tolerância, duplicata é um aviso por par.
+
+Telas (10 rotas sob `/cofre`): visão geral, movimentações com revisão,
+importação com pré-visualização, assinaturas, alertas, contas, cartões,
+categorias, fornecedores e regras.
+
+- **A porta mora no layout**, não em cada página — tela nova nasce protegida, e
+  o conteúdo nem chega a ser montado com o Cofre fechado.
+- **Data em UTC** (`formatVaultDate`): o formatador genérico do app converteria
+  para o fuso local e mostraria todo lançamento um dia antes.
+- **Extrato em ISO-8859-1 é decodificado certo** — lido como UTF-8, o acento
+  quebrado entraria no fingerprint e duplicaria tudo na reimportação.
+
+Requer `VAULT_SESSION_SECRET` no `.env` — sem ela o módulo inteiro responde
+404 (fecha, não degrada). Design completo, decisões e roadmap em
+[docs/personal-finance-vault.md](./docs/personal-finance-vault.md).
+
 ## Gestão de equipe
 
 - [x] Convites por e-mail/link com token opaco, hash no banco, expiração em
@@ -237,21 +338,21 @@ Todas as rotas abaixo exigem `Authorization: Bearer <accessToken>` (ver
 RBAC. Listagens aceitam `?page=&pageSize=` (paginação) e devolvem
 `{ items, page, pageSize, total, totalPages }`.
 
-| Recurso    | Rotas                                                                                                                                                                                   |
+| Recurso | Rotas |
 | ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
-| Empresas   | `POST/GET /api/v1/companies`, `GET/PATCH /:id`, `POST/DELETE /:id/websites[/:websiteId]`, `POST/DELETE /:id/socials[/:socialId]`                                                        |
-| Leads      | `POST/GET /api/v1/leads`, `GET/PATCH /:id`, `PATCH /:id/stage`, `POST/DELETE /:id/contacts[/:contactId]`, `POST /:id/notes`, `POST/DELETE /:id/tags[/:tagId]`, `GET /:id/activities`    |
-| Etiquetas  | `GET/POST /api/v1/tags`                                                                                                                                                                 |
-| Pipelines  | `GET/POST /api/v1/pipelines`, `GET /:id`, `POST /:id/stages`                                                                                                                            |
-| Tarefas    | `POST/GET /api/v1/tasks`, `GET/PATCH/DELETE /:id`                                                                                                                                       |
-| Reuniões   | `POST/GET /api/v1/meetings`, `GET/PATCH /:id`, `POST/DELETE /:id/attendees[/:attendeeId]`                                                                                               |
-| Propostas  | `POST/GET /api/v1/proposals`, `GET/PATCH /:id`                                                                                                                                          |
-| Auditorias | `POST /api/v1/audits` (202 -- processa via worker), `GET /api/v1/audits[?companyId=&status=]`, `GET /:id`                                                                               |
-| IA         | `GET /api/v1/ai/status`, `POST /api/v1/ai/leads/:id/score`, `POST .../report`, `POST .../message`, `POST /api/v1/ai/creative-direction` (503 sem `ANTHROPIC_API_KEY`)                   |
-| Mensagens  | `GET /api/v1/messages[?leadId=&status=&channel=]`, `PATCH /:id`, `GET/POST /api/v1/messages/templates`, `PATCH /templates/:id`                                                          |
-| Contratos  | `POST/GET /api/v1/contracts`, `GET /kpis`, `GET /post-sale/pending`, `GET /:id[/pdf]`, `PATCH /:id/status`, `POST /:id/reprocess`, `GET /:id/post-sale`, `POST /:id/post-sale/reprocess` -- públicas: `POST /api/v1/public/contracts`, `POST /api/v1/webhooks/signature` |
-| Equipe     | `GET /api/v1/team/directory`, membros, convites e papéis em `/api/v1/team/*`; públicas: `POST /api/v1/public/team-invitations/preview                                                   | accept` |
-| Configurações | `GET /api/v1/settings/integrations`, `PATCH /profile`, `PATCH /organization`, `GET/PATCH /post-sale-automation`                                                                                                                              |
+| Empresas | `POST/GET /api/v1/companies`, `GET/PATCH /:id`, `POST/DELETE /:id/websites[/:websiteId]`, `POST/DELETE /:id/socials[/:socialId]` |
+| Leads | `POST/GET /api/v1/leads`, `GET/PATCH /:id`, `PATCH /:id/stage`, `POST/DELETE /:id/contacts[/:contactId]`, `POST /:id/notes`, `POST/DELETE /:id/tags[/:tagId]`, `GET /:id/activities` |
+| Etiquetas | `GET/POST /api/v1/tags` |
+| Pipelines | `GET/POST /api/v1/pipelines`, `GET /:id`, `POST /:id/stages` |
+| Tarefas | `POST/GET /api/v1/tasks`, `GET/PATCH/DELETE /:id` |
+| Reuniões | `POST/GET /api/v1/meetings`, `GET/PATCH /:id`, `POST/DELETE /:id/attendees[/:attendeeId]` |
+| Propostas | `POST/GET /api/v1/proposals`, `GET/PATCH /:id` |
+| Auditorias | `POST /api/v1/audits` (202 -- processa via worker), `GET /api/v1/audits[?companyId=&status=]`, `GET /:id` |
+| IA | `GET /api/v1/ai/status`, `POST /api/v1/ai/leads/:id/score`, `POST .../report`, `POST .../message`, `POST /api/v1/ai/creative-direction` (503 sem `ANTHROPIC_API_KEY`) |
+| Mensagens | `GET /api/v1/messages[?leadId=&status=&channel=]`, `PATCH /:id`, `GET/POST /api/v1/messages/templates`, `PATCH /templates/:id` |
+| Contratos | `POST/GET /api/v1/contracts`, `GET /kpis`, `GET /post-sale/pending`, `GET /:id[/pdf]`, `PATCH /:id/status`, `POST /:id/reprocess`, `GET /:id/post-sale`, `POST /:id/post-sale/reprocess` -- públicas: `POST /api/v1/public/contracts`, `POST /api/v1/webhooks/signature` |
+| Equipe | `GET /api/v1/team/directory`, membros, convites e papéis em `/api/v1/team/*`; públicas: `POST /api/v1/public/team-invitations/preview                                                   | accept` |
+| Configurações | `GET /api/v1/settings/integrations`, `PATCH /profile`, `PATCH /organization`, `GET/PATCH /post-sale-automation` |
 
 Detalhes de design que valem saber antes de consumir essa API:
 

@@ -36,7 +36,7 @@ async function refreshSession(): Promise<boolean> {
 }
 
 interface RequestOptions {
-  method?: "GET" | "POST" | "PATCH" | "DELETE";
+  method?: "GET" | "POST" | "PATCH" | "PUT" | "DELETE";
   body?: unknown;
   query?: Record<string, string | number | boolean | undefined>;
   /** Pra login/register/logout: não tenta refresh num 401 (credencial errada não é sessão expirada). */
@@ -58,6 +58,20 @@ async function request<T>(path: string, options: RequestOptions = {}, isRetry = 
     body: body !== undefined ? JSON.stringify(body) : undefined,
     credentials: "include",
   });
+
+  // Nem todo 401 é sessão expirada. O Cofre responde 401 VAULT_LOCKED quando
+  // a SESSÃO ELEVADA caiu -- o login continua perfeitamente válido. Sem esta
+  // saída, cada request ao Cofre fechado gastaria um refresh (rotacionando o
+  // refresh token à toa) só pra receber o mesmo 401 na segunda tentativa.
+  if (res.status === 401) {
+    const peek = (await res
+      .clone()
+      .json()
+      .catch(() => null)) as ApiErrorBody | null;
+    if (peek?.error.code === "VAULT_LOCKED") {
+      throw new ApiError(401, "VAULT_LOCKED", peek.error.message);
+    }
+  }
 
   if (res.status === 401 && !skipAuth && !isRetry) {
     refreshPromise ??= refreshSession().finally(() => {
@@ -95,5 +109,8 @@ export const api = {
   post: <T>(path: string, body?: unknown, options?: Pick<RequestOptions, "skipAuth">) =>
     request<T>(path, { method: "POST", body, ...options }),
   patch: <T>(path: string, body?: unknown) => request<T>(path, { method: "PATCH", body }),
+  /** Substituição do recurso inteiro — usado pelo rateio do Cofre, onde
+   *  "trocar o conjunto" é a única operação que faz sentido. */
+  put: <T>(path: string, body?: unknown) => request<T>(path, { method: "PUT", body }),
   delete: <T>(path: string) => request<T>(path, { method: "DELETE" }),
 };

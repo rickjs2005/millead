@@ -112,6 +112,21 @@ const envSchema = z.object({
   // URL pública do APP Next (não da API -- ver APP_PUBLIC_URL acima) usada
   // pra montar o link /b/:token em e-mail e WhatsApp.
   WEB_PUBLIC_URL: z.string().default("http://localhost:3000"),
+
+  // ===== Cofre Financeiro (finanças pessoais do dono da conta) =====
+  // Segredo PRÓPRIO da sessão elevada, separado do JWT_ACCESS_SECRET de
+  // propósito: com o mesmo segredo, quem forjasse (ou vazasse) um access
+  // token estaria a um campo de distância de forjar também a sessão do
+  // Cofre. Segredos distintos = comprometer um não entrega o outro.
+  //
+  // Opcional, e a ausência FECHA o módulo (todas as rotas do Cofre passam a
+  // responder 404) em vez de abri-lo sem sessão elevada. É o inverso do
+  // padrão dos outros opcionais (IA/SMTP viram no-op): aqui degradar
+  // significaria servir dado financeiro sem a segunda barreira.
+  VAULT_SESSION_SECRET: z.string().min(32).optional(),
+  // Inatividade tolerada. A sessão renova a cada request autorizada, então
+  // este é o tempo PARADO até o Cofre se fechar sozinho.
+  VAULT_SESSION_TTL: z.string().default("15m"),
 });
 
 /**
@@ -128,6 +143,18 @@ const productionEnvSchema = envSchema.superRefine((val, ctx) => {
       message:
         "JWT_ACCESS_SECRET está com o valor placeholder do .env.example (público no repositório). " +
         "Gere um segredo único: `openssl rand -base64 48`.",
+    });
+  }
+
+  // Reusar o segredo do access token na sessão elevada anularia o ganho de
+  // ter duas barreiras: um vazamento entregaria as duas de uma vez.
+  if (val.VAULT_SESSION_SECRET && val.VAULT_SESSION_SECRET === val.JWT_ACCESS_SECRET) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["VAULT_SESSION_SECRET"],
+      message:
+        "VAULT_SESSION_SECRET não pode ser igual a JWT_ACCESS_SECRET -- a sessão do Cofre " +
+        "existe justamente pra ser uma barreira independente. Gere outro: `openssl rand -base64 48`.",
     });
   }
 

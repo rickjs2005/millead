@@ -61,6 +61,7 @@ model User {
   sentTeamInvitations       TeamInvitation[]             @relation("TeamInvitationInviter")
   postSaleDefaultOwnerOf    PostSaleAutomationSettings[] @relation("PostSaleDefaultOwner")
   automationExecutionsFired AutomationExecution[]        @relation("AutomationTriggeredBy")
+  personalVault             PersonalVault?
 
   @@map("users")
 }
@@ -126,6 +127,8 @@ model Organization {
   automationExecutions    AutomationExecution[]
   automationSteps         AutomationStep[]
   automationArtifacts     AutomationArtifact[]
+
+    businessExpenses BusinessExpense[]
 
   @@map("organizations")
 }
@@ -315,6 +318,8 @@ model Company {
 
   @@unique([organizationId, document])
   @@index([organizationId])
+    businessExpenses BusinessExpense[]
+
   @@map("companies")
 }
 
@@ -1525,6 +1530,7 @@ model CostSubscription {
   company              Company?              @relation(fields: [companyId], references: [id], onDelete: SetNull)
   pricingEstimateCosts PricingEstimateCost[]
   costUsageEntries     CostUsageEntry[]
+  businessExpenses     BusinessExpense[]
 
   @@index([organizationId, scope])
   @@index([organizationId, isActive])
@@ -1973,4 +1979,1079 @@ model SocialConfig {
   accessToken    String
   tokenExpiresAt DateTime
   updatedAt      DateTime @updatedAt
+}
+
+// ===================================================================
+// COFRE FINANCEIRO — finanças pessoais do dono da conta
+// ===================================================================
+//
+// Estes modelos quebram, de propósito, a convenção multi-tenant do resto do
+// schema: NÃO carregam `organizationId`. O dono é o usuário
+// (`ownerUserId`), e é por ele que toda query filtra.
+//
+// Não é descuido nem atalho: `organizationId` aqui significaria "este dado
+// pertence à organização", e é justamente disso que o Cofre precisa não
+// participar. Com a coluna, qualquer repositório que filtrasse por tenant
+// (o padrão da casa) devolveria dado financeiro pessoal pra quem tem papel
+// na organização -- que é exatamente o que o módulo existe pra impedir. A
+// autorização do Cofre é posse + sessão elevada, nunca RBAC: ver
+// docs/personal-finance-vault.md.
+
+/// Um Cofre por usuário (`ownerUserId` é unique). Não existe "o" Cofre do
+/// sistema: existe o SEU. Quem não tem um recebe 404 em toda rota do módulo,
+/// igual a quem não é dono do Cofre alheio -- a resposta não distingue os
+/// dois casos de propósito.
+model PersonalVault {
+  id          String  @id @default(cuid())
+  ownerUserId String  @unique @map("owner_user_id")
+  /// Desligar o Cofre mantém os dados e fecha o acesso (as rotas voltam a
+  /// responder 404). Não é exclusão -- ver a exportação antes de apagar.
+  enabled     Boolean @default(true)
+
+  /// Tentativas de desbloqueio erradas desde o último acerto. Persistido no
+  /// banco, e não num contador em memória, porque a API roda no Render free:
+  /// o processo dorme e reinicia sozinho, e um balde em memória devolveria
+  /// tentativas de graça a cada cold start -- exatamente quando um atacante
+  /// paciente estaria tentando.
+  failedAttempts Int       @default(0) @map("failed_attempts")
+  lockedUntil    DateTime? @map("locked_until")
+  lastUnlockedAt DateTime? @map("last_unlocked_at")
+
+  /// Corte de sessões elevadas: todo token emitido ANTES deste instante é
+  /// recusado. É o que faz "Bloquear agora" e o logout serem revogação de
+  /// verdade -- sem isso, um token roubado continuaria válido pelos 15
+  /// minutos restantes, e o botão seria só cosmético (limpar o cookie do
+  /// navegador não invalida nada no servidor).
+  sessionsInvalidatedAt DateTime? @map("sessions_invalidated_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  owner User @relation(fields: [ownerUserId], references: [id], onDelete: Cascade)
+
+  accounts     PersonalAccount[]
+  cards        PersonalCreditCard[]
+  categories   PersonalCategory[]
+  merchants    PersonalMerchant[]
+  aliases      PersonalMerchantAlias[]
+  transactions PersonalTransaction[]
+  splits       PersonalTransactionSplit[]
+  statements   PersonalStatement[]
+  importBatches   PersonalImportBatch[]
+  importProfiles  PersonalImportProfile[]
+  rules           PersonalClassificationRule[]
+  subscriptions   PersonalSubscription[]
+  alerts          PersonalSubscriptionAlert[]
+  contacts        PersonalContact[]
+  debts           PersonalDebt[]
+  debtPayments    PersonalDebtPayment[]
+  businessAllocations PersonalBusinessAllocation[]
+
+  @@map("personal_vaults")
+}
+
+// -------------------------------------------------------------------
+// Cofre Financeiro -- nucleo (fase 2): contas, cartoes, categorias,
+// fornecedores, movimentacoes, divisoes e faturas.
+//
+// Tudo pendura em `vaultId`, nao em `ownerUserId`. Os dois provariam a
+// mesma coisa (o Cofre e 1:1 com o usuario), mas `requireVault` so
+// preenche `req.vault` DEPOIS de confirmar que aquele Cofre e de quem
+// pediu -- entao filtrar pelo `vaultId` e filtrar exatamente pelo que foi
+// autorizado, sem uma segunda coluna que alguem possa esquecer de checar.
+// -------------------------------------------------------------------
+
+enum PersonalAccountType {
+  CHECKING
+  SAVINGS
+  DIGITAL_WALLET
+  /// Carteira "Dinheiro" -- destino dos saques, que sao transferencia, nao gasto.
+  CASH
+
+  @@map("personal_account_type")
+}
+
+enum PersonalCurrency {
+  BRL
+  USD
+  EUR
+
+  @@map("personal_currency")
+}
+
+enum PersonalTransactionDirection {
+  IN
+  OUT
+
+  @@map("personal_transaction_direction")
+}
+
+enum PersonalTransactionSource {
+  OFX
+  CSV
+  MANUAL
+
+  @@map("personal_transaction_source")
+}
+
+enum PersonalTransactionStatus {
+  PENDING
+  CONFIRMED
+  IGNORED
+  REVERSED
+
+  @@map("personal_transaction_status")
+}
+
+enum PersonalSplitKind {
+  PERSONAL
+  REIMBURSABLE
+  BUSINESS
+
+  @@map("personal_split_kind")
+}
+
+enum PersonalStatementStatus {
+  OPEN
+  CLOSED
+  PARTIAL
+  PAID
+  OVERDUE
+
+  @@map("personal_statement_status")
+}
+
+/// Conta bancaria, carteira digital ou dinheiro em especie.
+///
+/// `last4` e o UNICO fragmento de numero guardado -- nunca o numero completo
+/// da conta. Serve pra voce distinguir duas contas do mesmo banco na tela, e
+/// nada mais; nao ha fluxo aqui que precise do numero inteiro.
+model PersonalAccount {
+  id          String              @id @default(cuid())
+  vaultId     String              @map("vault_id")
+  name        String
+  institution String?
+  type        PersonalAccountType
+  currency    PersonalCurrency    @default(BRL)
+  last4       String?             @db.VarChar(4)
+  /// Saldo INFORMADO por voce, com a data em que informou. Nao e saldo
+  /// calculado: sem extrato completo desde a abertura da conta, somar
+  /// movimentacoes daria um numero errado com cara de certo.
+  reportedBalance   Decimal?  @map("reported_balance") @db.Decimal(14, 2)
+  reportedBalanceAt DateTime? @map("reported_balance_at")
+  isActive          Boolean   @default(true) @map("is_active")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  vault        PersonalVault        @relation(fields: [vaultId], references: [id], onDelete: Cascade)
+  transactions PersonalTransaction[]
+  /// Cartoes que sao pagos por esta conta.
+  paidCards    PersonalCreditCard[] @relation("CardPaymentAccount")
+  importBatches   PersonalImportBatch[]
+  importProfiles  PersonalImportProfile[]
+  rules           PersonalClassificationRule[]
+  subscriptions   PersonalSubscription[]
+
+  @@index([vaultId, isActive])
+  @@map("personal_accounts")
+}
+
+/// Cartao de credito. Guarda `last4`, e mais nada que identifique o plastico:
+/// nunca numero completo, validade ou codigo de seguranca -- esses tres juntos
+/// sao o que permite uma compra, e nenhum fluxo deste modulo precisa deles.
+model PersonalCreditCard {
+  id          String   @id @default(cuid())
+  vaultId     String   @map("vault_id")
+  name        String
+  institution String?
+  last4       String?  @db.VarChar(4)
+  limitAmount Decimal? @map("limit_amount") @db.Decimal(14, 2)
+  /// Dia do mes (1-31). Compras depois do fechamento caem na fatura seguinte.
+  closingDay Int @map("closing_day")
+  dueDay     Int @map("due_day")
+  /// Conta usada pra pagar a fatura. SetNull: apagar a conta nao pode levar o
+  /// historico do cartao junto.
+  paymentAccountId String?  @map("payment_account_id")
+  isActive         Boolean  @default(true) @map("is_active")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  vault          PersonalVault         @relation(fields: [vaultId], references: [id], onDelete: Cascade)
+  paymentAccount PersonalAccount?      @relation("CardPaymentAccount", fields: [paymentAccountId], references: [id], onDelete: SetNull)
+  transactions   PersonalTransaction[]
+  statements     PersonalStatement[]
+  importBatches  PersonalImportBatch[]
+  importProfiles PersonalImportProfile[]
+  rules          PersonalClassificationRule[]
+  subscriptions  PersonalSubscription[]
+
+  @@index([vaultId, isActive])
+  @@map("personal_credit_cards")
+}
+
+/// Categoria ou subcategoria (um nivel so de profundidade, garantido no
+/// service). Criadas por voce, renomeaveis e desativaveis.
+///
+/// `systemKey` existe porque o NOME nao serve de identificador: voce pode
+/// renomear "Transferencias" pra "Movimentacao interna", e a regra que diz
+/// "transferencia nao e gasto" nao pode parar de funcionar por causa disso.
+/// Categoria que voce criar do zero tem `systemKey` nulo.
+model PersonalCategory {
+  id        String  @id @default(cuid())
+  vaultId   String  @map("vault_id")
+  parentId  String? @map("parent_id")
+  name      String
+  systemKey String? @map("system_key")
+  /// Cor opcional pra leitura rapida nos graficos.
+  color     String?
+  sortOrder Int      @default(0) @map("sort_order")
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  vault    PersonalVault      @relation(fields: [vaultId], references: [id], onDelete: Cascade)
+  parent   PersonalCategory?  @relation("CategoryParent", fields: [parentId], references: [id], onDelete: Restrict)
+  children PersonalCategory[] @relation("CategoryParent")
+
+  transactions PersonalTransaction[]
+  splits       PersonalTransactionSplit[]
+  merchants    PersonalMerchant[]
+  rules         PersonalClassificationRule[]
+  subscriptions PersonalSubscription[]
+
+  @@unique([vaultId, systemKey])
+  @@unique([vaultId, parentId, name])
+  @@index([vaultId, isActive])
+  @@map("personal_categories")
+}
+
+/// Fornecedor normalizado (Claude, iFood, Vercel). O que aparece no extrato
+/// sao os aliases; o fornecedor e o nome que voce quer ver no relatorio.
+model PersonalMerchant {
+  id                String   @id @default(cuid())
+  vaultId           String   @map("vault_id")
+  name              String
+  /// Categoria sugerida quando um alias deste fornecedor casa.
+  defaultCategoryId String?  @map("default_category_id")
+  isActive          Boolean  @default(true) @map("is_active")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  vault           PersonalVault           @relation(fields: [vaultId], references: [id], onDelete: Cascade)
+  defaultCategory PersonalCategory?       @relation(fields: [defaultCategoryId], references: [id], onDelete: SetNull)
+  aliases         PersonalMerchantAlias[]
+  transactions    PersonalTransaction[]
+  rulesMatching   PersonalClassificationRule[] @relation("RuleMatchMerchant")
+  rulesSetting    PersonalClassificationRule[] @relation("RuleSetMerchant")
+  subscriptions   PersonalSubscription[]
+
+  @@unique([vaultId, name])
+  @@index([vaultId, isActive])
+  @@map("personal_merchants")
+}
+
+/// Como o fornecedor aparece no extrato: ANTHROPIC, CLAUDE.AI, CLAUDE PRO ->
+/// todos apontam pro fornecedor "Claude".
+///
+/// `alias` e guardado JA NORMALIZADO (maiusculas, sem acento, sem ruido) --
+/// normalizar na escrita e o que permite o unique fazer o trabalho de
+/// deduplicacao, em vez de depender de toda leitura lembrar de normalizar.
+model PersonalMerchantAlias {
+  id         String   @id @default(cuid())
+  vaultId    String   @map("vault_id")
+  merchantId String   @map("merchant_id")
+  alias      String
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  vault    PersonalVault    @relation(fields: [vaultId], references: [id], onDelete: Cascade)
+  merchant PersonalMerchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+
+  @@unique([vaultId, alias])
+  @@index([merchantId])
+  @@map("personal_merchant_aliases")
+}
+
+/// Fatura de cartao. Um mes de referencia por cartao.
+model PersonalStatement {
+  id      String @id @default(cuid())
+  vaultId String @map("vault_id")
+  cardId  String @map("card_id")
+  /// Primeiro dia do mes de referencia (guardado como data pra ordenar e
+  /// comparar sem parsing de string).
+  referenceMonth DateTime                @map("reference_month") @db.Date
+  closingDate    DateTime                @map("closing_date") @db.Date
+  dueDate        DateTime                @map("due_date") @db.Date
+  totalAmount    Decimal                 @default(0) @map("total_amount") @db.Decimal(14, 2)
+  paidAmount     Decimal                 @default(0) @map("paid_amount") @db.Decimal(14, 2)
+  status         PersonalStatementStatus @default(OPEN)
+  createdAt      DateTime                @default(now()) @map("created_at")
+  updatedAt      DateTime                @updatedAt @map("updated_at")
+
+  vault        PersonalVault         @relation(fields: [vaultId], references: [id], onDelete: Cascade)
+  card         PersonalCreditCard    @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  transactions PersonalTransaction[]
+
+  @@unique([cardId, referenceMonth])
+  @@index([vaultId, dueDate])
+  @@map("personal_statements")
+}
+
+/// Uma movimentacao. Vive numa conta OU num cartao, nunca nos dois -- um CHECK
+/// no banco garante isso (ver a migration), porque uma linha com os dois nulos
+/// nao teria origem e uma com os dois preenchidos seria contada duas vezes.
+///
+/// Valor SEMPRE positivo, com `direction` explicito. Sinal negativo e ambiguo
+/// entre bancos (uns mandam credito negativo, outros debito) e vira erro
+/// silencioso de soma; direcao separada nao tem como ser mal lida.
+model PersonalTransaction {
+  id        String  @id @default(cuid())
+  vaultId   String  @map("vault_id")
+  accountId String? @map("account_id")
+  cardId    String? @map("card_id")
+
+  /// Quando a compra aconteceu (regime de competencia).
+  transactionDate DateTime  @map("transaction_date") @db.Date
+  /// Quando o dinheiro entrou/saiu de fato (regime de caixa). Nulo enquanto
+  /// nao compensou -- as duas visoes precisam de datas separadas, e uma so
+  /// coluna forcaria escolher um regime pra sempre.
+  settlementDate DateTime? @map("settlement_date") @db.Date
+
+  /// Exatamente como veio do banco. Nunca reescrita: e a prova do que o
+  /// extrato dizia quando a classificacao for revista.
+  originalDescription String
+  /// Versao limpa, usada por regras e pelo fingerprint.
+  normalizedDescription String @map("normalized_description")
+
+  merchantId String? @map("merchant_id")
+  categoryId String? @map("category_id")
+
+  direction PersonalTransactionDirection
+  amount    Decimal                      @db.Decimal(14, 2)
+  currency  PersonalCurrency             @default(BRL)
+  /// Preenchidos so quando a cobranca veio em outra moeda.
+  originalAmount   Decimal?          @map("original_amount") @db.Decimal(14, 2)
+  originalCurrency PersonalCurrency? @map("original_currency")
+  /// O que efetivamente saiu em reais (ja com IOF/spread). E a coluna que todo
+  /// relatorio soma -- converter na leitura reescreveria o passado sempre que
+  /// o cambio mudasse.
+  amountBrl Decimal @map("amount_brl") @db.Decimal(14, 2)
+
+  source PersonalTransactionSource
+  /// Lote de importacao de origem -- a procedencia da linha. SetNull: apagar
+  /// o registro do lote nao pode levar as movimentacoes junto.
+  importBatchId String? @map("import_batch_id")
+  /// Assinatura que esta cobranca paga. E o que permite dizer "esta e a
+  /// cobranca do Claude deste mes" sem adivinhar pela descricao de novo.
+  subscriptionId String? @map("subscription_id")
+  /// FITID do OFX (ou equivalente), como veio.
+  externalId String? @map("external_id")
+  /// Chave de deduplicacao das importacoes. Quando existe FITID, e derivada
+  /// DELE; sem FITID, e derivada de conta+data+valor+direcao+descricao. Um
+  /// unique so, duas estrategias -- a prioridade mora em como a chave e
+  /// montada, nao em dois indices concorrentes.
+  ///
+  /// NULA em lancamento manual, de proposito: dois cafes de R$5 no mesmo dia
+  /// sao duas despesas reais, e um unique pegaria o segundo como duplicata.
+  fingerprint String? @map("fingerprint")
+
+  status PersonalTransactionStatus @default(CONFIRMED)
+  note   String?
+
+  statementId       String? @map("statement_id")
+  installmentNumber Int?    @map("installment_number")
+  installmentTotal  Int?    @map("installment_total")
+
+  /// Transferencia entre contas proprias ou pagamento de fatura: move
+  /// dinheiro, mas nao e receita nem despesa. Fica FORA dos totais de consumo
+  /// -- ver docs/personal-finance-vault.md.
+  isTransfer Boolean @default(false) @map("is_transfer")
+  /// Contraparte da transferencia, quando conhecida -- e o que permite nao
+  /// contar a mesma movimentacao duas vezes nos dois lados.
+  transferPairId String? @unique @map("transfer_pair_id")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  vault     PersonalVault       @relation(fields: [vaultId], references: [id], onDelete: Cascade)
+  account   PersonalAccount?    @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  card      PersonalCreditCard? @relation(fields: [cardId], references: [id], onDelete: Restrict)
+  merchant  PersonalMerchant?   @relation(fields: [merchantId], references: [id], onDelete: SetNull)
+  category  PersonalCategory?   @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  statement PersonalStatement?  @relation(fields: [statementId], references: [id], onDelete: SetNull)
+  importBatch  PersonalImportBatch?  @relation(fields: [importBatchId], references: [id], onDelete: SetNull)
+  subscription PersonalSubscription? @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
+
+  splits PersonalTransactionSplit[]
+  alerts PersonalSubscriptionAlert[]
+  /// Dividas que ESTA movimentacao originou (a compra feita pra outra pessoa).
+  originatedDebts PersonalDebt[] @relation("DebtOrigin")
+  /// Baixa de divida que esta movimentacao representa (o Pix que quitou).
+  /// Um-para-um: ver o UNIQUE em PersonalDebtPayment.
+  debtSettlement PersonalDebtPayment? @relation("DebtSettlement")
+  /// Envio da parte empresarial desta compra pro financeiro da MilWeb.
+  /// Um-para-um: uma compra gera no maximo uma despesa empresarial.
+  businessAllocation PersonalBusinessAllocation?
+
+  @@unique([vaultId, fingerprint])
+  @@index([vaultId, transactionDate])
+  @@index([vaultId, settlementDate])
+  @@index([vaultId, status])
+  @@index([vaultId, categoryId])
+  @@index([vaultId, merchantId])
+  @@index([accountId])
+  @@index([cardId])
+  @@index([statementId])
+  @@index([importBatchId])
+  @@index([vaultId, subscriptionId])
+  @@map("personal_transactions")
+}
+
+/// Divisao de uma movimentacao: a compra de R$300 que tem R$100 seu, R$100 que
+/// alguem te devolve e R$100 da MilWeb.
+///
+/// As divisoes sao a UNICA fonte de verdade do rateio -- a transacao nao
+/// carrega booleano "e empresarial"/"e reembolsavel". Dois lugares dizendo a
+/// mesma coisa e exatamente como nasce contagem dupla, que e o risco numero um
+/// deste modulo. Sem divisao nenhuma, a movimentacao e 100% pessoal; com
+/// divisoes, o que sobrar do valor continua sendo pessoal.
+model PersonalTransactionSplit {
+  id            String            @id @default(cuid())
+  vaultId       String            @map("vault_id")
+  transactionId String            @map("transaction_id")
+  kind          PersonalSplitKind
+  amount        Decimal           @db.Decimal(14, 2)
+  categoryId    String?           @map("category_id")
+  note          String?
+  createdAt     DateTime          @default(now()) @map("created_at")
+  updatedAt     DateTime          @updatedAt @map("updated_at")
+
+  vault       PersonalVault       @relation(fields: [vaultId], references: [id], onDelete: Cascade)
+  transaction PersonalTransaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  category    PersonalCategory?   @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+
+  @@index([transactionId])
+  @@index([vaultId, kind])
+  @@map("personal_transaction_splits")
+}
+
+// -------------------------------------------------------------------
+// Cofre Financeiro -- importacao (fase 3): lote e perfil de mapeamento.
+//
+// O ARQUIVO BANCARIO NAO E ARMAZENADO. Nenhuma coluna aqui guarda o
+// conteudo: sobram hash, nome higienizado, periodo, formato, contagens e
+// erros por numero de linha. Extrato e o documento mais sensivel do Cofre,
+// e um arquivo guardado "por precaucao" e um arquivo que pode vazar --
+// depois de virar movimentacao, ele nao serve mais pra nada.
+// -------------------------------------------------------------------
+
+enum PersonalImportFormat {
+  OFX
+  CSV
+
+  @@map("personal_import_format")
+}
+
+enum PersonalImportStatus {
+  /// Todas as linhas validas viraram movimentacao.
+  COMPLETED
+  /// Parte entrou; o resto era duplicata ou linha invalida.
+  PARTIAL
+  /// Nada entrou (arquivo ilegivel ou nenhuma linha aproveitavel).
+  FAILED
+
+  @@map("personal_import_status")
+}
+
+/// Registro do que foi importado -- a prova de procedencia de cada
+/// movimentacao vinda de arquivo.
+model PersonalImportBatch {
+  id      String @id @default(cuid())
+  vaultId String @map("vault_id")
+  /// Origem: conta OU cartao (CHECK no banco, igual a movimentacao).
+  accountId String? @map("account_id")
+  cardId    String? @map("card_id")
+
+  format PersonalImportFormat
+  /// SHA-256 do conteudo. Serve pra reconhecer o MESMO arquivo reenviado --
+  /// e o unico proposito; nao da pra reconstruir nada a partir dele.
+  fileHash String @map("file_hash")
+  /// Nome higienizado (sem caminho, sem caractere de controle). O nome
+  /// original de um extrato costuma carregar agencia e conta.
+  fileName String @map("file_name")
+
+  periodStart DateTime? @map("period_start") @db.Date
+  periodEnd   DateTime? @map("period_end") @db.Date
+
+  totalRows     Int @default(0) @map("total_rows")
+  importedRows  Int @default(0) @map("imported_rows")
+  duplicateRows Int @default(0) @map("duplicate_rows")
+  ignoredRows   Int @default(0) @map("ignored_rows")
+
+  status PersonalImportStatus
+  /// Erros SEGUROS: `[{ line, code }]`. Nunca a descricao bancaria, nunca o
+  /// valor -- um log de importacao com o conteudo do extrato seria o extrato
+  /// de volta, por outra porta.
+  errors Json?
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  vault PersonalVault @relation(fields: [vaultId], references: [id], onDelete: Cascade)
+  /// Cascade, e NAO SetNull: o CHECK de origem unica (conta XOR cartao) exige
+  /// que exatamente uma das duas esteja preenchida, entao zerar a coluna ao
+  /// apagar a origem violaria a propria constraint e a exclusao explodia com
+  /// 500. Cascade tambem e o significado certo: um lote descreve uma
+  /// importacao PARA uma origem, e sem ela nao descreve nada -- e quando a
+  /// origem pode ser apagada, as movimentacoes dela ja foram (a FK delas e
+  /// Restrict).
+  account      PersonalAccount?    @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  card         PersonalCreditCard? @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  transactions PersonalTransaction[]
+
+  @@index([vaultId, createdAt])
+  @@index([vaultId, fileHash])
+  @@map("personal_import_batches")
+}
+
+/// Modelo de leitura de CSV salvo por banco/cartao.
+///
+/// Existe porque CSV de banco nao tem padrao: cada um escolhe separador,
+/// formato de data, virgula ou ponto decimal, e se debito vem negativo ou em
+/// coluna propria. Remapear as colunas toda vez seria o tipo de atrito que
+/// faz a pessoa parar de importar.
+model PersonalImportProfile {
+  id      String @id @default(cuid())
+  vaultId String @map("vault_id")
+  name    String
+
+  accountId String? @map("account_id")
+  cardId    String? @map("card_id")
+
+  format PersonalImportFormat @default(CSV)
+  /// Caractere separador (`,`, `;` ou tab).
+  delimiter String @default(",")
+  /// `,` ou `.` -- extrato brasileiro costuma usar virgula.
+  decimalSeparator String @default(",") @map("decimal_separator")
+  /// `DMY`, `MDY` ou `YMD`. Guardado como ordem, e nao como mascara literal,
+  /// porque o que muda entre bancos e a ORDEM; o separador varia demais pra
+  /// valer a pena fixar.
+  dateOrder String  @default("DMY") @map("date_order")
+  hasHeader Boolean @default(true) @map("has_header")
+
+  /// De qual coluna sai cada campo: `{ date, description, amount, debit,
+  /// credit, externalId }`. Indice numerico ou nome do cabecalho.
+  columnMap Json @map("column_map")
+
+  /// Alguns bancos mandam despesa como positivo. Inverter aqui e melhor que
+  /// pedir pra pessoa "lembrar" na hora de conferir.
+  invertSign Boolean @default(false) @map("invert_sign")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  vault   PersonalVault       @relation(fields: [vaultId], references: [id], onDelete: Cascade)
+  account PersonalAccount?    @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  card    PersonalCreditCard? @relation(fields: [cardId], references: [id], onDelete: SetNull)
+
+  @@unique([vaultId, name])
+  @@index([vaultId])
+  @@map("personal_import_profiles")
+}
+
+// -------------------------------------------------------------------
+// Cofre Financeiro -- classificacao (fase 4): regras deterministicas.
+//
+// Nenhuma IA participa disto, por decisao explicita. Classificacao de gasto
+// alimenta relatorio e, na fase 7, despesa da empresa -- um palpite errado
+// nao gera erro, gera um numero plausivel. Regra deterministica erra sempre
+// do mesmo jeito, e voce conserta uma vez.
+// -------------------------------------------------------------------
+
+enum PersonalRuleMatchType {
+  /// A descricao normalizada CONTEM o texto.
+  CONTAINS
+  /// A descricao normalizada COMECA com o texto.
+  STARTS_WITH
+  /// A descricao normalizada e exatamente o texto.
+  EXACT
+
+  @@map("personal_rule_match_type")
+}
+
+/// Regra "se a descricao contem X, entao categoria Y".
+///
+/// As condicoes preenchidas sao combinadas com E (todas precisam casar). Uma
+/// regra sem condicao nenhuma casaria com tudo -- o service recusa.
+model PersonalClassificationRule {
+  id      String  @id @default(cuid())
+  vaultId String  @map("vault_id")
+  /// Rotulo seu, so pra reconhecer a regra na lista.
+  name    String?
+
+  /// Menor roda primeiro. Ordem explicita, e nao "ordem de criacao": a regra
+  /// especifica ("IFOOD ESTACIONAMENTO" -> Transporte) precisa ser avaliada
+  /// antes da generica ("IFOOD" -> Delivery), e isso nao tem relacao nenhuma
+  /// com qual das duas voce criou primeiro.
+  priority Int     @default(100)
+  isActive Boolean @default(true) @map("is_active")
+
+  // ----- Condicoes (todas as preenchidas precisam casar) -----
+
+  matchType PersonalRuleMatchType? @map("match_type")
+  /// Guardado JA NORMALIZADO (maiusculas, sem acento). Normalizar na escrita
+  /// e o que faz a comparacao ser uma igualdade simples em vez de depender de
+  /// toda leitura lembrar de normalizar dos dois lados.
+  matchValue String? @map("match_value")
+
+  matchMerchantId String? @map("match_merchant_id")
+  matchAccountId  String? @map("match_account_id")
+  matchCardId     String? @map("match_card_id")
+  /// Faixa de valor em BRL, inclusiva nas duas pontas.
+  matchAmountMin Decimal? @map("match_amount_min") @db.Decimal(14, 2)
+  matchAmountMax Decimal? @map("match_amount_max") @db.Decimal(14, 2)
+
+  // ----- Acoes -----
+
+  setMerchantId String? @map("set_merchant_id")
+  setCategoryId String? @map("set_category_id")
+  /// Quanto da movimentacao e despesa da empresa, em porcentagem (0-100).
+  /// Nulo = a regra nao opina sobre isso. 100 = "100% empresarial", o caso do
+  /// exemplo do Claude.
+  ///
+  /// Porcentagem, e nao valor: o valor muda a cada cobranca (cambio, plano),
+  /// a proporcao nao.
+  businessPercent Decimal? @map("business_percent") @db.Decimal(5, 2)
+
+  /// Assinatura que a regra vincula. Era a coluna aditiva prometida na fase 4.
+  setSubscriptionId String? @map("set_subscription_id")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  vault       PersonalVault     @relation(fields: [vaultId], references: [id], onDelete: Cascade)
+  matchMerchant PersonalMerchant? @relation("RuleMatchMerchant", fields: [matchMerchantId], references: [id], onDelete: Cascade)
+  matchAccount  PersonalAccount?  @relation(fields: [matchAccountId], references: [id], onDelete: Cascade)
+  matchCard     PersonalCreditCard? @relation(fields: [matchCardId], references: [id], onDelete: Cascade)
+  setMerchant   PersonalMerchant? @relation("RuleSetMerchant", fields: [setMerchantId], references: [id], onDelete: SetNull)
+  setCategory   PersonalCategory? @relation(fields: [setCategoryId], references: [id], onDelete: SetNull)
+  setSubscription PersonalSubscription? @relation(fields: [setSubscriptionId], references: [id], onDelete: SetNull)
+
+  @@index([vaultId, isActive, priority])
+  @@map("personal_classification_rules")
+}
+
+// -------------------------------------------------------------------
+// Cofre Financeiro -- assinaturas e alertas (fase 5).
+// -------------------------------------------------------------------
+
+enum PersonalSubscriptionPeriod {
+  MONTHLY
+  YEARLY
+  /// Intervalo proprio em dias (trimestral, semestral, semanal...).
+  CUSTOM
+
+  @@map("personal_subscription_period")
+}
+
+enum PersonalSubscriptionStatus {
+  ACTIVE
+  PAUSED
+  CANCELED
+
+  @@map("personal_subscription_status")
+}
+
+enum PersonalAlertType {
+  RENEWS_TODAY
+  RENEWS_TOMORROW
+  RENEWS_IN_3_DAYS
+  RENEWS_IN_7_DAYS
+  /// Cobranca fora da tolerancia de variacao configurada.
+  PRICE_CHANGED
+  /// Duas assinaturas ativas parecem ser a mesma coisa.
+  POSSIBLE_DUPLICATE
+  /// A renovacao passou e nenhuma cobranca apareceu.
+  MISSING_CHARGE
+  /// Cobranca recorrente detectada que ainda nao tem assinatura cadastrada.
+  POSSIBLE_NEW_SUBSCRIPTION
+
+  @@map("personal_alert_type")
+}
+
+enum PersonalAlertStatus {
+  PENDING
+  READ
+  SNOOZED
+
+  @@map("personal_alert_status")
+}
+
+/// Assinatura pessoal (Claude, Netflix, academia...).
+model PersonalSubscription {
+  id      String @id @default(cuid())
+  vaultId String @map("vault_id")
+  name    String
+
+  merchantId String? @map("merchant_id")
+  categoryId String? @map("category_id")
+  /// Onde ela cai. Pode ser nulo enquanto voce nao souber.
+  accountId String? @map("account_id")
+  cardId    String? @map("card_id")
+
+  expectedAmount Decimal          @map("expected_amount") @db.Decimal(14, 2)
+  currency       PersonalCurrency @default(BRL)
+
+  period             PersonalSubscriptionPeriod @default(MONTHLY)
+  /// So em CUSTOM. Um CHECK garante que os dois andam juntos.
+  customIntervalDays Int?                       @map("custom_interval_days")
+
+  lastChargeAt  DateTime? @map("last_charge_at") @db.Date
+  nextRenewalAt DateTime? @map("next_renewal_at") @db.Date
+
+  /// Com quantos dias de antecedencia voce quer ser avisado.
+  alertDaysBefore Int @default(7) @map("alert_days_before")
+  /// Quanto o valor pode variar sem virar alerta, em porcentagem. Assinatura
+  /// em dolar oscila com o cambio todo mes -- tolerancia zero geraria alerta
+  /// em toda cobranca e voce pararia de ler os alertas.
+  priceTolerancePct Decimal @default(10) @map("price_tolerance_pct") @db.Decimal(5, 2)
+
+  status    PersonalSubscriptionStatus @default(ACTIVE)
+  autoRenew Boolean                    @default(true) @map("auto_renew")
+
+  /// Vinculo com a assinatura EMPRESARIAL da MilWeb (`CostSubscription`).
+  /// Sem FK de proposito: `cost_subscriptions` pertence a organizacao e este
+  /// modelo pertence ao Cofre -- uma FK entre os dois mundos daria ao banco um
+  /// caminho de leitura que a aplicacao inteira existe pra impedir. O elo e
+  /// resolvido na fase 7, com verificacao de posse dos dois lados.
+  costSubscriptionId String? @map("cost_subscription_id")
+
+  notes String?
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  vault    PersonalVault       @relation(fields: [vaultId], references: [id], onDelete: Cascade)
+  merchant PersonalMerchant?   @relation(fields: [merchantId], references: [id], onDelete: SetNull)
+  category PersonalCategory?   @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  account  PersonalAccount?    @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  card     PersonalCreditCard? @relation(fields: [cardId], references: [id], onDelete: SetNull)
+
+  charges PersonalTransaction[]
+  alerts  PersonalSubscriptionAlert[]
+  rules   PersonalClassificationRule[]
+
+  @@index([vaultId, status])
+  @@index([vaultId, nextRenewalAt])
+  @@map("personal_subscriptions")
+}
+
+/// Alerta de assinatura.
+///
+/// `dedupeKey` e o que torna a geracao idempotente: o alerta e recalculado a
+/// cada abertura do app, e sem uma chave estavel "Claude renova amanha"
+/// nasceria de novo a cada consulta. A chave junta tipo + assinatura (ou
+/// movimentacao) + data de referencia -- exatamente o que o pedido descreve.
+///
+/// Um unique com `subscription_id` anulavel NAO resolveria: o Postgres aceita
+/// N nulos, e os alertas sem assinatura (nova assinatura detectada) se
+/// multiplicariam.
+model PersonalSubscriptionAlert {
+  id      String @id @default(cuid())
+  vaultId String @map("vault_id")
+
+  subscriptionId String? @map("subscription_id")
+  /// Movimentacao que originou o alerta (variacao de preco, nova assinatura).
+  transactionId  String? @map("transaction_id")
+
+  type          PersonalAlertType
+  referenceDate DateTime          @map("reference_date") @db.Date
+  dedupeKey     String            @map("dedupe_key")
+
+  status      PersonalAlertStatus @default(PENDING)
+  snoozedUntil DateTime?          @map("snoozed_until") @db.Date
+  readAt      DateTime?           @map("read_at")
+
+  /// Dados prontos pra exibir (nome, valor esperado, valor cobrado). Fica no
+  /// Cofre, atras da sessao elevada, como todo o resto.
+  payload Json?
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  vault        PersonalVault         @relation(fields: [vaultId], references: [id], onDelete: Cascade)
+  subscription PersonalSubscription? @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  transaction  PersonalTransaction?  @relation(fields: [transactionId], references: [id], onDelete: SetNull)
+
+  @@unique([vaultId, dedupeKey])
+  @@index([vaultId, status, referenceDate])
+  @@map("personal_subscription_alerts")
+}
+
+// -------------------------------------------------------------------
+// Cofre Financeiro -- dividas (fase 6): pessoas, dividas e baixas.
+//
+// A regra que organiza tudo aqui: um Pix recebido pra quitar uma divida NAO E
+// RENDA, e o pagamento de uma divida minha NAO E DESPESA NOVA. Nos dois casos
+// o dinheiro se move, mas o fato economico ja aconteceu antes -- na compra que
+// virou divida. Contar de novo na hora da baixa seria contagem dupla, o mesmo
+// risco que as divisoes evitam do outro lado.
+//
+// O elo que sustenta isso e `PersonalDebtPayment.transactionId`, UNICO: uma
+// movimentacao baixa no maximo uma divida. Sem a unicidade, a mesma entrada de
+// R$200 poderia baixar duas dividas de R$200 e o Cofre teria inventado
+// dinheiro.
+// -------------------------------------------------------------------
+
+enum PersonalDebtDirection {
+  /// Alguem me deve.
+  THEY_OWE_ME
+  /// Eu devo pra alguem.
+  I_OWE_THEM
+
+  @@map("personal_debt_direction")
+}
+
+/// Pessoa envolvida numa divida.
+///
+/// Guarda so o necessario pra saber de quem se trata. Nao existe coluna de CPF,
+/// conta bancaria ou chave Pix, e isso e deliberado: o Cofre nao guarda
+/// credencial de ninguem -- nem do dono, nem de terceiro. Um dado de terceiro
+/// vazado e pior que um dado proprio vazado, porque a pessoa nem sabe que ele
+/// estava aqui.
+model PersonalContact {
+  id       String  @id @default(cuid())
+  vaultId  String  @map("vault_id")
+  name     String
+  /// Texto livre pra "como falar com a pessoa" -- apelido, telefone, o que for.
+  contact  String?
+  notes    String?
+  isActive Boolean @default(true) @map("is_active")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  vault PersonalVault  @relation(fields: [vaultId], references: [id], onDelete: Cascade)
+  debts PersonalDebt[]
+
+  @@unique([vaultId, name])
+  @@index([vaultId, isActive])
+  @@map("personal_contacts")
+}
+
+/// Uma divida: alguem me deve, ou eu devo pra alguem.
+///
+/// ## Por que valor pago, saldo e status NAO sao colunas
+///
+/// A API expoe os tres, mas nenhum e persistido -- todos saem das baixas e da
+/// data de hoje.
+///
+/// O argumento decisivo e o vencimento: uma divida vira ATRASADA pela
+/// **passagem do tempo**, sem que ninguem escreva nada. Uma coluna `status`
+/// estaria errada toda madrugada, e so voltaria a ficar certa quando alguem
+/// mexesse na linha -- ou seja, o campo mentiria exatamente nas dividas
+/// esquecidas, que sao as que mais importam.
+///
+/// Pelo mesmo motivo o cancelamento E coluna: cancelar e um EVENTO, a unica
+/// coisa aqui que so acontece porque alguem decidiu. O resto se calcula.
+model PersonalDebt {
+  id        String @id @default(cuid())
+  vaultId   String @map("vault_id")
+  contactId String @map("contact_id")
+
+  direction      PersonalDebtDirection
+  description    String
+  originalAmount Decimal               @map("original_amount") @db.Decimal(14, 2)
+  currency       PersonalCurrency      @default(BRL)
+  dueDate        DateTime?             @map("due_date") @db.Date
+
+  /// Movimentacao que DEU ORIGEM a divida -- a compra feita pra outra pessoa, o
+  /// emprestimo que saiu da conta. Nao confundir com a baixa, que mora em
+  /// PersonalDebtPayment: uma e o motivo da divida existir, a outra e o motivo
+  /// dela deixar de existir.
+  ///
+  /// SetNull: apagar a compra nao apaga o fato de que a pessoa deve.
+  originTransactionId String? @map("origin_transaction_id")
+
+  canceledAt DateTime? @map("canceled_at")
+  notes      String?
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  vault             PersonalVault        @relation(fields: [vaultId], references: [id], onDelete: Cascade)
+  /// Restrict: apagar uma pessoa que ainda tem divida em aberto apagaria a
+  /// divida junto, e "de quem era mesmo aquele dinheiro?" nao tem resposta
+  /// depois.
+  contact           PersonalContact      @relation(fields: [contactId], references: [id], onDelete: Restrict)
+  originTransaction PersonalTransaction? @relation("DebtOrigin", fields: [originTransactionId], references: [id], onDelete: SetNull)
+  payments          PersonalDebtPayment[]
+
+  @@index([vaultId, direction])
+  @@index([vaultId, dueDate])
+  @@index([vaultId, canceledAt])
+  @@index([contactId])
+  @@index([originTransactionId])
+  @@map("personal_debts")
+}
+
+/// Baixa de uma divida -- total ou parcial.
+///
+/// Pagamento parcial e o caso normal, nao a excecao: quem deve R$500 devolve
+/// R$200 agora e R$300 depois. Por isso a baixa e uma LINHA, nao um campo
+/// "valor pago" incrementado: cada devolucao guarda sua data, e o historico da
+/// divida e a lista delas.
+model PersonalDebtPayment {
+  id      String @id @default(cuid())
+  vaultId String @map("vault_id")
+  debtId  String @map("debt_id")
+
+  amount Decimal  @db.Decimal(14, 2)
+  paidAt DateTime @map("paid_at") @db.Date
+
+  /// A movimentacao que representa esta baixa -- o Pix que caiu na conta.
+  /// Opcional: da pra registrar "me devolveu R$200 em dinheiro" sem nenhuma
+  /// movimentacao por tras.
+  ///
+  /// UNIQUE de proposito -- ver o comentario no topo do bloco. Restrict na
+  /// exclusao: apagar o Pix nao pode desmanchar uma baixa em silencio, porque
+  /// a divida continuaria marcada como quitada sem nada que explicasse por que.
+  transactionId String? @unique @map("transaction_id")
+  note          String?
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  vault       PersonalVault        @relation(fields: [vaultId], references: [id], onDelete: Cascade)
+  debt        PersonalDebt         @relation(fields: [debtId], references: [id], onDelete: Cascade)
+  transaction PersonalTransaction? @relation("DebtSettlement", fields: [transactionId], references: [id], onDelete: Restrict)
+
+  @@index([debtId])
+  @@index([vaultId, paidAt])
+  @@map("personal_debt_payments")
+}
+
+// -------------------------------------------------------------------
+// Ponte entre o Cofre pessoal e o financeiro da MilWeb (fase 7).
+//
+// O problema que ela resolve: uma compra pessoal pode ter uma parte que e da
+// empresa (o Claude que voce paga no cartao pessoal e usa pra trabalhar). Essa
+// parte precisa aparecer no custo da MilWeb -- sem que o financeiro da empresa
+// enxergue o resto da sua vida.
+//
+// ## O que atravessa, e o que nao atravessa
+//
+// Atravessa: valor, data, descricao que VOCE escreve, categoria e, se quiser,
+// qual plano isso realiza. Nao atravessa: o id da movimentacao pessoal, a
+// conta, o cartao, a fatura, as outras divisoes daquela compra.
+//
+// A `BusinessExpense` NAO tem coluna apontando pro Cofre. Quem guarda o elo e
+// a `PersonalBusinessAllocation`, e so o Cofre le ela. Assim, alguem com
+// permissao no financeiro ve "Claude - R$120 - 05/08 - origem: Cofre pessoal"
+// e nao consegue chegar a mais nada. Saber que a despesa saiu do bolso do dono
+// e um fato contabil legitimo (a empresa deve isso a ele); saber o que MAIS
+// tinha naquela fatura nao e.
+//
+// ## Planejado x realizado nunca somam
+//
+// `CostSubscription` e o PLANO ("Claude custa US$20/mes"), e e ele que entra em
+// `computeSummary`. `BusinessExpense` e o REALIZADO ("no dia 05/08 sairam
+// R$120"). Somar os dois daria dois Claudes. Por isso a despesa nao entra no
+// resumo de custos -- ela e comparada com o plano, lado a lado, em
+// `expense-summary.ts`.
+// -------------------------------------------------------------------
+
+enum BusinessExpenseSource {
+  /// Lancada direto no financeiro.
+  MANUAL
+  /// Veio da parte empresarial de uma compra pessoal.
+  PERSONAL_VAULT
+
+  @@map("business_expense_source")
+}
+
+/// Despesa REALIZADA da MilWeb: o que de fato saiu, com data.
+///
+/// Diferente de `CostUsageEntry`, que mede CONSUMO de credito dentro de um
+/// plano ja contratado. Reusar aquela tabela obrigaria toda despesa a pendurar
+/// numa assinatura (`subscription_id` e obrigatorio la) e a virar uma
+/// quantidade de creditos -- e um dominio nao registravel como o outro.
+model BusinessExpense {
+  id             String @id @default(cuid())
+  organizationId String @map("organization_id")
+
+  description String
+  amount      Decimal      @db.Decimal(14, 2)
+  currency    CostCurrency @default(BRL)
+  incurredAt  DateTime     @map("incurred_at") @db.Date
+  category    CostCategory @default(OTHER)
+
+  /// Qual plano esta despesa realiza. Opcional: nem toda saida corresponde a
+  /// uma assinatura. Quando preenchido, e o que permite mostrar "planejado
+  /// R$110, realizado R$120" sem somar os dois.
+  costSubscriptionId String? @map("cost_subscription_id")
+  /// Cliente a quem a despesa pertence, quando for o caso.
+  companyId          String? @map("company_id")
+
+  source BusinessExpenseSource @default(MANUAL)
+  notes  String?
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  organization     Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  costSubscription CostSubscription? @relation(fields: [costSubscriptionId], references: [id], onDelete: SetNull)
+  company          Company?          @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  /// Cascade: apagar a despesa no financeiro desfaz o envio, e o Cofre volta a
+  /// mostrar aquela compra como "nao enviada" -- que e a verdade. Um registro
+  /// orfao diria "ja enviei" apontando pra nada.
+  vaultAllocation PersonalBusinessAllocation?
+
+  @@index([organizationId, incurredAt])
+  @@index([organizationId, costSubscriptionId])
+  @@index([companyId])
+  @@map("business_expenses")
+}
+
+/// O elo entre uma compra pessoal e a despesa empresarial que ela gerou.
+///
+/// Mora do lado do Cofre (RLS ligada, lida so por rota com sessao elevada) --
+/// e a unica tabela que sabe os dois lados, e por isso e a unica que nao pode
+/// ser lida pelo financeiro.
+///
+/// ## A chave de idempotencia e a movimentacao
+///
+/// Nao a divisao. As divisoes sao substituidas em bloco: corrigir o rateio
+/// troca o id da divisao empresarial, e uma chave baseada nela deixaria a
+/// MESMA compra ser enviada de novo, dobrando o custo da MilWeb. Uma compra
+/// gera no maximo uma despesa; se o rateio mudar depois, o valor enviado e
+/// ATUALIZADO, nao somado.
+///
+/// O unique fica na coluna, e nao no par com `vault_id`: o id da movimentacao
+/// ja e globalmente unico, entao o par so acrescentaria um indice mais largo
+/// provando a mesma coisa. O `vault_id` continua no filtro de toda leitura --
+/// e o que garante que ninguem enxerga o elo de outro Cofre.
+model PersonalBusinessAllocation {
+  id      String @id @default(cuid())
+  vaultId String @map("vault_id")
+  /// A compra pessoal de origem. Restrict: apagar a compra com o envio ativo
+  /// deixaria uma despesa empresarial sem lastro nenhum. O servico recusa
+  /// antes, com 409, dizendo pra desfazer o envio primeiro.
+  transactionId     String @unique @map("transaction_id")
+  businessExpenseId String @unique @map("business_expense_id")
+  /// Copia deliberada: deixa a linha auto-explicativa e permite ao Cofre dizer
+  /// "enviado para <org>" sem consultar o mundo empresarial.
+  organizationId    String @map("organization_id")
+
+  /// Quanto foi enviado. Comparado com a soma atual das divisoes BUSINESS
+  /// daquela compra -- se divergirem, o Cofre mostra "desatualizado" em vez de
+  /// corrigir sozinho: reescrever a contabilidade da empresa sem ninguem pedir
+  /// e pior que mostrar a diferenca.
+  amount Decimal @db.Decimal(14, 2)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  vault           PersonalVault       @relation(fields: [vaultId], references: [id], onDelete: Cascade)
+  transaction     PersonalTransaction @relation(fields: [transactionId], references: [id], onDelete: Restrict)
+  businessExpense BusinessExpense     @relation(fields: [businessExpenseId], references: [id], onDelete: Cascade)
+
+  @@index([vaultId])
+  @@map("personal_business_allocations")
 }

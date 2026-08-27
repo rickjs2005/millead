@@ -145,12 +145,7 @@ export interface IntegrationsStatusResult {
 // ---------- Companies ----------
 
 export type SocialPlatform =
-  | "INSTAGRAM"
-  | "FACEBOOK"
-  | "LINKEDIN"
-  | "TIKTOK"
-  | "WHATSAPP"
-  | "OTHER";
+  "INSTAGRAM" | "FACEBOOK" | "LINKEDIN" | "TIKTOK" | "WHATSAPP" | "OTHER";
 
 export interface Company {
   id: string;
@@ -406,12 +401,7 @@ export interface PublicProposal {
 export type AuditStatus = "QUEUED" | "RUNNING" | "COMPLETED" | "FAILED";
 export type AuditTrigger = "MANUAL" | "AUTOMATIC";
 export type AuditScoreCategory =
-  | "PERFORMANCE"
-  | "SEO"
-  | "ACCESSIBILITY"
-  | "SECURITY"
-  | "DESIGN"
-  | "MOBILE";
+  "PERFORMANCE" | "SEO" | "ACCESSIBILITY" | "SECURITY" | "DESIGN" | "MOBILE";
 
 /** Uma checagem individual dentro de AuditScore.details.checks. */
 export interface AuditCheck {
@@ -610,15 +600,7 @@ export interface LeadFinance {
 
 export type BriefingTemplateKind = "INSTITUCIONAL" | "ECOMMERCE" | "CUSTOM";
 export type BriefingFieldType =
-  | "TEXT"
-  | "TEXTAREA"
-  | "EMAIL"
-  | "PHONE"
-  | "URL"
-  | "SELECT"
-  | "MULTI_SELECT"
-  | "FILE"
-  | "GROUP";
+  "TEXT" | "TEXTAREA" | "EMAIL" | "PHONE" | "URL" | "SELECT" | "MULTI_SELECT" | "FILE" | "GROUP";
 export type BriefingStatus = "PENDING" | "IN_PROGRESS" | "COMPLETED" | "ARCHIVED";
 
 export interface BriefingTemplate {
@@ -749,13 +731,7 @@ export type CostScope = "AGENCY" | "CLIENT";
 export type CostCurrency = "BRL" | "USD";
 export type CostBillingCycle = "MONTHLY" | "YEARLY";
 export type CostCategory =
-  | "HOSTING"
-  | "DATABASE"
-  | "AI"
-  | "DOMAIN"
-  | "EMAIL"
-  | "SIGNATURE"
-  | "OTHER";
+  "HOSTING" | "DATABASE" | "AI" | "DOMAIN" | "EMAIL" | "SIGNATURE" | "OTHER";
 
 export interface CostSubscription {
   id: string;
@@ -1267,29 +1243,15 @@ export interface ProjectChecklist {
 // Automação pós-fechamento
 // ---------------------------------------------------------------------------
 
-export type AutomationExecutionStatus =
-  | "PENDING"
-  | "RUNNING"
-  | "SUCCEEDED"
-  | "PARTIAL"
-  | "FAILED";
+export type AutomationExecutionStatus = "PENDING" | "RUNNING" | "SUCCEEDED" | "PARTIAL" | "FAILED";
 
 export type AutomationStepKey = "LEAD_WON" | "RECEIVABLES" | "BRIEFING" | "PROJECT" | "TASKS";
 
 export type AutomationStepStatus =
-  | "PENDING"
-  | "RUNNING"
-  | "SUCCEEDED"
-  | "SKIPPED"
-  | "NEEDS_ACTION"
-  | "FAILED";
+  "PENDING" | "RUNNING" | "SUCCEEDED" | "SKIPPED" | "NEEDS_ACTION" | "FAILED";
 
 export type AutomationArtifactType =
-  | "LEAD"
-  | "RECEIVABLE_PLAN"
-  | "BRIEFING"
-  | "PROJECT_CHECKLIST"
-  | "TASK";
+  "LEAD" | "RECEIVABLE_PLAN" | "BRIEFING" | "PROJECT_CHECKLIST" | "TASK";
 
 export interface AutomationStep {
   id: string;
@@ -1370,7 +1332,6 @@ export interface PostSaleSettingsResult {
   missing: string[];
 }
 
-
 export interface ProjectChecklistSummary extends ProjectChecklist {
   progressPercent: number;
 }
@@ -1378,4 +1339,431 @@ export interface ProjectChecklistSummary extends ProjectChecklist {
 export interface ProjectChecklistDetail extends ProjectChecklist {
   phases: ProjectChecklistPhase[];
   progressPercent: number;
+}
+
+// ===== Cofre Financeiro =====
+
+/** Resposta da tela bloqueada. Não carrega NADA financeiro de propósito: é
+ *  consultada antes do desbloqueio, e um saldo ou uma contagem aqui já seria
+ *  vazamento pra quem estiver olhando a tela por cima do ombro. */
+export interface VaultStatus {
+  enabled: boolean;
+  /** ISO. Presente só enquanto o Cofre está temporariamente bloqueado. */
+  lockedUntil: string | null;
+  attemptsRemaining: number;
+}
+
+// ===== Cofre Financeiro — núcleo =====
+
+export type PersonalAccountType = "CHECKING" | "SAVINGS" | "DIGITAL_WALLET" | "CASH";
+export type PersonalCurrency = "BRL" | "USD" | "EUR";
+export type PersonalDirection = "IN" | "OUT";
+export type PersonalTransactionStatus = "PENDING" | "CONFIRMED" | "IGNORED" | "REVERSED";
+export type PersonalSplitKind = "PERSONAL" | "REIMBURSABLE" | "BUSINESS";
+export type PersonalStatementStatus = "OPEN" | "CLOSED" | "PARTIAL" | "PAID" | "OVERDUE";
+export type PersonalDateBasis = "ACCRUAL" | "CASH";
+
+export interface VaultAccount {
+  id: string;
+  name: string;
+  institution: string | null;
+  type: PersonalAccountType;
+  currency: PersonalCurrency;
+  last4: string | null;
+  reportedBalance: string | null;
+  reportedBalanceAt: string | null;
+  isActive: boolean;
+}
+
+export interface VaultCard {
+  id: string;
+  name: string;
+  institution: string | null;
+  last4: string | null;
+  limitAmount: string | null;
+  closingDay: number;
+  dueDay: number;
+  paymentAccountId: string | null;
+  isActive: boolean;
+}
+
+export interface VaultCategory {
+  id: string;
+  parentId: string | null;
+  name: string;
+  systemKey: string | null;
+  color: string | null;
+  sortOrder: number;
+  isActive: boolean;
+}
+
+export interface VaultCategoryTree extends VaultCategory {
+  children: VaultCategory[];
+}
+
+export interface VaultMerchantAlias {
+  id: string;
+  merchantId: string;
+  alias: string;
+}
+
+export interface VaultMerchant {
+  id: string;
+  name: string;
+  defaultCategoryId: string | null;
+  isActive: boolean;
+  aliases: VaultMerchantAlias[];
+}
+
+export interface VaultSplit {
+  id: string;
+  transactionId: string;
+  kind: PersonalSplitKind;
+  amount: string;
+  categoryId: string | null;
+  note: string | null;
+}
+
+export interface VaultTransaction {
+  id: string;
+  accountId: string | null;
+  cardId: string | null;
+  transactionDate: string;
+  settlementDate: string | null;
+  originalDescription: string;
+  normalizedDescription: string;
+  merchantId: string | null;
+  categoryId: string | null;
+  subscriptionId: string | null;
+  direction: PersonalDirection;
+  amount: string;
+  currency: PersonalCurrency;
+  amountBrl: string;
+  status: PersonalTransactionStatus;
+  note: string | null;
+  statementId: string | null;
+  installmentNumber: number | null;
+  installmentTotal: number | null;
+  isTransfer: boolean;
+  /** Dívida que esta movimentação baixa. Quando preenchido, o dinheiro NÃO
+   *  entra em receita nem em despesa — ele já foi contado quando a dívida
+   *  nasceu. */
+  settlesDebtId: string | null;
+  splits: VaultSplit[];
+  /** Derivados do rateio — não existem no banco. */
+  isBusiness: boolean;
+  isReimbursable: boolean;
+  businessAmount: string;
+  reimbursableAmount: string;
+  personalConsumption: string;
+}
+
+export interface VaultTransactionPage {
+  items: VaultTransaction[];
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+}
+
+export interface VaultStatement {
+  id: string;
+  cardId: string;
+  referenceMonth: string;
+  closingDate: string;
+  dueDate: string;
+  totalAmount: string;
+  paidAmount: string;
+  status: PersonalStatementStatus;
+}
+
+// ===== Cofre — importação =====
+
+export type VaultImportFormat = "OFX" | "CSV";
+export type VaultImportRowStatus = "NEW" | "DUPLICATE_FILE" | "DUPLICATE_VAULT" | "INVALID";
+
+export interface VaultImportPreviewRow {
+  line: number;
+  date: string | null;
+  description: string;
+  amount: string | null;
+  direction: PersonalDirection | null;
+  externalId: string | null;
+  status: VaultImportRowStatus;
+  errors: string[];
+}
+
+export interface VaultImportPreview {
+  format: VaultImportFormat;
+  fileHash: string;
+  fileName: string;
+  needsMapping: boolean;
+  headers: string[];
+  delimiter: string | null;
+  periodStart: string | null;
+  periodEnd: string | null;
+  summary: { total: number; novas: number; duplicadas: number; invalidas: number };
+  alreadyImported: boolean;
+  rows: VaultImportPreviewRow[];
+}
+
+export interface VaultImportBatch {
+  id: string;
+  accountId: string | null;
+  cardId: string | null;
+  format: VaultImportFormat;
+  fileName: string;
+  periodStart: string | null;
+  periodEnd: string | null;
+  totalRows: number;
+  importedRows: number;
+  duplicateRows: number;
+  ignoredRows: number;
+  status: "COMPLETED" | "PARTIAL" | "FAILED";
+  errors: Array<{ line: number; code: string }>;
+  createdAt: string;
+}
+
+export interface VaultColumnMap {
+  date: string | number;
+  description: string | number;
+  amount?: string | number;
+  debit?: string | number;
+  credit?: string | number;
+  externalId?: string | number;
+}
+
+export interface VaultImportSettings {
+  delimiter: string;
+  decimalSeparator: string;
+  dateOrder: "DMY" | "MDY" | "YMD";
+  hasHeader: boolean;
+  invertSign: boolean;
+  columnMap: VaultColumnMap;
+}
+
+export interface VaultImportProfile extends VaultImportSettings {
+  id: string;
+  name: string;
+  accountId: string | null;
+  cardId: string | null;
+  format: VaultImportFormat;
+}
+
+// ===== Cofre — classificação =====
+
+export type VaultRuleMatchType = "CONTAINS" | "STARTS_WITH" | "EXACT";
+
+export interface VaultRule {
+  id: string;
+  name: string | null;
+  priority: number;
+  isActive: boolean;
+  matchType: VaultRuleMatchType | null;
+  matchValue: string | null;
+  matchMerchantId: string | null;
+  matchAccountId: string | null;
+  matchCardId: string | null;
+  matchAmountMinCents: number | null;
+  matchAmountMaxCents: number | null;
+  setMerchantId: string | null;
+  setCategoryId: string | null;
+  setSubscriptionId: string | null;
+  businessPercent: string | null;
+}
+
+export interface VaultClassificationRun {
+  processadas: number;
+  classificadas: number;
+  pendentes: number;
+}
+
+// ===== Cofre — assinaturas e alertas =====
+
+export type VaultSubscriptionPeriod = "MONTHLY" | "YEARLY" | "CUSTOM";
+export type VaultSubscriptionStatus = "ACTIVE" | "PAUSED" | "CANCELED";
+export type VaultAlertType =
+  | "RENEWS_TODAY"
+  | "RENEWS_TOMORROW"
+  | "RENEWS_IN_3_DAYS"
+  | "RENEWS_IN_7_DAYS"
+  | "PRICE_CHANGED"
+  | "POSSIBLE_DUPLICATE"
+  | "MISSING_CHARGE"
+  | "POSSIBLE_NEW_SUBSCRIPTION";
+
+export interface VaultSubscription {
+  id: string;
+  name: string;
+  merchantId: string | null;
+  categoryId: string | null;
+  accountId: string | null;
+  cardId: string | null;
+  expectedCents: number;
+  currency: PersonalCurrency;
+  period: VaultSubscriptionPeriod;
+  customIntervalDays: number | null;
+  lastChargeAt: string | null;
+  nextRenewalAt: string | null;
+  alertDaysBefore: number;
+  priceTolerancePct: number;
+  status: VaultSubscriptionStatus;
+  autoRenew: boolean;
+  costSubscriptionId: string | null;
+  notes: string | null;
+}
+
+export interface VaultAlert {
+  id: string;
+  subscriptionId: string | null;
+  transactionId: string | null;
+  type: VaultAlertType;
+  referenceDate: string;
+  status: "PENDING" | "READ" | "SNOOZED";
+  snoozedUntil: string | null;
+  payload: Record<string, unknown>;
+  createdAt: string;
+}
+
+export interface VaultAlertRefresh {
+  novosAlertas: number;
+  cobrancasVinculadas: number;
+  pendentes: VaultAlert[];
+}
+
+// ----- Cofre: pessoas e dívidas -----
+
+export type VaultDebtDirection = "THEY_OWE_ME" | "I_OWE_THEM";
+export type VaultDebtStatus = "OPEN" | "PARTIAL" | "PAID" | "OVERDUE" | "CANCELED";
+
+export interface VaultContact {
+  id: string;
+  name: string;
+  contact: string | null;
+  notes: string | null;
+  isActive: boolean;
+}
+
+export interface VaultDebtPayment {
+  id: string;
+  amount: string;
+  paidAt: string;
+  transactionId: string | null;
+  note: string | null;
+}
+
+export interface VaultDebt {
+  id: string;
+  contactId: string;
+  contactName: string;
+  direction: VaultDebtDirection;
+  description: string;
+  originalAmount: string;
+  /** Derivados das baixas e da data de hoje — nenhum é coluna no banco. */
+  paidAmount: string;
+  balance: string;
+  overpaid: string;
+  status: VaultDebtStatus;
+  currency: PersonalCurrency;
+  dueDate: string | null;
+  originTransactionId: string | null;
+  canceledAt: string | null;
+  notes: string | null;
+  payments: VaultDebtPayment[];
+  createdAt: string;
+}
+
+export interface VaultDebtSummary {
+  aReceber: string;
+  aPagar: string;
+  atrasadasReceber: number;
+  atrasadasPagar: number;
+}
+
+// ----- Ponte Cofre <-> financeiro da MilWeb -----
+
+export type BridgeState = "NAO_ENVIADA" | "ENVIADA" | "DESATUALIZADA";
+export type BusinessExpenseSource = "MANUAL" | "PERSONAL_VAULT";
+
+/** Uma compra pessoal com parte empresarial, e o estado dela na ponte. */
+export interface VaultBridgeItem {
+  transactionId: string;
+  transactionDate: string;
+  /** A linha do extrato. Visível só dentro do Cofre — não é o que vai pro
+   *  financeiro; lá vai a descrição que a pessoa escreve. */
+  originalDescription: string;
+  amountBrl: string;
+  businessAmount: string;
+  state: BridgeState;
+  expenseId: string | null;
+  sentAmount: string | null;
+  sentDescription: string | null;
+  organizationId: string | null;
+}
+
+export interface CostPlanOption {
+  id: string;
+  name: string;
+  amount: string;
+  currency: "BRL" | "USD";
+  billingCycle: "MONTHLY" | "YEARLY";
+}
+
+export interface BusinessExpense {
+  id: string;
+  description: string;
+  amount: string;
+  currency: "BRL" | "USD";
+  incurredAt: string;
+  category: CostCategory;
+  costSubscriptionId: string | null;
+  companyId: string | null;
+  source: BusinessExpenseSource;
+  notes: string | null;
+}
+
+export interface ExpensePlanComparison {
+  costSubscriptionId: string;
+  name: string;
+  planejadoBrl: number;
+  realizadoBrl: number;
+  /** `realizado − planejado`. Nunca a soma dos dois — ver expense-summary.ts. */
+  diferencaBrl: number;
+  lancamentos: number;
+}
+
+export interface BusinessExpenseSummary {
+  realizadoBrl: number;
+  planejadoBrl: number;
+  /** Quanto do realizado saiu do bolso do dono — é o que a empresa deve a ele. */
+  doCofreBrl: number;
+  porPlano: ExpensePlanComparison[];
+  semPlano: { realizadoBrl: number; lancamentos: number };
+}
+
+// ----- Resumo mensal do Cofre -----
+
+export interface VaultCategoryLine {
+  categoryId: string | null;
+  total: string;
+  lancamentos: number;
+}
+
+export interface VaultMonthSummary {
+  entradas: string;
+  saidas: string;
+  /** `entradas − saídas`. Pode ser negativo. */
+  resultado: string;
+  /** Quanto das saídas foi gasto com você — diferente de "quanto saiu". */
+  consumoPessoal: string;
+  daEmpresa: string;
+  reembolsavel: string;
+  /** O que se moveu sem ser receita nem despesa, para o dinheiro não sumir da
+   *  tela: transferências e baixas de dívida. */
+  foraDoFluxo: {
+    transferencias: { total: string; lancamentos: number };
+    baixasDivida: { total: string; lancamentos: number };
+  };
+  porCategoria: VaultCategoryLine[];
+  lancamentos: number;
 }

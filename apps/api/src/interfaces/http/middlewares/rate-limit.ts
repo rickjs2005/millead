@@ -79,3 +79,78 @@ export const aiRateLimit = rateLimit({
     },
   },
 });
+
+/**
+ * Desbloqueio do Cofre. Chave por USUÁRIO (não por IP): o dono é um só, e
+ * limitar por IP puniria ele por trocar de rede enquanto deixaria um
+ * atacante distribuído girar o balde à vontade.
+ *
+ * É a segunda trava, não a principal -- o lockout escalonado gravado em
+ * `personal_vaults` é quem realmente segura o ataque, porque sobrevive ao
+ * restart do processo (o MemoryStore daqui não sobrevive, e no Render free o
+ * processo dorme). Esta existe pra cortar volume antes de chegar ao bcrypt,
+ * inclusive de contas que não têm Cofre e portanto não têm contador.
+ */
+export const vaultUnlockRateLimit = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: authUserKey,
+  message: {
+    error: {
+      code: "TOO_MANY_REQUESTS",
+      message: "Muitas tentativas. Tente novamente mais tarde.",
+    },
+  },
+});
+
+/**
+ * Exportação: limita o volume, não a pessoa.
+ *
+ * Vinte por hora, e não cinco: o número existe pra impedir que um script drene
+ * o Cofre em rajada, não pra racionar backup. Quem exporta de verdade faz
+ * JSON, depois CSV, às vezes erra a senha e repete — cinco acabam antes de a
+ * pessoa terminar o que veio fazer, e um limite que atrapalha o uso legítimo é
+ * um limite que vai ser contornado.
+ *
+ * A defesa contra adivinhar senha aqui **não é este contador**: é o balde de
+ * tentativas compartilhado com o desbloqueio, que bloqueia o Cofre inteiro
+ * (ver `VaultReauthenticator`).
+ */
+export const vaultExportRateLimit = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: authUserKey,
+  message: {
+    error: {
+      code: "TOO_MANY_REQUESTS",
+      message: "Muitas exportações seguidas. Tente novamente daqui a pouco.",
+    },
+  },
+});
+
+/**
+ * Restauração: contador **separado** do de exportação.
+ *
+ * Compartilhar um balde só significaria que exportar várias vezes trava a
+ * restauração — e a restauração é justamente o que se faz na pior hora
+ * possível, depois de perder dados, provavelmente logo depois de exportar o
+ * que sobrou. Bloquear ali seria bloquear no único momento em que a pessoa
+ * não pode esperar uma hora.
+ */
+export const vaultRestoreRateLimit = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: authUserKey,
+  message: {
+    error: {
+      code: "TOO_MANY_REQUESTS",
+      message: "Muitas tentativas de restauração. Tente novamente daqui a pouco.",
+    },
+  },
+});

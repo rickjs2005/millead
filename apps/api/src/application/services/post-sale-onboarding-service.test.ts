@@ -171,9 +171,7 @@ function makeHarness(options: HarnessOptions = {}): Harness {
       findByIdForOrg: vi.fn(async () => ({ id: COMPANY_ID, name: "Cliente LTDA" })),
     } as unknown as PostSaleOnboardingDeps["companies"],
     leads: {
-      findByIdForOrg: vi.fn(async () =>
-        options.lead === undefined ? fakeLead() : options.lead,
-      ),
+      findByIdForOrg: vi.fn(async () => (options.lead === undefined ? fakeLead() : options.lead)),
     } as unknown as PostSaleOnboardingDeps["leads"],
     memberships: {
       isActiveMember: vi.fn(async () => options.ownerIsActiveMember ?? true),
@@ -187,17 +185,22 @@ function makeHarness(options: HarnessOptions = {}): Harness {
       listByContract: vi.fn(async () => receivables),
     } as unknown as PostSaleOnboardingDeps["receivables"],
     leadService: {
-      moveStage: vi.fn(async (_org: string, userId: string | null, leadId: string, stageId: string) => {
-        movedStages.push({ leadId, stageId, userId });
-        return fakeLead({ status: "WON" });
-      }),
+      moveStage: vi.fn(
+        async (_org: string, userId: string | null, leadId: string, stageId: string) => {
+          movedStages.push({ leadId, stageId, userId });
+          return fakeLead({ status: "WON" });
+        },
+      ),
     } as unknown as PostSaleOnboardingDeps["leadService"],
     receivableService: {
       createPlan: vi.fn(async (_org: string, input: unknown) => {
         createdPlans.push(input);
         const created = options.createPlanImpl
           ? await options.createPlanImpl()
-          : [fakeReceivable(), fakeReceivable({ id: "recv-2", kind: "PARCELA", installmentIndex: 1 })];
+          : [
+              fakeReceivable(),
+              fakeReceivable({ id: "recv-2", kind: "PARCELA", installmentIndex: 1 }),
+            ];
         receivables.push(...created);
         return created;
       }),
@@ -217,7 +220,11 @@ function makeHarness(options: HarnessOptions = {}): Harness {
         createdProjects.push(input);
         return options.createProjectImpl
           ? await options.createProjectImpl()
-          : { id: `project-${createdProjects.length}`, name: "Cliente LTDA — MILWEB-2026-000001", phases: new Array(16).fill({}) };
+          : {
+              id: `project-${createdProjects.length}`,
+              name: "Cliente LTDA — MILWEB-2026-000001",
+              phases: new Array(16).fill({}),
+            };
       }),
     } as unknown as PostSaleOnboardingDeps["projectChecklistService"],
     taskService: {
@@ -226,8 +233,11 @@ function makeHarness(options: HarnessOptions = {}): Harness {
         return { id: `task-${createdTasks.length}` };
       }),
     } as unknown as PostSaleOnboardingDeps["taskService"],
-    activityLogger: { log: vi.fn(async () => undefined) } as unknown as PostSaleOnboardingDeps["activityLogger"],
+    activityLogger: {
+      log: vi.fn(async () => undefined),
+    } as unknown as PostSaleOnboardingDeps["activityLogger"],
     push: {
+      sendToUser: vi.fn(async () => undefined),
       sendToOrg: vi.fn(async (_org: string, payload: { title: string }) => {
         pushes.push(payload);
       }),
@@ -341,9 +351,7 @@ describe("PostSaleOnboardingService — caminho completo", () => {
   it("2. lead vai pro estagio de ganho configurado, pelo service existente", async () => {
     await triggerAndRun(h);
 
-    expect(h.movedStages).toEqual([
-      { leadId: LEAD_ID, stageId: WON_STAGE_ID, userId: OWNER_ID },
-    ]);
+    expect(h.movedStages).toEqual([{ leadId: LEAD_ID, stageId: WON_STAGE_ID, userId: OWNER_ID }]);
   });
 
   it("3. plano de recebimento sai do valor e do percentual do contrato", async () => {

@@ -1,6 +1,6 @@
 "use client";
 
-import { LogOut, Monitor, Moon, Settings, Sun, User } from "lucide-react";
+import { Lock, LogOut, Monitor, Moon, Settings, Sun, User } from "lucide-react";
 import { useTheme } from "next-themes";
 import Link from "next/link";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -60,6 +60,16 @@ export function UserMenu({ collapsed }: { collapsed?: boolean }) {
         <DropdownMenuItem asChild>
           <Link href="/settings">
             <Settings /> Configurações
+          </Link>
+        </DropdownMenuItem>
+        {/* Cofre Financeiro: entra aqui, e não na navegação lateral, porque é
+            área pessoal — não faz parte do CRM da organização. Aparece pra
+            qualquer usuário logado de propósito: o Cofre é individual (cada
+            um cria o seu), o item não revela dado de ninguém, e é por ele que
+            se cria o Cofre na primeira vez. Quem protege é a API. */}
+        <DropdownMenuItem asChild>
+          <Link href="/cofre">
+            <Lock /> Cofre Financeiro
           </Link>
         </DropdownMenuItem>
         <DropdownMenuSeparator />

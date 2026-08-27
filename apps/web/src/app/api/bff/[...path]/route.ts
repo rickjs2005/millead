@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { ACCESS_COOKIE } from "@/lib/auth-cookies";
+import { ACCESS_COOKIE, VAULT_COOKIE, vaultCookieOptions } from "@/lib/auth-cookies";
 import { INTERNAL_API_URL } from "@/lib/bff-server";
 
 /**
@@ -28,6 +28,15 @@ const HOP_BY_HOP = new Set([
   "connection",
 ]);
 
+/** Sessão elevada do Cofre: cookie httpOnly -> header, só de servidor pra
+ *  servidor. O JS do browser não monta nem lê nenhum dos dois. */
+const VAULT_HEADER = "x-vault-session";
+/** A API devolve a sessão renovada a cada request autorizada do Cofre. É o
+ *  que faz os 15 minutos serem de INATIVIDADE. Vira cookie aqui e NÃO é
+ *  repassado ao navegador -- se fosse, o token estaria de volta ao alcance
+ *  do JS, que é exatamente o que o cookie httpOnly evita. */
+const VAULT_RENEW_HEADER = "x-vault-session-renew";
+
 async function handle(
   req: NextRequest,
   ctx: { params: Promise<{ path: string[] }> },
@@ -42,6 +51,8 @@ async function handle(
   if (accept) headers.set("accept", accept);
   const token = req.cookies.get(ACCESS_COOKIE)?.value;
   if (token) headers.set("authorization", `Bearer ${token}`);
+  const vaultToken = req.cookies.get(VAULT_COOKIE)?.value;
+  if (vaultToken) headers.set(VAULT_HEADER, vaultToken);
 
   const hasBody = req.method !== "GET" && req.method !== "HEAD";
   const apiRes = await fetch(target, {
@@ -54,10 +65,22 @@ async function handle(
 
   const resHeaders = new Headers();
   apiRes.headers.forEach((value, key) => {
-    if (!HOP_BY_HOP.has(key.toLowerCase())) resHeaders.set(key, value);
+    const lower = key.toLowerCase();
+    if (HOP_BY_HOP.has(lower) || lower === VAULT_RENEW_HEADER) return;
+    resHeaders.set(key, value);
   });
 
-  return new NextResponse(apiRes.body, { status: apiRes.status, headers: resHeaders });
+  const res = new NextResponse(apiRes.body, { status: apiRes.status, headers: resHeaders });
+
+  const renewed = apiRes.headers.get(VAULT_RENEW_HEADER);
+  if (renewed) {
+    // Mesma janela do TTL da API (15min). O servidor continua sendo a fonte
+    // de verdade -- o cookie só evita que o navegador guarde a sessão do
+    // Cofre por mais tempo que ela vale.
+    res.cookies.set(VAULT_COOKIE, renewed, vaultCookieOptions(15 * 60));
+  }
+
+  return res;
 }
 
 export { handle as GET, handle as POST, handle as PATCH, handle as PUT, handle as DELETE };
