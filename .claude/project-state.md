@@ -1,29 +1,28 @@
 # MilLead (CRM interno MilWeb)
 
 Tipo: sistema
-Stack: Next.js 15 + React 19 + TypeScript, Express, PostgreSQL (Prisma), Redis (BullMQ), pnpm + Turborepo, Clean Architecture multi-tenant
+Stack: Next.js 15 + React 19 + TypeScript, Express, PostgreSQL (Prisma), pg-boss (fila no proprio Postgres), pnpm + Turborepo, Clean Architecture multi-tenant
 
 ## Progresso
 Fase 01 — Descoberta e arquitetura     ✓  (Clean Architecture documentada, roadmap de 8 fases concluído segundo o README)
 Fase 02 — UX/UI                        ✓  (frontend cobre todos os módulos, dashboard funcional)
 Fase 03 — Modelagem do banco           ✓  (migrations em packages/database/prisma, multi-tenant via `organizationId`)
 Fase 04 — Backend                      ✓  (domain/application/infrastructure/interfaces, health checks, rate-limit middleware)
-Fase 05 — Autenticação e autorização   ◐  (seed cria "papéis padrão"; não confirmei nesta sessão o middleware de autorização por papel — verificar antes de marcar ✓)
+Fase 05 — Autenticação e autorização   ✓  (27/08 verificado: `requirePermission` em todas as rotas de negócio, permissões resolvidas do banco a cada request, e a gestão de equipe fechou o ciclo — papéis custom, membro suspenso e bloqueio de escalada de privilégio)
 Fase 06 — Frontend                     ✓  (todos os módulos consomem `apps/web/src/services`)
 Fase 07 — Integrações                  ◐  (ZapSign/contratos, IA Claude, Instagram/MilSocial existem; memória registra pendência antiga de bug de e-mail na Autentique/ZapSign — não reverificado)
 Fase 08 — Segurança                    ◐  (JWT + rate-limit presentes; memória cita achados de segurança "baixos" pendentes em millead-pendencias-seguranca.md — não reverificados)
-Fase 09 — Testes                       ◐  (26/08: 465 testes na API + 174 no web + 56 no runner + 21 em video-contracts, todos passando; falta confirmar cobertura de E2E dos fluxos públicos — briefing e fechamento de contrato)
+Fase 09 — Testes                       ◐  (27/08: 477 API + 182 web + 56 runner + 21 video-contracts = 736, todos passando. DOIS gaps confirmados: (a) o CI **não roda testes** — ci.yml só faz format/lint/type-check/build; (b) nenhum E2E dos fluxos públicos (/b/:token, /p/:token, /fechamento/:slug))
 Fase 10 — Performance                  ○  (não verificado nesta sessão)
-Fase 11 — Observabilidade              ◐  (health checks + logger existem; nenhuma ferramenta de error tracking tipo Sentry identificada — gap real)
+Fase 11 — Observabilidade              ◐  (27/08 reverificado: health checks + pino existem; **zero** error tracking — nenhum Sentry/equivalente em nenhum package.json. Erro em produção só aparece se alguém abrir o log do Render)
 Fase 12 — Infraestrutura               ✓  (Render blueprint p/ API, Vercel p/ web, Supabase, Upstash, CI em .github/workflows/ci.yml)
 Fase 13 — QA final                     ○  (não rodado nesta sessão)
 Fase 14 — Deploy                       ✓  (millead.milweb.com.br + millead-api.onrender.com no ar, conforme memória e render.yaml)
-Fase 15 — SEO para páginas públicas    ◐  (CRM é login-only; confirmar se a tela de login/marketing, se existir, tem noindex — não assumir N/A sem checar)
+Fase 15 — SEO para páginas públicas    ◐  (27/08 checado: **não é N/A**. Não existe robots.txt nem robots.ts, e não há `noindex` em lugar nenhum — mas existem 3 rotas públicas sem login com dado de cliente: /b/:token (briefing), /p/:token (proposta com valor) e /fechamento/:slug. Aqui o objetivo é o INVERSO de SEO: impedir indexação)
 Fase 16 — Pós-lançamento               ◐  (keep-api-awake.yml mitiga cold start do free tier; milsocial-sync.yml roda diário; sem monitoramento de erro/uptime de terceiros identificado)
 
 ## Trabalho de 26/08/2026 — Automação pós-fechamento
-Implementada de ponta a ponta na branch `feat/post-sale-automation` (commit
-`06a063c`, **não enviado**): contrato ASSINADO dispara lead ganho +
+Implementada de ponta a ponta (commit `06a063c`): contrato ASSINADO dispara lead ganho +
 recebimentos + briefing + projeto + tarefas, via fila pg-boss, idempotente no
 reenvio do webhook. Configuração por organização em Configurações > Automação
 (nasce desligada) e card de acompanhamento no detalhe do contrato.
@@ -32,9 +31,8 @@ Spec: `docs/superpowers/specs/2026-08-26-post-sale-automation-design.md`.
 Descobertas relevantes da investigação:
 - A fila é **pg-boss no Postgres**, não BullMQ+Redis (trocada em 21/07/2026).
   README/ARCHITECTURE/DATABASE ainda descreviam o antigo — corrigidos.
-- **Gestão de equipe realmente não existe** (`settings/team` é EmptyState).
-  Foi adicionado só um `GET /settings/members` somente-leitura, necessário pro
-  seletor de responsável padrão.
+- **Gestão de equipe não existia no commit de origem da branch**, mas entrou
+  na `main` (PR #2) durante o trabalho — ver a nota de merge abaixo.
 
 **Mergeada na `main` e no ar** (commit `922f06f`, verificado em produção:
 `/health` reporta o commit certo, `/health/ready` ok, rotas novas respondem
@@ -77,13 +75,22 @@ passou a produzir e não tinha tela:
 responsável, template `institucional-v1`, tipo de projeto, parcelas/prazos).
 Nada dispara enquanto ela estiver desligada — é o default.
 
-Depois disso, o roadmap em
-`docs/superpowers/plans/2026-08-26-post-sale-automation.md` sugere follow-ups/
-cadências como próxima fase (reusa a infra de execução/etapa/artefato, trocando
-o gatilho). Os gaps antigos sem dependência externa continuam sendo RBAC
-(Fase 05) e Observabilidade (Fase 11). As pendências de
-`millead-pendencias-seguranca` (ZapSign, achados baixos) dependem de decisão do
-Rick sobre configuração no Render.
+Depois disso, na ordem de custo/benefício (verificado em 27/08):
+
+1. **`noindex` nas 3 rotas públicas + robots.txt** (~30min). Hoje /b/:token,
+   /p/:token e /fechamento/:slug são indexáveis. São páginas sem login com
+   nome, telefone e valor de cliente — o risco não é SEO ruim, é vazamento.
+2. **CI rodar os testes** (~10min). São 736 testes que o ci.yml nunca executa;
+   uma regressão passa direto pro merge hoje.
+3. **Error tracking** (~2h). Zero hoje: erro em produção só aparece se alguém
+   abrir o log do Render. Sentry free ou equivalente.
+4. **E2E dos fluxos públicos** (~4h). São os únicos caminhos sem login e sem
+   teste de ponta a ponta.
+5. Follow-ups/cadências — próxima fase de produto (ver o roadmap em
+   `docs/superpowers/plans/2026-08-26-post-sale-automation.md`).
+
+As pendências de `millead-pendencias-seguranca` (ZapSign no Render, achados
+baixos) continuam dependendo de decisão do Rick.
 
 ## Notas de N/A
 - (nenhuma até o momento — Fase 15 propositalmente não marcada N/A sem confirmar antes)
