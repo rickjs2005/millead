@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { positiveMoneyInput } from "./money-input.js";
 import { parseUtcDate } from "../services/vault-date.js";
 
 /** Data de calendário em UTC — ver `vault-date.ts` sobre o deslize de fuso. */
@@ -14,10 +15,7 @@ const calendarDate = z
     return parsed;
   });
 
-const money = z
-  .string()
-  .regex(/^\d+(\.\d{1,2})?$/, "Valor inválido.")
-  .refine((v) => Number(v) > 0, "O valor esperado precisa ser maior que zero.");
+const money = positiveMoneyInput("O valor esperado precisa ser maior que zero.");
 
 const base = {
   name: z.string().min(1).max(120),

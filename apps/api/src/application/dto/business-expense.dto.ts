@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { positiveMoneyInput } from "./money-input.js";
 import { parseUtcDate } from "../services/vault-date.js";
 
 const calendarDate = z
@@ -13,10 +14,7 @@ const calendarDate = z
     return parsed;
   });
 
-const money = z
-  .string()
-  .regex(/^\d+(\.\d{1,2})?$/, "Valor inválido.")
-  .refine((v) => Number(v) > 0, "O valor precisa ser maior que zero.");
+const money = positiveMoneyInput();
 
 const category = z.enum(["HOSTING", "DATABASE", "AI", "DOMAIN", "EMAIL", "SIGNATURE", "OTHER"]);
 

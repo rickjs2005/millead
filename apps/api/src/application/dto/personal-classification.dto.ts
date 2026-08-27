@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { moneyInput } from "./money-input.js";
 
 /**
  * Regras de classificação e correção manual.
@@ -8,7 +9,7 @@ import { z } from "zod";
  * fronteira evita que cada chamador lembre de fazer isso.
  */
 
-const money = z.string().regex(/^\d+(\.\d{1,2})?$/, "Valor inválido.");
+const money = moneyInput;
 const percent = z
   .string()
   .regex(/^\d{1,3}(\.\d{1,2})?$/, "Percentual inválido.")

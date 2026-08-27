@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { moneyInput, positiveMoneyInput } from "./money-input.js";
 import { parseUtcDate } from "../services/vault-date.js";
 
 /**
@@ -15,11 +16,9 @@ import { parseUtcDate } from "../services/vault-date.js";
  *   onde a API estivesse rodando — o bug clássico do fuso do Brasil.
  */
 
-const money = z
-  .string()
-  .regex(/^\d+(\.\d{1,2})?$/, "Valor inválido — use o formato 1234.56, sem separador de milhar.");
+const money = moneyInput;
 
-const positiveMoney = money.refine((v) => Number(v) > 0, "O valor precisa ser maior que zero.");
+const positiveMoney = positiveMoneyInput();
 
 const calendarDate = z
   .string()

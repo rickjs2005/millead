@@ -1,4 +1,5 @@
 import type { ApiErrorBody } from "@/types/api";
+import { messageFromIssues } from "./validation-message";
 
 /**
  * Todas as chamadas passam pelo BFF (route handlers do Next em `/api/bff`),
@@ -92,10 +93,14 @@ async function request<T>(path: string, options: RequestOptions = {}, isRetry = 
 
   if (!res.ok) {
     const err = data as ApiErrorBody | null;
+    const generica = err?.error.message ?? "Ocorreu um erro inesperado.";
     throw new ApiError(
       res.status,
       err?.error.code ?? "UNKNOWN_ERROR",
-      err?.error.message ?? "Ocorreu um erro inesperado.",
+      // A mensagem específica de cada problema já vinha na resposta e parava
+      // aqui. "Dados inválidos." num formulário de seis campos obriga a pessoa
+      // a adivinhar qual deles está errado.
+      messageFromIssues(generica, err?.error.issues),
       err?.error.issues,
     );
   }

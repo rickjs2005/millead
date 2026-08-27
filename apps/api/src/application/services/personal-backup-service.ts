@@ -2,7 +2,6 @@ import { ConflictError, ValidationError } from "../../domain/errors/app-error.js
 import type {
   PersonalBackupRepository,
   RestoreCounts,
-  VaultDump,
 } from "../../domain/repositories/personal-backup-repository.js";
 import type {
   ReauthContext,
