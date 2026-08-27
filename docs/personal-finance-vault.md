@@ -694,6 +694,23 @@ visual: a descrição entra no fingerprint de deduplicação, então
 a reimportação duplicaria tudo. `decodeBankFile` tenta UTF-8 estrito e cai para
 Windows-1252 quando o decodificador reclama.
 
+### Um bug que só a execução encontrou
+
+Apagar uma conta que já tinha sido usada numa importação respondia **500**, não
+o 409 previsto.
+
+A causa era uma incompatibilidade entre duas decisões boas: o lote de
+importação tem um CHECK de **origem única** (conta XOR cartão), e as FKs de
+origem eram `ON DELETE SET NULL`. Ao apagar a conta, o Postgres zerava
+`account_id` — e com as duas colunas nulas o lote violava a própria
+constraint. Nenhum teste unitário pegaria isso: é a interação de duas regras de
+banco, e só aparece executando a exclusão de verdade.
+
+A correção é `ON DELETE CASCADE` nas duas FKs, que também é o significado
+certo: um lote descreve uma importação **para** uma origem, e sem ela não
+descreve nada. Quando a origem pode ser apagada, as movimentações dela já
+foram embora — a FK delas é `Restrict`.
+
 ### Decisões de interface
 
 - **A visão geral começa pelo que exige ação** (alertas, movimentações a

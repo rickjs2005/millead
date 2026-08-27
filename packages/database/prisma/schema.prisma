@@ -2478,9 +2478,16 @@ model PersonalImportBatch {
 
   createdAt DateTime @default(now()) @map("created_at")
 
-  vault        PersonalVault         @relation(fields: [vaultId], references: [id], onDelete: Cascade)
-  account      PersonalAccount?      @relation(fields: [accountId], references: [id], onDelete: SetNull)
-  card         PersonalCreditCard?   @relation(fields: [cardId], references: [id], onDelete: SetNull)
+  vault PersonalVault @relation(fields: [vaultId], references: [id], onDelete: Cascade)
+  /// Cascade, e NAO SetNull: o CHECK de origem unica (conta XOR cartao) exige
+  /// que exatamente uma das duas esteja preenchida, entao zerar a coluna ao
+  /// apagar a origem violaria a propria constraint e a exclusao explodia com
+  /// 500. Cascade tambem e o significado certo: um lote descreve uma
+  /// importacao PARA uma origem, e sem ela nao descreve nada -- e quando a
+  /// origem pode ser apagada, as movimentacoes dela ja foram (a FK delas e
+  /// Restrict).
+  account      PersonalAccount?    @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  card         PersonalCreditCard? @relation(fields: [cardId], references: [id], onDelete: Cascade)
   transactions PersonalTransaction[]
 
   @@index([vaultId, createdAt])
