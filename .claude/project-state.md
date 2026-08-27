@@ -57,15 +57,33 @@ e `db:seed`. Produção verificada de pé (`/health/ready` ok, login responde 40
 a senha errada). Perda real assumida pelo Rick: um briefing do KPM USA.
 Armadilha documentada em `docs/DATABASE.md` (seção Workflow).
 
+## Trabalho de 26/08/2026 — Painel (evolução, não tela nova)
+Commit `2c3b035`, no ar. Decisão: evoluir o dashboard existente em vez de criar
+uma central "Hoje" — ele já tinha 12 componentes (tarefas, reuniões,
+atividades), e uma tela nova duplicaria isso. Entrou só o que a automação
+passou a produzir e não tinha tela:
+- Card "Pós-fechamento pendente" (`GET /api/v1/contracts/post-sale/pending`) —
+  única visão agregada das automações que pararam, com reprocessar inline.
+- Card "Prazos de projeto" — usa o `dueAt` gravado pela automação; filtro
+  puro no cliente (`features/dashboard/project-deadlines.ts`, testado).
+- Toggle "Equipe / Minhas" nos cards de tarefa, escondido quando a org tem
+  uma pessoa só.
+
 ## Bloqueios
 - Pendências registradas em memória (`millead-pendencias-seguranca`) ainda em aberto: ZapSign não configurado no Render (contratos não são assináveis de verdade em produção), 2 achados baixos de segurança (landing de IA sem sanitização própria, tokens em localStorage), permissões próprias de Contratos/Landing pages pendentes de migração.
 
 ## Próxima ação
-Autorizar o deploy da automação pós-fechamento (migration + push + Render/Vercel)
-e ligá-la em Configurações > Automação. Depois disso, os dois gaps concretos sem
-dependência externa continuam sendo RBAC (Fase 05) e Observabilidade (Fase 11).
-As pendências de `millead-pendencias-seguranca` (ZapSign, achados baixos)
-dependem de decisão do Rick sobre configuração no Render.
+**Ligar a automação**: Configurações > Automação (estágio de ganho "Fechado",
+responsável, template `institucional-v1`, tipo de projeto, parcelas/prazos).
+Nada dispara enquanto ela estiver desligada — é o default.
+
+Depois disso, o roadmap em
+`docs/superpowers/plans/2026-08-26-post-sale-automation.md` sugere follow-ups/
+cadências como próxima fase (reusa a infra de execução/etapa/artefato, trocando
+o gatilho). Os gaps antigos sem dependência externa continuam sendo RBAC
+(Fase 05) e Observabilidade (Fase 11). As pendências de
+`millead-pendencias-seguranca` (ZapSign, achados baixos) dependem de decisão do
+Rick sobre configuração no Render.
 
 ## Notas de N/A
 - (nenhuma até o momento — Fase 15 propositalmente não marcada N/A sem confirmar antes)
