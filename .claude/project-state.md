@@ -67,10 +67,53 @@ passou a produzir e não tinha tela:
 - Toggle "Equipe / Minhas" nos cards de tarefa, escondido quando a org tem
   uma pessoa só.
 
+## Trabalho de 27/08/2026 — Cofre Financeiro (Fase 1 de 10)
+
+Branch `feat/cofre-financeiro`, **não mergeada, não deployada**. Módulo de
+financas pessoais do dono, isolado do financeiro da MilWeb. Esta fase entregou
+so a seguranca; o resto (contas, cartoes, transacoes, importacao OFX/CSV,
+classificacao, assinaturas, dividas, ponte com o Centro de Custos, dashboard,
+exportacao) sao as fases 2-10. Doc: `docs/personal-finance-vault.md`.
+
+Tres achados que mudaram o desenho, encontrados lendo o codigo antes de codar:
+
+1. **RBAC vazaria o Cofre.** `ADMIN_PERMISSIONS = ALL_PERMISSIONS.filter(k => k
+   !== BILLING_MANAGE)` — qualquer chave nova entra sozinha no papel Admin de
+   toda organizacao. O modulo nao usa permissao nenhuma: autorizacao e posse
+   (`PersonalVault.ownerUserId` unique) + sessao elevada.
+2. **`PushSender` so tem `sendToOrg`** — alerta de assinatura pessoal iria pro
+   navegador de toda a equipe. Precisa de `sendToUser` na Fase 5.
+3. **`audit-mutations` grava toda mutacao no AuditLog da organizacao** —
+   excluido `/api/v1/vault/*`; o Cofre audita com `organizationId: null` e sem
+   valores.
+
+Decisoes do Rick nesta sessao: cada usuario cria o seu Cofre (nao ha e-mail
+hard-coded; o gate `require-owner.ts`/`OWNER_EMAIL` do MilSocial NAO foi
+reusado); e migration gerada e aplicada direto na producao, por ela estar
+vazia (verificado: 1 usuario do seed, 0 dados de negocio).
+
+Migration `20260827120000_add_personal_vault` **aplicada em producao**
+(aditiva: 1 CREATE TABLE, RLS habilitado, nenhum ALTER/DROP; verificado que
+nada foi perdido). 41 testes novos, 518 no total na API, type-check/lint/build
+limpos.
+
+**Achado lateral, nao corrigido:** `pnpm format` reformata ~120 arquivos que
+nada tem a ver com esta tarefa (alinhamento de tabela em Markdown, linha em
+branco antes de lista). Ou seja, `format:check` ja falha na `main` — o CI
+provavelmente esta vermelho por isso. Reverti os arquivos nao relacionados
+para nao poluir a branch; consertar isso e uma tarefa a parte.
+
 ## Bloqueios
 - Pendências registradas em memória (`millead-pendencias-seguranca`) ainda em aberto: ZapSign não configurado no Render (contratos não são assináveis de verdade em produção), 2 achados baixos de segurança (landing de IA sem sanitização própria, tokens em localStorage), permissões próprias de Contratos/Landing pages pendentes de migração.
 
 ## Próxima ação
+
+**Fase 2 do Cofre** (contas, cartoes, categorias, fornecedores, transacoes,
+splits, faturas) na branch `feat/cofre-financeiro`. Antes de usar a Fase 1 e
+preciso definir `VAULT_SESSION_SECRET` no `.env` e no Render — sem ela o
+modulo inteiro responde 404 de proposito.
+
+### Pendencias anteriores (verificadas em 27/08)
 **Ligar a automação**: Configurações > Automação (estágio de ganho "Fechado",
 responsável, template `institucional-v1`, tipo de projeto, parcelas/prazos).
 Nada dispara enquanto ela estiver desligada — é o default.

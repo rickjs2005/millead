@@ -8,6 +8,10 @@ export const queryKeys = {
   ai: {
     status: () => ["ai", "status"] as const,
   },
+  vault: {
+    status: () => ["vault", "status"] as const,
+    session: () => ["vault", "session"] as const,
+  },
   settings: {
     integrations: () => ["settings", "integrations"] as const,
     postSaleAutomation: () => ["settings", "post-sale-automation"] as const,

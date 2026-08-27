@@ -59,6 +59,20 @@ async function request<T>(path: string, options: RequestOptions = {}, isRetry = 
     credentials: "include",
   });
 
+  // Nem todo 401 é sessão expirada. O Cofre responde 401 VAULT_LOCKED quando
+  // a SESSÃO ELEVADA caiu -- o login continua perfeitamente válido. Sem esta
+  // saída, cada request ao Cofre fechado gastaria um refresh (rotacionando o
+  // refresh token à toa) só pra receber o mesmo 401 na segunda tentativa.
+  if (res.status === 401) {
+    const peek = (await res
+      .clone()
+      .json()
+      .catch(() => null)) as ApiErrorBody | null;
+    if (peek?.error.code === "VAULT_LOCKED") {
+      throw new ApiError(401, "VAULT_LOCKED", peek.error.message);
+    }
+  }
+
   if (res.status === 401 && !skipAuth && !isRetry) {
     refreshPromise ??= refreshSession().finally(() => {
       refreshPromise = null;

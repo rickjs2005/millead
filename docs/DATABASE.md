@@ -70,13 +70,14 @@ tarefas. Design completo em
   diferente e carrega uma trava de unicidade diferente — e é a trava, não a
   leitura, que faz o reenvio do webhook ser seguro:
 
-  | Tabela | Unique | Pergunta |
-  | --- | --- | --- |
-  | `automation_executions` | `(organizationId, eventType, contractId)` | "este contrato já disparou?" |
-  | `automation_steps` | `(executionId, key)` | "esta etapa já rodou?" |
-  | `automation_artifacts` | `(executionId, key)` | "este artefato já foi criado?" |
+  | Tabela                  | Unique                                    | Pergunta                       |
+  | ----------------------- | ----------------------------------------- | ------------------------------ |
+  | `automation_executions` | `(organizationId, eventType, contractId)` | "este contrato já disparou?"   |
+  | `automation_steps`      | `(executionId, key)`                      | "esta etapa já rodou?"         |
+  | `automation_artifacts`  | `(executionId, key)`                      | "este artefato já foi criado?" |
 
   Um `result Json` no step cobriria a leitura mas não daria trava nenhuma.
+
 - `AutomationArtifact.refId` **não é FK**: aponta pra tabelas diferentes
   conforme o `type` (lead, briefing, projeto, tarefa, plano). Se a entidade
   for apagada, o link na tela some — em vez de FK quebrada ou cascata
@@ -101,7 +102,36 @@ tarefas. Design completo em
   todo o CRM, e o vínculo forte já vive em `automation_artifacts`. A
   referência ao contrato vai na descrição da tarefa (com link).
 
-### 6. Billing
+### 6. Cofre Financeiro (financas pessoais do dono)
+
+`PersonalVault`
+
+**Unica tabela do schema SEM `organizationId`, de proposito.** O dono e o
+usuario (`ownerUserId`, com `@unique`), nao a organizacao. A coluna
+significaria "este dado pertence a organizacao", e e exatamente disso que o
+Cofre precisa nao participar: com ela, qualquer repositorio que filtrasse por
+tenant -- o padrao da casa -- devolveria dado financeiro pessoal a quem tem
+papel na empresa.
+
+Pela mesma razao o modulo **nao usa RBAC**: `ADMIN_PERMISSIONS` e
+`ALL_PERMISSIONS` menos billing, entao uma chave `vault:*` nova entraria
+sozinha no papel Admin de toda organizacao. A autorizacao e posse + sessao
+elevada. Detalhes em [personal-finance-vault.md](./personal-finance-vault.md).
+
+Campos que carregam decisao:
+
+- `failed_attempts` / `locked_until` -- lockout escalonado **persistido**. Em
+  memoria zeraria a cada cold start do Render free, devolvendo tentativas de
+  graca a quem esta atacando.
+- `sessions_invalidated_at` -- corte de sessoes elevadas. Todo token com `iat`
+  anterior morre na hora; e o que faz "Bloquear agora", o logout e a troca de
+  senha serem revogacao de verdade, e nao so limpeza de cookie.
+
+As tabelas das fases seguintes (contas, cartoes, transacoes, importacoes,
+assinaturas, dividas) seguem a mesma regra: dono por `ownerUserId`, nunca por
+organizacao.
+
+### 7. Billing
 
 `Subscription` — genérico o bastante pra qualquer provedor de pagamento
 (Stripe ou não); nenhuma integração escolhida ainda.

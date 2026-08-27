@@ -145,12 +145,7 @@ export interface IntegrationsStatusResult {
 // ---------- Companies ----------
 
 export type SocialPlatform =
-  | "INSTAGRAM"
-  | "FACEBOOK"
-  | "LINKEDIN"
-  | "TIKTOK"
-  | "WHATSAPP"
-  | "OTHER";
+  "INSTAGRAM" | "FACEBOOK" | "LINKEDIN" | "TIKTOK" | "WHATSAPP" | "OTHER";
 
 export interface Company {
   id: string;
@@ -406,12 +401,7 @@ export interface PublicProposal {
 export type AuditStatus = "QUEUED" | "RUNNING" | "COMPLETED" | "FAILED";
 export type AuditTrigger = "MANUAL" | "AUTOMATIC";
 export type AuditScoreCategory =
-  | "PERFORMANCE"
-  | "SEO"
-  | "ACCESSIBILITY"
-  | "SECURITY"
-  | "DESIGN"
-  | "MOBILE";
+  "PERFORMANCE" | "SEO" | "ACCESSIBILITY" | "SECURITY" | "DESIGN" | "MOBILE";
 
 /** Uma checagem individual dentro de AuditScore.details.checks. */
 export interface AuditCheck {
@@ -610,15 +600,7 @@ export interface LeadFinance {
 
 export type BriefingTemplateKind = "INSTITUCIONAL" | "ECOMMERCE" | "CUSTOM";
 export type BriefingFieldType =
-  | "TEXT"
-  | "TEXTAREA"
-  | "EMAIL"
-  | "PHONE"
-  | "URL"
-  | "SELECT"
-  | "MULTI_SELECT"
-  | "FILE"
-  | "GROUP";
+  "TEXT" | "TEXTAREA" | "EMAIL" | "PHONE" | "URL" | "SELECT" | "MULTI_SELECT" | "FILE" | "GROUP";
 export type BriefingStatus = "PENDING" | "IN_PROGRESS" | "COMPLETED" | "ARCHIVED";
 
 export interface BriefingTemplate {
@@ -749,13 +731,7 @@ export type CostScope = "AGENCY" | "CLIENT";
 export type CostCurrency = "BRL" | "USD";
 export type CostBillingCycle = "MONTHLY" | "YEARLY";
 export type CostCategory =
-  | "HOSTING"
-  | "DATABASE"
-  | "AI"
-  | "DOMAIN"
-  | "EMAIL"
-  | "SIGNATURE"
-  | "OTHER";
+  "HOSTING" | "DATABASE" | "AI" | "DOMAIN" | "EMAIL" | "SIGNATURE" | "OTHER";
 
 export interface CostSubscription {
   id: string;
@@ -1267,29 +1243,15 @@ export interface ProjectChecklist {
 // Automação pós-fechamento
 // ---------------------------------------------------------------------------
 
-export type AutomationExecutionStatus =
-  | "PENDING"
-  | "RUNNING"
-  | "SUCCEEDED"
-  | "PARTIAL"
-  | "FAILED";
+export type AutomationExecutionStatus = "PENDING" | "RUNNING" | "SUCCEEDED" | "PARTIAL" | "FAILED";
 
 export type AutomationStepKey = "LEAD_WON" | "RECEIVABLES" | "BRIEFING" | "PROJECT" | "TASKS";
 
 export type AutomationStepStatus =
-  | "PENDING"
-  | "RUNNING"
-  | "SUCCEEDED"
-  | "SKIPPED"
-  | "NEEDS_ACTION"
-  | "FAILED";
+  "PENDING" | "RUNNING" | "SUCCEEDED" | "SKIPPED" | "NEEDS_ACTION" | "FAILED";
 
 export type AutomationArtifactType =
-  | "LEAD"
-  | "RECEIVABLE_PLAN"
-  | "BRIEFING"
-  | "PROJECT_CHECKLIST"
-  | "TASK";
+  "LEAD" | "RECEIVABLE_PLAN" | "BRIEFING" | "PROJECT_CHECKLIST" | "TASK";
 
 export interface AutomationStep {
   id: string;
@@ -1370,7 +1332,6 @@ export interface PostSaleSettingsResult {
   missing: string[];
 }
 
-
 export interface ProjectChecklistSummary extends ProjectChecklist {
   progressPercent: number;
 }
@@ -1378,4 +1339,16 @@ export interface ProjectChecklistSummary extends ProjectChecklist {
 export interface ProjectChecklistDetail extends ProjectChecklist {
   phases: ProjectChecklistPhase[];
   progressPercent: number;
+}
+
+// ===== Cofre Financeiro =====
+
+/** Resposta da tela bloqueada. Não carrega NADA financeiro de propósito: é
+ *  consultada antes do desbloqueio, e um saldo ou uma contagem aqui já seria
+ *  vazamento pra quem estiver olhando a tela por cima do ombro. */
+export interface VaultStatus {
+  enabled: boolean;
+  /** ISO. Presente só enquanto o Cofre está temporariamente bloqueado. */
+  lockedUntil: string | null;
+  attemptsRemaining: number;
 }

@@ -89,13 +89,13 @@ pnpm --filter @millead/api dev:worker
 
 ## Scripts principais
 
-| Comando                          | O que faz                                                                       |
-| -------------------------------- | ------------------------------------------------------------------------------- |
-| `pnpm dev`                       | api + web em modo watch (via Turborepo)                                         |
-| `pnpm build`                     | build de produção de tudo                                                       |
-| `pnpm lint` / `pnpm type-check`  | qualidade em todo o monorepo                                                    |
-| `pnpm db:studio`                 | GUI do Prisma pra inspecionar o banco                                           |
-| `pnpm docker:up` / `docker:down` | sobe/derruba a infra local alternativa (opcional — o padrão é Supabase)         |
+| Comando                          | O que faz                                                               |
+| -------------------------------- | ----------------------------------------------------------------------- |
+| `pnpm dev`                       | api + web em modo watch (via Turborepo)                                 |
+| `pnpm build`                     | build de produção de tudo                                               |
+| `pnpm lint` / `pnpm type-check`  | qualidade em todo o monorepo                                            |
+| `pnpm db:studio`                 | GUI do Prisma pra inspecionar o banco                                   |
+| `pnpm docker:up` / `docker:down` | sobe/derruba a infra local alternativa (opcional — o padrão é Supabase) |
 
 ## Roadmap de fases
 
@@ -213,6 +213,35 @@ ou já atrasados — o prazo vem do contrato assinado.
 Detalhes de design, estados, idempotência e como testar à mão:
 [a spec](./docs/superpowers/specs/2026-08-26-post-sale-automation-design.md).
 
+## Cofre Financeiro (área pessoal do dono da conta)
+
+Área privada em `/cofre` para finanças pessoais, separada do financeiro da
+MilWeb. **Fase 1 de 10 concluída**: toda a camada de segurança. Contas,
+cartões, movimentações, importação de OFX/CSV, assinaturas, dívidas e a ponte
+com o Centro de Custos entram nas fases seguintes.
+
+O que já está de pé:
+
+- **Não usa RBAC, de propósito.** `ADMIN_PERMISSIONS` é `ALL_PERMISSIONS`
+  menos billing — uma permissão `vault:*` nova entraria sozinha no papel Admin
+  de toda organização. A autorização é **posse** (`PersonalVault.ownerUserId`,
+  unique) + **sessão elevada**. Cada usuário cria o seu Cofre; ninguém vê o de
+  ninguém.
+- **Reautenticação com a senha da conta**, sessão elevada própria de 15min de
+  inatividade, com segredo separado do access token (`VAULT_SESSION_SECRET`;
+  a API recusa subir em produção com os dois iguais).
+- **"Bloquear agora" revoga no servidor**, não só limpa o cookie. Logout e
+  troca de senha fecham o Cofre pelo mesmo caminho.
+- **Lockout escalonado persistido no banco** (5 tentativas → 1/5/15/60 min),
+  porque um contador em memória zeraria a cada cold start do Render free.
+- **404, nunca 403**: quem não é dono não descobre que o Cofre existe.
+- **Auditoria fora da trilha da organização** (`organizationId` null) e sem
+  nenhum valor financeiro.
+
+Requer `VAULT_SESSION_SECRET` no `.env` — sem ela o módulo inteiro responde
+404 (fecha, não degrada). Design completo, decisões e roadmap em
+[docs/personal-finance-vault.md](./docs/personal-finance-vault.md).
+
 ## Gestão de equipe
 
 - [x] Convites por e-mail/link com token opaco, hash no banco, expiração em
@@ -237,21 +266,21 @@ Todas as rotas abaixo exigem `Authorization: Bearer <accessToken>` (ver
 RBAC. Listagens aceitam `?page=&pageSize=` (paginação) e devolvem
 `{ items, page, pageSize, total, totalPages }`.
 
-| Recurso    | Rotas                                                                                                                                                                                   |
+| Recurso | Rotas |
 | ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
-| Empresas   | `POST/GET /api/v1/companies`, `GET/PATCH /:id`, `POST/DELETE /:id/websites[/:websiteId]`, `POST/DELETE /:id/socials[/:socialId]`                                                        |
-| Leads      | `POST/GET /api/v1/leads`, `GET/PATCH /:id`, `PATCH /:id/stage`, `POST/DELETE /:id/contacts[/:contactId]`, `POST /:id/notes`, `POST/DELETE /:id/tags[/:tagId]`, `GET /:id/activities`    |
-| Etiquetas  | `GET/POST /api/v1/tags`                                                                                                                                                                 |
-| Pipelines  | `GET/POST /api/v1/pipelines`, `GET /:id`, `POST /:id/stages`                                                                                                                            |
-| Tarefas    | `POST/GET /api/v1/tasks`, `GET/PATCH/DELETE /:id`                                                                                                                                       |
-| Reuniões   | `POST/GET /api/v1/meetings`, `GET/PATCH /:id`, `POST/DELETE /:id/attendees[/:attendeeId]`                                                                                               |
-| Propostas  | `POST/GET /api/v1/proposals`, `GET/PATCH /:id`                                                                                                                                          |
-| Auditorias | `POST /api/v1/audits` (202 -- processa via worker), `GET /api/v1/audits[?companyId=&status=]`, `GET /:id`                                                                               |
-| IA         | `GET /api/v1/ai/status`, `POST /api/v1/ai/leads/:id/score`, `POST .../report`, `POST .../message`, `POST /api/v1/ai/creative-direction` (503 sem `ANTHROPIC_API_KEY`)                   |
-| Mensagens  | `GET /api/v1/messages[?leadId=&status=&channel=]`, `PATCH /:id`, `GET/POST /api/v1/messages/templates`, `PATCH /templates/:id`                                                          |
-| Contratos  | `POST/GET /api/v1/contracts`, `GET /kpis`, `GET /post-sale/pending`, `GET /:id[/pdf]`, `PATCH /:id/status`, `POST /:id/reprocess`, `GET /:id/post-sale`, `POST /:id/post-sale/reprocess` -- públicas: `POST /api/v1/public/contracts`, `POST /api/v1/webhooks/signature` |
-| Equipe     | `GET /api/v1/team/directory`, membros, convites e papéis em `/api/v1/team/*`; públicas: `POST /api/v1/public/team-invitations/preview                                                   | accept` |
-| Configurações | `GET /api/v1/settings/integrations`, `PATCH /profile`, `PATCH /organization`, `GET/PATCH /post-sale-automation`                                                                                                                              |
+| Empresas | `POST/GET /api/v1/companies`, `GET/PATCH /:id`, `POST/DELETE /:id/websites[/:websiteId]`, `POST/DELETE /:id/socials[/:socialId]` |
+| Leads | `POST/GET /api/v1/leads`, `GET/PATCH /:id`, `PATCH /:id/stage`, `POST/DELETE /:id/contacts[/:contactId]`, `POST /:id/notes`, `POST/DELETE /:id/tags[/:tagId]`, `GET /:id/activities` |
+| Etiquetas | `GET/POST /api/v1/tags` |
+| Pipelines | `GET/POST /api/v1/pipelines`, `GET /:id`, `POST /:id/stages` |
+| Tarefas | `POST/GET /api/v1/tasks`, `GET/PATCH/DELETE /:id` |
+| Reuniões | `POST/GET /api/v1/meetings`, `GET/PATCH /:id`, `POST/DELETE /:id/attendees[/:attendeeId]` |
+| Propostas | `POST/GET /api/v1/proposals`, `GET/PATCH /:id` |
+| Auditorias | `POST /api/v1/audits` (202 -- processa via worker), `GET /api/v1/audits[?companyId=&status=]`, `GET /:id` |
+| IA | `GET /api/v1/ai/status`, `POST /api/v1/ai/leads/:id/score`, `POST .../report`, `POST .../message`, `POST /api/v1/ai/creative-direction` (503 sem `ANTHROPIC_API_KEY`) |
+| Mensagens | `GET /api/v1/messages[?leadId=&status=&channel=]`, `PATCH /:id`, `GET/POST /api/v1/messages/templates`, `PATCH /templates/:id` |
+| Contratos | `POST/GET /api/v1/contracts`, `GET /kpis`, `GET /post-sale/pending`, `GET /:id[/pdf]`, `PATCH /:id/status`, `POST /:id/reprocess`, `GET /:id/post-sale`, `POST /:id/post-sale/reprocess` -- públicas: `POST /api/v1/public/contracts`, `POST /api/v1/webhooks/signature` |
+| Equipe | `GET /api/v1/team/directory`, membros, convites e papéis em `/api/v1/team/*`; públicas: `POST /api/v1/public/team-invitations/preview                                                   | accept` |
+| Configurações | `GET /api/v1/settings/integrations`, `PATCH /profile`, `PATCH /organization`, `GET/PATCH /post-sale-automation` |
 
 Detalhes de design que valem saber antes de consumir essa API:
 
