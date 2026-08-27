@@ -107,7 +107,8 @@ tarefas. Design completo em
 `PersonalVault` · `PersonalAccount` · `PersonalCreditCard` ·
 `PersonalCategory` · `PersonalMerchant` · `PersonalMerchantAlias` ·
 `PersonalTransaction` · `PersonalTransactionSplit` · `PersonalStatement` ·
-`PersonalImportBatch` · `PersonalImportProfile`
+`PersonalImportBatch` · `PersonalImportProfile` ·
+`PersonalClassificationRule`
 
 **Unica tabela do schema SEM `organizationId`, de proposito.** O dono e o
 usuario (`ownerUserId`, com `@unique`), nao a organizacao. A coluna
@@ -170,8 +171,21 @@ Importacao (fase 3):
   sobre o unique `(vault_id, fingerprint)` -- e o banco, nao a checagem da
   pre-visualizacao, que impede a linha repetida de entrar.
 
-As tabelas das fases seguintes (regras, assinaturas, dividas) seguem a mesma
-regra: dono pelo Cofre, nunca por organizacao.
+Classificacao (fase 4):
+
+- `personal_classification_rules` tem condicoes (contem/comeca/exato,
+  fornecedor, conta, cartao, faixa de valor) combinadas com E, e acoes
+  (fornecedor, categoria, percentual empresarial). `priority` menor roda
+  primeiro, com desempate por id -- sem ordem total, a mesma movimentacao
+  cairia em categorias diferentes entre execucoes.
+- Tres CHECKs: percentual em 0..100, faixa de valor coerente e
+  `match_type`/`match_value` sempre juntos.
+- `match_value` e gravado JA NORMALIZADO, igual a descricao da movimentacao --
+  normalizar na escrita e o que faz a comparacao ser igualdade simples.
+- A ligacao com assinatura entra na fase 5 como coluna aditiva.
+
+As tabelas das fases seguintes (assinaturas, dividas) seguem a mesma regra:
+dono pelo Cofre, nunca por organizacao.
 
 ### 7. Billing
 

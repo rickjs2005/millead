@@ -2034,6 +2034,7 @@ model PersonalVault {
   statements   PersonalStatement[]
   importBatches   PersonalImportBatch[]
   importProfiles  PersonalImportProfile[]
+  rules           PersonalClassificationRule[]
 
   @@map("personal_vaults")
 }
@@ -2137,6 +2138,7 @@ model PersonalAccount {
   paidCards    PersonalCreditCard[] @relation("CardPaymentAccount")
   importBatches   PersonalImportBatch[]
   importProfiles  PersonalImportProfile[]
+  rules           PersonalClassificationRule[]
 
   @@index([vaultId, isActive])
   @@map("personal_accounts")
@@ -2168,6 +2170,7 @@ model PersonalCreditCard {
   statements     PersonalStatement[]
   importBatches  PersonalImportBatch[]
   importProfiles PersonalImportProfile[]
+  rules          PersonalClassificationRule[]
 
   @@index([vaultId, isActive])
   @@map("personal_credit_cards")
@@ -2200,6 +2203,7 @@ model PersonalCategory {
   transactions PersonalTransaction[]
   splits       PersonalTransactionSplit[]
   merchants    PersonalMerchant[]
+  rules        PersonalClassificationRule[]
 
   @@unique([vaultId, systemKey])
   @@unique([vaultId, parentId, name])
@@ -2223,6 +2227,8 @@ model PersonalMerchant {
   defaultCategory PersonalCategory?       @relation(fields: [defaultCategoryId], references: [id], onDelete: SetNull)
   aliases         PersonalMerchantAlias[]
   transactions    PersonalTransaction[]
+  rulesMatching   PersonalClassificationRule[] @relation("RuleMatchMerchant")
+  rulesSetting    PersonalClassificationRule[] @relation("RuleSetMerchant")
 
   @@unique([vaultId, name])
   @@index([vaultId, isActive])
@@ -2513,4 +2519,86 @@ model PersonalImportProfile {
   @@unique([vaultId, name])
   @@index([vaultId])
   @@map("personal_import_profiles")
+}
+
+// -------------------------------------------------------------------
+// Cofre Financeiro -- classificacao (fase 4): regras deterministicas.
+//
+// Nenhuma IA participa disto, por decisao explicita. Classificacao de gasto
+// alimenta relatorio e, na fase 7, despesa da empresa -- um palpite errado
+// nao gera erro, gera um numero plausivel. Regra deterministica erra sempre
+// do mesmo jeito, e voce conserta uma vez.
+// -------------------------------------------------------------------
+
+enum PersonalRuleMatchType {
+  /// A descricao normalizada CONTEM o texto.
+  CONTAINS
+  /// A descricao normalizada COMECA com o texto.
+  STARTS_WITH
+  /// A descricao normalizada e exatamente o texto.
+  EXACT
+
+  @@map("personal_rule_match_type")
+}
+
+/// Regra "se a descricao contem X, entao categoria Y".
+///
+/// As condicoes preenchidas sao combinadas com E (todas precisam casar). Uma
+/// regra sem condicao nenhuma casaria com tudo -- o service recusa.
+model PersonalClassificationRule {
+  id      String  @id @default(cuid())
+  vaultId String  @map("vault_id")
+  /// Rotulo seu, so pra reconhecer a regra na lista.
+  name    String?
+
+  /// Menor roda primeiro. Ordem explicita, e nao "ordem de criacao": a regra
+  /// especifica ("IFOOD ESTACIONAMENTO" -> Transporte) precisa ser avaliada
+  /// antes da generica ("IFOOD" -> Delivery), e isso nao tem relacao nenhuma
+  /// com qual das duas voce criou primeiro.
+  priority Int     @default(100)
+  isActive Boolean @default(true) @map("is_active")
+
+  // ----- Condicoes (todas as preenchidas precisam casar) -----
+
+  matchType PersonalRuleMatchType? @map("match_type")
+  /// Guardado JA NORMALIZADO (maiusculas, sem acento). Normalizar na escrita
+  /// e o que faz a comparacao ser uma igualdade simples em vez de depender de
+  /// toda leitura lembrar de normalizar dos dois lados.
+  matchValue String? @map("match_value")
+
+  matchMerchantId String? @map("match_merchant_id")
+  matchAccountId  String? @map("match_account_id")
+  matchCardId     String? @map("match_card_id")
+  /// Faixa de valor em BRL, inclusiva nas duas pontas.
+  matchAmountMin Decimal? @map("match_amount_min") @db.Decimal(14, 2)
+  matchAmountMax Decimal? @map("match_amount_max") @db.Decimal(14, 2)
+
+  // ----- Acoes -----
+
+  setMerchantId String? @map("set_merchant_id")
+  setCategoryId String? @map("set_category_id")
+  /// Quanto da movimentacao e despesa da empresa, em porcentagem (0-100).
+  /// Nulo = a regra nao opina sobre isso. 100 = "100% empresarial", o caso do
+  /// exemplo do Claude.
+  ///
+  /// Porcentagem, e nao valor: o valor muda a cada cobranca (cambio, plano),
+  /// a proporcao nao.
+  businessPercent Decimal? @map("business_percent") @db.Decimal(5, 2)
+
+  /// A ligacao com assinatura entra na FASE 5, junto com a tabela de
+  /// assinaturas -- como coluna aditiva. Criar a FK agora apontaria pra uma
+  /// tabela que ainda nao existe.
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  vault       PersonalVault     @relation(fields: [vaultId], references: [id], onDelete: Cascade)
+  matchMerchant PersonalMerchant? @relation("RuleMatchMerchant", fields: [matchMerchantId], references: [id], onDelete: Cascade)
+  matchAccount  PersonalAccount?  @relation(fields: [matchAccountId], references: [id], onDelete: Cascade)
+  matchCard     PersonalCreditCard? @relation(fields: [matchCardId], references: [id], onDelete: Cascade)
+  setMerchant   PersonalMerchant? @relation("RuleSetMerchant", fields: [setMerchantId], references: [id], onDelete: SetNull)
+  setCategory   PersonalCategory? @relation(fields: [setCategoryId], references: [id], onDelete: SetNull)
+
+  @@index([vaultId, isActive, priority])
+  @@map("personal_classification_rules")
 }

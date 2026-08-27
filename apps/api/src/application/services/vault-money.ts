@@ -51,3 +51,20 @@ export function sumMoney(values: readonly string[]): number {
 export function compareMoney(a: string, b: string): number {
   return Math.sign(parseMoney(a) - parseMoney(b));
 }
+
+/**
+ * Quanto por cento de um valor, em centavos, arredondado meio-pra-cima.
+ *
+ * Usado pelo percentual empresarial das regras: 100% de R$120 é R$120, e
+ * 33,33% de R$100 é R$33,33. Arredondar aqui (e não deixar fração de centavo
+ * correr solta) é o que mantém a soma pessoal + empresarial fechando no total.
+ */
+export function percentOfMoney(cents: number, percent: string): number {
+  const parsed = Number(percent);
+  if (!Number.isFinite(parsed) || parsed < 0 || parsed > 100) {
+    throw new Error(`Percentual inválido: ${JSON.stringify(percent)}`);
+  }
+  // Multiplica em centésimos de centavo antes de arredondar, pra 33,33% não
+  // virar 33,32 por erro de ponto flutuante acumulado.
+  return Math.round((cents * parsed) / 100);
+}

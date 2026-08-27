@@ -25,6 +25,12 @@ import {
   previewImportSchema,
   updateImportProfileSchema,
 } from "../../../application/dto/personal-import.dto.js";
+import {
+  classificationRunSchema,
+  correctClassificationSchema,
+  createRuleSchema,
+  updateRuleSchema,
+} from "../../../application/dto/personal-classification.dto.js";
 import { asyncHandler } from "../async-handler.js";
 import type { PersonalFinanceController } from "../controllers/personal-finance-controller.js";
 import { validateBody, validateQuery } from "../middlewares/validate.js";
@@ -131,6 +137,11 @@ export function createVaultDataRoutes(
     asyncHandler(controller.updateTransaction),
   );
   router.delete("/transactions/:id", asyncHandler(controller.deleteTransaction));
+  router.patch(
+    "/transactions/:id/classification",
+    validateBody(correctClassificationSchema),
+    asyncHandler(controller.correctClassification),
+  );
   router.put(
     "/transactions/:id/splits",
     validateBody(replaceSplitsSchema),
@@ -167,6 +178,17 @@ export function createVaultDataRoutes(
     "/imports",
     validateQuery(importHistoryQuerySchema),
     asyncHandler(controller.listImports),
+  );
+
+  // ----- Classificação e regras -----
+  router.get("/rules", listQuery, asyncHandler(controller.listRules));
+  router.post("/rules", validateBody(createRuleSchema), asyncHandler(controller.createRule));
+  router.patch("/rules/:id", validateBody(updateRuleSchema), asyncHandler(controller.updateRule));
+  router.delete("/rules/:id", asyncHandler(controller.deleteRule));
+  router.post(
+    "/classification/run",
+    validateBody(classificationRunSchema),
+    asyncHandler(controller.runClassification),
   );
 
   // ----- Faturas -----

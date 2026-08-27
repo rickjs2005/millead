@@ -82,6 +82,9 @@ export interface TransactionFilters {
   categoryId?: string;
   merchantId?: string;
   statementId?: string;
+  /** Movimentações de um lote de importação — usado pela classificação logo
+   *  depois de confirmar a importação. */
+  importBatchId?: string;
   status?: PersonalTransactionStatus;
   direction?: PersonalTransactionDirection;
   /** `false` esconde transferências e pagamento de fatura dos totais de gasto. */
@@ -147,6 +150,24 @@ export interface PersonalTransactionRepository {
    *  pré-visualização da importação (fase 3) usa pra mostrar as duplicatas
    *  ANTES de confirmar. */
   findExistingFingerprints(vaultId: string, fingerprints: string[]): Promise<Set<string>>;
+
+  /** Como uma movimentação anterior com o MESMO identificador externo foi
+   *  classificada. Nível 1 da cascata: reimportar um FITID já revisado devolve
+   *  a classificação que você deu, em vez de recomeçar do zero. */
+  findClassificationByExternalId(
+    vaultId: string,
+    origin: { accountId: string | null; cardId: string | null },
+    externalId: string,
+  ): Promise<{ merchantId: string | null; categoryId: string | null } | null>;
+
+  /** Como a mesma descrição normalizada já foi classificada antes, agrupado.
+   *  Devolve os grupos crus — quem decide se há recorrência é
+   *  `resolveRecurrence`, que é puro e testável. */
+  listClassificationHistory(
+    vaultId: string,
+    normalizedDescription: string,
+    excludeTransactionId: string | null,
+  ): Promise<Array<{ categoryId: string | null; merchantId: string | null; count: number }>>;
 
   /** Soma dos valores em BRL das movimentações de uma fatura (recalcula o
    *  total sem confiar num acumulador que pode dessincronizar). */

@@ -146,6 +146,8 @@ function makeFakes() {
       }
       return count;
     },
+    findClassificationByExternalId: async () => null,
+    listClassificationHistory: async () => [],
     findExistingFingerprints: async (_v, fingerprints) =>
       new Set(fingerprints.filter((fp) => transactions.some((t) => t.fingerprint === fp))),
     sumByStatement: async (_v, statementId) =>

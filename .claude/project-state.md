@@ -182,15 +182,60 @@ limpos.
 
 **Ainda nao ha tela** pro nucleo nem pra importacao -- telas sao a fase 8.
 
+## Trabalho de 27/08/2026 — Cofre Financeiro, Fase 4 (classificacao)
+
+Mesma branch `feat/cofre-financeiro`, **nao mergeada, nao deployada**. Cascata
+deterministica de 5 niveis + regras do usuario, **sem IA nenhuma** (decisao
+explicita do pedido: palpite errado em classificacao nao gera erro, gera numero
+plausivel).
+
+Decisoes que valem lembrar:
+
+- **Preenchimento de lacunas, nao "o primeiro nivel decide tudo".** Cada nivel
+  preenche so o que os anteriores deixaram vazio. Sem isso, uma regra do tipo
+  "tudo neste cartao e 100% empresarial" bloquearia o alias e deixaria a
+  movimentacao sem categoria -- a regra tornaria o resultado PIOR do que se
+  nao existisse.
+- **Recorrencia nao e voto de maioria.** Descricao que ja foi pra duas
+  categorias diferentes volta pra revisao; escolher a mais frequente
+  classificaria errado com ar de certeza.
+- **Ordem de regras e explicita** (`priority`, desempate por id). Sem ordem
+  total, a mesma movimentacao cairia em categorias diferentes entre execucoes.
+- **O automatico nunca sobrescreve divisao feita a mao** -- so a correcao
+  manual sobrescreve, porque ai quem pediu foi o Rick.
+- **"Criar regra" nao reclassifica o passado**, por ser literal ao pedido
+  ("regra para as proximas").
+- Regra sem condicao e regra sem acao sao recusadas; editar valida o
+  RESULTADO da mesclagem, nao so o patch.
+- `resolvedBy` diz qual nivel decidiu cada campo -- e o que vai permitir a tela
+  explicar a classificacao.
+
+A importacao (fase 3) passou a disparar a classificacao do lote por porta
+estreita (`TransactionClassifier`), best-effort: falha ali deixa as linhas
+PENDING, nunca desfaz a importacao.
+
+Achado do proprio teste: a fabrica de transacao do teste de classificacao
+estava sem `...over`, entao todo objeto voltava com os valores padrao -- tres
+testes falharam e apontaram direto pra causa.
+
+Migration `20260827220000_add_personal_classification_rules` **aplicada em
+producao** (aditiva: 1 tabela, 1 enum, 3 CHECKs, RLS verificados). 64 testes
+novos -> **793 na API** (1052 no monorepo). type-check, lint e build limpos.
+
+**Ainda nao ha tela** -- telas sao a fase 8.
+
 ## Bloqueios
 - Pendências registradas em memória (`millead-pendencias-seguranca`) ainda em aberto: ZapSign não configurado no Render (contratos não são assináveis de verdade em produção), 2 achados baixos de segurança (landing de IA sem sanitização própria, tokens em localStorage), permissões próprias de Contratos/Landing pages pendentes de migração.
 
 ## Próxima ação
 
-**Fase 4 do Cofre**: classificacao automatica (cascata deterministica de 6
-niveis) e regras do usuario. A base ja esta pronta: aliases de fornecedor,
-`findMerchantByAlias`, descricao normalizada e as linhas importadas esperando
-em `PENDING`.
+**Fase 5 do Cofre**: assinaturas e alertas de renovacao. A base ja esta
+pronta: o nivel `SUBSCRIPTION` da cascata ja existe (chega null hoje), e a
+regra ja tem lugar reservado pra `subscriptionId` como coluna aditiva.
+
+Ponto de atencao anotado na fase 1 e ainda valido: `PushSender` so tem
+`sendToOrg` -- alerta de assinatura pessoal iria pro navegador de toda a
+equipe. Precisa de `sendToUser` ANTES de qualquer notificacao do Cofre.
 
 Antes de usar o Cofre e preciso definir `VAULT_SESSION_SECRET` no `.env` e no
 Render — sem ela o modulo inteiro responde 404 de proposito.

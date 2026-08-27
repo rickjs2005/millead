@@ -216,9 +216,9 @@ Detalhes de design, estados, idempotência e como testar à mão:
 ## Cofre Financeiro (área pessoal do dono da conta)
 
 Área privada em `/cofre` para finanças pessoais, separada do financeiro da
-MilWeb. **Fases 1 a 3 de 10 concluídas**: segurança, núcleo financeiro e
-importação de extrato. Classificação, assinaturas, dívidas e a ponte com o
-Centro de Custos entram nas fases seguintes.
+MilWeb. **Fases 1 a 4 de 10 concluídas**: segurança, núcleo financeiro,
+importação de extrato e classificação automática. Assinaturas, dívidas e a
+ponte com o Centro de Custos entram nas fases seguintes.
 
 Segurança:
 
@@ -271,6 +271,19 @@ Importação de OFX/CSV:
   a importação ser idempotente no banco, não só na conferência.
 - **Erros de linha são códigos**, nunca o texto do extrato.
 - Modelos de mapeamento por banco/cartão, porque CSV de banco não tem padrão.
+
+Classificação automática (**sem IA, por decisão**):
+
+- Cascata de 5 níveis: identificador externo → sua regra → alias de fornecedor
+  → assinatura (fase 5) → recorrência determinística. O que sobra fica
+  pendente esperando revisão.
+- **Cada nível preenche só o que os anteriores deixaram vazio.** Uma regra que
+  diz só "100% empresarial" não bloqueia o alias de resolver a categoria.
+- **Recorrência não é voto de maioria**: descrição que já foi pra duas
+  categorias diferentes volta pra revisão em vez de escolher a mais comum.
+- **O automático nunca sobrescreve rateio que você fez à mão.**
+- "Corrigir só esta" ou "criar regra para as próximas" — criar regra não mexe
+  no passado.
 
 Requer `VAULT_SESSION_SECRET` no `.env` — sem ela o módulo inteiro responde
 404 (fecha, não degrada). Design completo, decisões e roadmap em

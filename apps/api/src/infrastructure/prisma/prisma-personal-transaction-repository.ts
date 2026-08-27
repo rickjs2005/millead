@@ -203,6 +203,52 @@ export class PrismaPersonalTransactionRepository implements PersonalTransactionR
     return new Set(rows.flatMap((row) => (row.fingerprint ? [row.fingerprint] : [])));
   }
 
+  async findClassificationByExternalId(
+    vaultId: string,
+    origin: { accountId: string | null; cardId: string | null },
+    externalId: string,
+  ): Promise<{ merchantId: string | null; categoryId: string | null } | null> {
+    // Escopado pela origem: FITID é único DENTRO da conta, não no mundo -- dois
+    // bancos podem emitir o mesmo "1".
+    const row = await prisma.personalTransaction.findFirst({
+      where: {
+        vaultId,
+        externalId,
+        accountId: origin.accountId,
+        cardId: origin.cardId,
+        categoryId: { not: null },
+      },
+      select: { merchantId: true, categoryId: true },
+      orderBy: { updatedAt: "desc" },
+    });
+    return row ?? null;
+  }
+
+  async listClassificationHistory(
+    vaultId: string,
+    normalizedDescription: string,
+    excludeTransactionId: string | null,
+  ): Promise<Array<{ categoryId: string | null; merchantId: string | null; count: number }>> {
+    // Só o que VOCÊ já confirmou conta como histórico. Incluir linhas ainda
+    // pendentes faria uma classificação automática confirmar a si mesma na
+    // rodada seguinte.
+    const groups = await prisma.personalTransaction.groupBy({
+      by: ["categoryId", "merchantId"],
+      where: {
+        vaultId,
+        normalizedDescription,
+        status: "CONFIRMED",
+        ...(excludeTransactionId ? { id: { not: excludeTransactionId } } : {}),
+      },
+      _count: { _all: true },
+    });
+    return groups.map((group) => ({
+      categoryId: group.categoryId,
+      merchantId: group.merchantId,
+      count: group._count._all,
+    }));
+  }
+
   async sumByStatement(vaultId: string, statementId: string): Promise<string> {
     // Soma no banco, sempre a partir das linhas -- um acumulador na fatura
     // dessincronizaria assim que uma movimentação fosse editada ou estornada.
@@ -237,6 +283,7 @@ function buildWhere(
     ...(filters.categoryId ? { categoryId: filters.categoryId } : {}),
     ...(filters.merchantId ? { merchantId: filters.merchantId } : {}),
     ...(filters.statementId ? { statementId: filters.statementId } : {}),
+    ...(filters.importBatchId ? { importBatchId: filters.importBatchId } : {}),
     ...(filters.status ? { status: filters.status } : {}),
     ...(filters.direction ? { direction: filters.direction } : {}),
     // Transferência some por padrão: ela move dinheiro entre bolsos seus e

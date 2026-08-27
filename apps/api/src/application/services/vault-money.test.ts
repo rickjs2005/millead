@@ -4,6 +4,7 @@ import {
   compareMoney,
   formatMoney,
   parseMoney,
+  percentOfMoney,
   subtractMoney,
   sumMoney,
 } from "./vault-money.js";
@@ -62,5 +63,26 @@ describe("formatMoney", () => {
   it("preserva o sinal negativo", () => {
     expect(formatMoney(-1)).toBe("-0.01");
     expect(formatMoney(-12050)).toBe("-120.50");
+  });
+});
+
+describe("percentOfMoney", () => {
+  it("100% é o valor inteiro", () => {
+    expect(formatMoney(percentOfMoney(parseMoney("120.00"), "100"))).toBe("120.00");
+  });
+
+  it("percentual fracionado arredonda meio-pra-cima", () => {
+    expect(formatMoney(percentOfMoney(parseMoney("100.00"), "33.33"))).toBe("33.33");
+    expect(formatMoney(percentOfMoney(parseMoney("100.00"), "0.005"))).toBe("0.01");
+  });
+
+  it("0% é zero", () => {
+    expect(percentOfMoney(parseMoney("120.00"), "0")).toBe(0);
+  });
+
+  it("recusa percentual fora de 0..100", () => {
+    expect(() => percentOfMoney(1000, "-1")).toThrow();
+    expect(() => percentOfMoney(1000, "101")).toThrow();
+    expect(() => percentOfMoney(1000, "abc")).toThrow();
   });
 });

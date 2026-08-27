@@ -25,10 +25,18 @@ import type {
   PreviewImportBody,
   UpdateImportProfileBody,
 } from "../../../application/dto/personal-import.dto.js";
+import type {
+  ClassificationRunBody,
+  CorrectClassificationBody,
+  CreateRuleBody,
+  UpdateRuleBody,
+} from "../../../application/dto/personal-classification.dto.js";
 import type { PersonalAccountService } from "../../../application/services/personal-account-service.js";
+import type { PersonalClassificationService } from "../../../application/services/personal-classification-service.js";
 import type { PersonalImportService } from "../../../application/services/personal-import-service.js";
 import type { PersonalCatalogService } from "../../../application/services/personal-catalog-service.js";
 import type { PersonalTransactionService } from "../../../application/services/personal-transaction-service.js";
+import { parseMoney } from "../../../application/services/vault-money.js";
 import { requireVaultContext } from "../require-vault-context.js";
 
 /**
@@ -45,6 +53,7 @@ export class PersonalFinanceController {
     private readonly catalog: PersonalCatalogService,
     private readonly transactions: PersonalTransactionService,
     private readonly imports: PersonalImportService,
+    private readonly classification: PersonalClassificationService,
   ) {}
 
   // ----- Contas -----
@@ -302,6 +311,63 @@ export class PersonalFinanceController {
     res.status(204).send();
   };
 
+  // ----- Classificação e regras -----
+
+  listRules = async (req: Request, res: Response): Promise<void> => {
+    const { vaultId } = requireVaultContext(req);
+    const { includeInactive } = req.validatedQuery as ListQuery;
+    res.json(await this.classification.list(vaultId, includeInactive));
+  };
+
+  createRule = async (req: Request, res: Response): Promise<void> => {
+    const { vaultId } = requireVaultContext(req);
+    const body = req.body as CreateRuleBody;
+    res.status(201).json(
+      await this.classification.createRule(vaultId, {
+        ...body,
+        isActive: true,
+        matchAmountMinCents: toCents(body.matchAmountMin),
+        matchAmountMaxCents: toCents(body.matchAmountMax),
+      }),
+    );
+  };
+
+  updateRule = async (req: Request, res: Response): Promise<void> => {
+    const { vaultId } = requireVaultContext(req);
+    const body = req.body as UpdateRuleBody;
+    const { matchAmountMin, matchAmountMax, ...rest } = body;
+    res.json(
+      await this.classification.updateRule(vaultId, req.params.id!, {
+        ...rest,
+        ...(matchAmountMin !== undefined ? { matchAmountMinCents: toCents(matchAmountMin) } : {}),
+        ...(matchAmountMax !== undefined ? { matchAmountMaxCents: toCents(matchAmountMax) } : {}),
+      }),
+    );
+  };
+
+  deleteRule = async (req: Request, res: Response): Promise<void> => {
+    const { vaultId } = requireVaultContext(req);
+    await this.classification.deleteRule(vaultId, req.params.id!);
+    res.status(204).send();
+  };
+
+  runClassification = async (req: Request, res: Response): Promise<void> => {
+    const { vaultId } = requireVaultContext(req);
+    const { limit } = req.body as ClassificationRunBody;
+    res.json(await this.classification.runPending(vaultId, limit));
+  };
+
+  correctClassification = async (req: Request, res: Response): Promise<void> => {
+    const { vaultId } = requireVaultContext(req);
+    res.json(
+      await this.classification.correct(
+        vaultId,
+        req.params.id!,
+        req.body as CorrectClassificationBody,
+      ),
+    );
+  };
+
   // ----- Faturas -----
 
   listStatements = async (req: Request, res: Response): Promise<void> => {
@@ -321,4 +387,9 @@ export class PersonalFinanceController {
       await this.transactions.payStatement(vaultId, req.params.id!, req.body as PayStatementBody),
     );
   };
+}
+
+/** String decimal -> centavos, preservando null. */
+function toCents(value: string | null): number | null {
+  return value === null ? null : parseMoney(value);
 }

@@ -5,10 +5,10 @@ de uma exigência simples e incomum no resto do sistema: nenhum membro da
 equipe pode ver, consultar ou inferir o que está aqui — nem quem tem papel
 Owner ou Admin na organização.
 
-> **Estado atual: Fase 3 de 10.** Segurança, núcleo financeiro e importação de
-> OFX/CSV prontos e testados. Classificação, assinaturas, dívidas, integração
-> com o financeiro da MilWeb, dashboard e exportação são as fases seguintes —
-> ver [Roadmap](#roadmap).
+> **Estado atual: Fase 4 de 10.** Segurança, núcleo financeiro, importação de
+> OFX/CSV e classificação automática prontos e testados. Assinaturas, dívidas,
+> integração com o financeiro da MilWeb, dashboard e exportação são as fases
+> seguintes — ver [Roadmap](#roadmap).
 
 ## A decisão que define o módulo: sem RBAC
 
@@ -434,6 +434,109 @@ Limite de 1 MB por arquivo (o do body-parser da API). É folgado: um extrato
 mensal em CSV tem ~15 KB e em OFX ~50 KB. A mensagem de erro sugere importar
 por período quando alguém tenta o ano inteiro de uma vez.
 
+## Classificação automática e regras (fase 4)
+
+**Nenhuma IA participa disto**, por decisão explícita. Classificação alimenta
+relatório e, na fase 7, despesa da empresa — um palpite errado não gera erro,
+gera um número plausível. Regra determinística erra sempre do mesmo jeito, e
+você conserta uma vez.
+
+### A cascata
+
+| #   | Nível            | O que é                                                               |
+| --- | ---------------- | --------------------------------------------------------------------- |
+| 1   | `EXTERNAL_ID`    | O mesmo FITID já classificado antes — reimportar não recomeça do zero |
+| 2   | `RULE`           | A primeira regra sua que casar, por prioridade                        |
+| 3   | `MERCHANT_ALIAS` | `ANTHROPIC` → Claude → categoria padrão do Claude                     |
+| 4   | `SUBSCRIPTION`   | Fase 5; hoje chega sempre null                                        |
+| 5   | `RECURRENCE`     | A mesma descrição já classificada por você, sempre igual              |
+| 6   | revisão manual   | Nada resolveu — a movimentação fica `PENDING`                         |
+
+### Preenchimento de lacunas, não "o primeiro decide tudo"
+
+Cada nível preenche apenas os campos que os anteriores deixaram vazios, e nunca
+sobrescreve um nível mais alto.
+
+A alternativa seria mais simples e pior: uma regra do tipo "tudo neste cartão é
+100% empresarial" não diz categoria nenhuma, e bloquearia o alias, deixando a
+movimentação sem categoria. A regra tornaria o resultado **pior do que se ela
+não existisse** — o oposto do que uma regra deve fazer.
+
+`resolvedBy` guarda qual nível decidiu cada campo, e é o que permite a tela
+explicar por que a movimentação ficou como ficou.
+
+### Recorrência não é voto de maioria
+
+Duas ocorrências iguais bastam para virar sugestão (uma só é coincidência). Mas
+se a mesma descrição já foi para **duas categorias diferentes**, o resultado é
+`null`, não a mais frequente: significa que ela realmente depende de contexto —
+o mesmo `PAG*LOJA` pode ser trabalho ou lazer — e escolher a mais comum
+classificaria errado com ar de certeza.
+
+Só o que você já **confirmou** conta como histórico. Incluir linhas pendentes
+faria uma classificação automática confirmar a si mesma na rodada seguinte.
+
+### Ordem de regras é explícita
+
+`priority` menor roda primeiro, e o desempate é pelo id. Isso não é detalhe: a
+regra específica (`IFOOD ESTACIONAMENTO` → Transporte) precisa ser avaliada
+antes da genérica (`IFOOD` → Delivery), e isso não tem relação nenhuma com qual
+você criou primeiro. Sem o desempate, duas regras de mesma prioridade poderiam
+alternar entre execuções e a mesma movimentação cairia em categorias diferentes
+em duas rodadas.
+
+### Duas regras que o service recusa
+
+- **Regra sem condição** casaria com toda movimentação do Cofre e o
+  reclassificaria inteiro. O matcher também recusa, de forma redundante — o
+  custo de uma escapar é alto demais.
+- **Regra sem ação** (nem categoria, nem fornecedor, nem percentual) é pior que
+  não existir: ocupa uma prioridade e tira a movimentação da revisão sem
+  classificar nada.
+
+Editar valida o **resultado da mesclagem**, não só o patch — desligar a única
+condição de uma regra a transformaria numa regra vazia.
+
+### Percentual empresarial vira divisão
+
+`businessPercent` é materializado como uma divisão `BUSINESS` do valor
+proporcional. Percentual, e não valor absoluto, porque o valor muda a cada
+cobrança (câmbio, plano) e a proporção não.
+
+**A classificação automática não toca em divisões que você já fez.** Rateio
+manual é decisão sua, e sobrescrevê-lo apagaria trabalho em silêncio. A
+correção manual sobrescreve — aí quem pediu foi você.
+
+0% não cria divisão de valor zero: é a ausência de divisão.
+
+### Corrigir esta / criar regra para as próximas
+
+A correção manual aceita `createRule`, e criar a regra **não reclassifica o
+passado**. "Para as próximas" é literal: mexer retroativamente em lançamentos
+que você já revisou desfaria decisões suas sem pedir.
+
+`scopeToOrigin` amarra a regra à conta ou ao cartão daquela movimentação.
+
+### O que a classificação faz com o status
+
+Classificada (com categoria) → `CONFIRMED`. Sem categoria → continua `PENDING`,
+esperando sua revisão. É a categoria, e não o fornecedor, que decide: sem ela a
+movimentação não entra em relatório nenhum.
+
+A importação dispara uma passada no que acabou de gravar, por uma porta
+estreita (`TransactionClassifier`) e em modo best-effort — a importação já
+aconteceu, e uma falha na classificação não pode desfazê-la; as linhas ficam
+`PENDING` e uma nova passada resolve.
+
+### API
+
+| Rota                                           | O que faz                             |
+| ---------------------------------------------- | ------------------------------------- |
+| `GET/POST /vault/rules`                        | Listar e criar regras                 |
+| `PATCH/DELETE /vault/rules/:id`                | Editar e remover                      |
+| `POST /vault/classification/run`               | Passar a cascata nas pendentes        |
+| `PATCH /vault/transactions/:id/classification` | Corrigir, opcionalmente criando regra |
+
 ## Configuração
 
 ```bash
@@ -446,7 +549,7 @@ Gere o segredo com `openssl rand -base64 48`.
 
 ## Testes
 
-252 testes cobrem as três fases, todos sem banco e sem HTTP real (exceto os
+311 testes cobrem as quatro fases, todos sem banco e sem HTTP real (exceto os
 de rota, que sobem Express numa porta efêmera).
 
 **Fase 1 — segurança:**
@@ -485,6 +588,14 @@ de rota, que sobem Express numa porta efêmera).
 | `import-dedup.test.ts`            | Duplicata no arquivo × no Cofre; FITID repetido pega mesmo com descrição e valor mudados; reimportação classifica tudo como duplicata. |
 | `personal-import-service.test.ts` | Pré-visualização **não grava nada**; reimportar não duplica; nome de arquivo higienizado; mês sem movimentação é vazio, não erro.      |
 
+**Fase 4 — classificação:**
+
+| Arquivo                                   | O que prova                                                                                                                                |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `classification-rule-match.test.ts`       | CONTAINS/STARTS_WITH/EXACT; condições combinam com E; faixa inclusiva; **regra vazia não casa com tudo**; ordem estável no empate.         |
+| `classification-cascade.test.ts`          | Os 5 níveis na ordem certa; preenchimento de lacunas sem sobrescrever; **recorrência não vira voto de maioria**; exemplo do Claude.        |
+| `personal-classification-service.test.ts` | Recusa regra sem condição e sem ação; **automático não sobrescreve divisão manual**; correção não mexe no passado; sem regra fica PENDING. |
+
 ## Roadmap
 
 | #   | Fase                                                                   | Estado |
@@ -492,7 +603,7 @@ de rota, que sobem Express numa porta efêmera).
 | 1   | Cofre, sessão elevada, reautenticação                                  | ✓      |
 | 2   | Contas, cartões, categorias, fornecedores, transações, splits, faturas | ○      |
 | 3   | Importação OFX/CSV e deduplicação                                      | ✓      |
-| 4   | Classificação e regras determinísticas                                 | ○      |
+| 4   | Classificação e regras determinísticas                                 | ✓      |
 | 5   | Assinaturas e alertas                                                  | ○      |
 | 6   | Dívidas e pagamentos                                                   | ○      |
 | 7   | Ponte com o financeiro da MilWeb (`BusinessExpense`)                   | ○      |

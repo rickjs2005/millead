@@ -11,6 +11,7 @@ import type {
   UpdateImportProfileInput,
 } from "../../domain/repositories/personal-import-repository.js";
 import type { PersonalStatementRepository } from "../../domain/repositories/personal-statement-repository.js";
+import type { TransactionClassifier } from "../../domain/services/transaction-classifier.js";
 import type {
   CreateTransactionInput,
   PersonalTransactionRepository,
@@ -113,6 +114,7 @@ export class PersonalImportService {
     private readonly transactions: PersonalTransactionRepository,
     private readonly accounts: PersonalAccountRepository,
     private readonly statements: PersonalStatementRepository,
+    private readonly classifier: TransactionClassifier,
   ) {}
 
   // ----- Pré-visualização -----
@@ -339,6 +341,13 @@ export class PersonalImportService {
     for (const statementId of new Set(statementByRow.filter((id): id is string => id !== null))) {
       const total = await this.transactions.sumByStatement(vaultId, statementId);
       await this.statements.updateTotal(vaultId, statementId, total);
+    }
+
+    // Classifica o que acabou de entrar. Best-effort: a importação já
+    // aconteceu, e uma falha aqui não pode desfazê-la -- as linhas ficam
+    // PENDING e uma nova passada resolve.
+    if (inserted > 0) {
+      await this.classifier.runForBatch(vaultId, batch.id).catch(() => undefined);
     }
 
     const updated = await this.imports.updateBatchResult(vaultId, batch.id, {

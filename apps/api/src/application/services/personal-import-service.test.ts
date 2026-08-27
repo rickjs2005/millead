@@ -126,6 +126,8 @@ function makeFakes() {
       }
       return count;
     },
+    findClassificationByExternalId: async () => null,
+    listClassificationHistory: async () => [],
     findExistingFingerprints: async (_v, fps) =>
       new Set(fps.filter((fp) => transactions.some((t) => t.fingerprint === fp))),
     sumByStatement: async () => "0",
@@ -191,8 +193,24 @@ function makeFakes() {
     deleteProfile: async () => false,
   };
 
-  const service = new PersonalImportService(importRepo, transactionRepo, accounts, statementRepo);
-  return { service, transactions, statements, batches };
+  // Classificador de mentira: a fase 4 tem teste proprio; aqui o que importa e
+  // que a importacao dispare a passada e nao quebre se ela falhar.
+  const classifierCalls: string[] = [];
+  const classifier = {
+    runForBatch: async (_v: string, batchId: string) => {
+      classifierCalls.push(batchId);
+      return { processadas: 0, classificadas: 0, pendentes: 0 };
+    },
+  };
+
+  const service = new PersonalImportService(
+    importRepo,
+    transactionRepo,
+    accounts,
+    statementRepo,
+    classifier,
+  );
+  return { service, transactions, statements, batches, classifierCalls };
 }
 
 let f: ReturnType<typeof makeFakes>;
@@ -335,6 +353,18 @@ describe("confirmação", () => {
     expect(batch.importedRows).toBe(2);
     expect(batch.duplicateRows).toBe(0);
     expect(batch.status).toBe("COMPLETED");
+  });
+
+  it("dispara a classificação do lote que acabou de entrar", async () => {
+    const batch = await confirmarOfx();
+    expect(f.classifierCalls).toEqual([batch.id]);
+  });
+
+  it("não classifica quando nada entrou", async () => {
+    await confirmarOfx();
+    f.classifierCalls.length = 0;
+    await confirmarOfx(); // tudo duplicata
+    expect(f.classifierCalls).toEqual([]);
   });
 
   it("as linhas importadas nascem PENDENTES, esperando classificação", async () => {

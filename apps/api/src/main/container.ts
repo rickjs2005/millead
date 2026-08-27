@@ -14,6 +14,7 @@ import { PostSaleSettingsService } from "../application/services/post-sale-setti
 import { ProjectChecklistService } from "../application/services/project-checklist-service.js";
 import { PersonalAccountService } from "../application/services/personal-account-service.js";
 import { PersonalCatalogService } from "../application/services/personal-catalog-service.js";
+import { PersonalClassificationService } from "../application/services/personal-classification-service.js";
 import { PersonalImportService } from "../application/services/personal-import-service.js";
 import { PersonalTransactionService } from "../application/services/personal-transaction-service.js";
 import { PersonalVaultService } from "../application/services/personal-vault-service.js";
@@ -86,6 +87,7 @@ import { buildPostSaleOnboardingService } from "./post-sale-factory.js";
 import { PrismaPersonalAccountRepository } from "../infrastructure/prisma/prisma-personal-account-repository.js";
 import { PrismaPersonalCatalogRepository } from "../infrastructure/prisma/prisma-personal-catalog-repository.js";
 import { PrismaPersonalImportRepository } from "../infrastructure/prisma/prisma-personal-import-repository.js";
+import { PrismaPersonalRuleRepository } from "../infrastructure/prisma/prisma-personal-rule-repository.js";
 import { PrismaPersonalStatementRepository } from "../infrastructure/prisma/prisma-personal-statement-repository.js";
 import { PrismaPersonalTransactionRepository } from "../infrastructure/prisma/prisma-personal-transaction-repository.js";
 import { PrismaPersonalVaultRepository } from "../infrastructure/prisma/prisma-personal-vault-repository.js";
@@ -212,6 +214,7 @@ export function buildContainer(): Container {
   const personalTransactionRepository = new PrismaPersonalTransactionRepository();
   const personalStatementRepository = new PrismaPersonalStatementRepository();
   const personalImportRepository = new PrismaPersonalImportRepository();
+  const personalRuleRepository = new PrismaPersonalRuleRepository();
   const auditLogger = new AuditLogger(auditLogRepository);
 
   // Cofre Financeiro. Criado aqui, antes dos use-cases de auth, porque
@@ -225,11 +228,20 @@ export function buildContainer(): Container {
     personalAccountRepository,
     personalStatementRepository,
   );
+  // A classificacao e criada antes da importacao: a importacao dispara uma
+  // passada de classificacao no que acabou de gravar, pela porta estreita
+  // TransactionClassifier.
+  const personalClassificationService = new PersonalClassificationService(
+    personalRuleRepository,
+    personalCatalogRepository,
+    personalTransactionRepository,
+  );
   const personalImportService = new PersonalImportService(
     personalImportRepository,
     personalTransactionRepository,
     personalAccountRepository,
     personalStatementRepository,
+    personalClassificationService,
   );
   const personalVaultService = new PersonalVaultService(
     personalVaultRepository,
@@ -474,6 +486,7 @@ export function buildContainer(): Container {
     personalCatalogService,
     personalTransactionService,
     personalImportService,
+    personalClassificationService,
   );
   const requireVault = createRequireVault(personalVaultRepository, vaultSessionService);
 
