@@ -265,6 +265,42 @@ limpos.
 
 **Ainda nao ha tela** -- telas sao a fase 8.
 
+## Trabalho de 27/08/2026 — Cofre Financeiro, telas (antecipadas da fase 8)
+
+Mesma branch `feat/cofre-financeiro`, **nao mergeada, nao deployada**. Decisao
+do Rick: puxar as telas pra antes das fases 6, 7 e 9 -- cinco fases de API sem
+nada visivel era tempo demais. **O Cofre agora e usavel de ponta a ponta.**
+
+Dez rotas sob `/cofre`: visao geral, movimentacoes (com revisao e correcao),
+importar, assinaturas, alertas, contas, cartoes, categorias, fornecedores,
+regras.
+
+Decisoes:
+
+- **A porta mora no `cofre/layout.tsx`**, nao em cada pagina: tela nova nasce
+  protegida sem ninguem lembrar, e o conteudo do Cofre nem chega a ser montado
+  com ele fechado. E no layout que a verificacao de alertas roda ao abrir --
+  primeiro nivel de entrega.
+- **A visao geral comeca pelo que exige acao**, nao por saldo. Saldo voce ja
+  sabe; o que voce nao sabe e o que esta esperando por voce.
+- **O regime (competencia x caixa) fica visivel o tempo todo** -- tela que nao
+  diz qual numero esta mostrando engana.
+- Pre-visualizacao da importacao e **mutation, nao query**: como query, o React
+  Query guardaria o conteudo do extrato em cache.
+
+**Dois bugs reais que a UI expos e que foram corrigidos:**
+
+1. `formatDate` do app converte pra fuso local. As colunas do Cofre sao
+   `@db.Date` (meia-noite UTC), entao em UTC-3 **todo lancamento apareceria um
+   dia antes**. Criado `formatVaultDate` com `timeZone: "UTC"` fixo, com teste.
+2. Extrato de banco brasileiro costuma vir em ISO-8859-1. Lido como UTF-8, o
+   acento vira `?` -- e como a descricao entra no fingerprint, a reimportacao
+   duplicaria tudo. Criado `decodeBankFile` (UTF-8 estrito com fallback pra
+   Windows-1252), com teste.
+
+16 testes novos no web -> **198 no web, 1148 no monorepo**. type-check, lint
+(0 avisos) e build limpos; as 10 rotas aparecem no output do build.
+
 ## Bloqueios
 - Pendências registradas em memória (`millead-pendencias-seguranca`) ainda em aberto: ZapSign não configurado no Render (contratos não são assináveis de verdade em produção), 2 achados baixos de segurança (landing de IA sem sanitização própria, tokens em localStorage), permissões próprias de Contratos/Landing pages pendentes de migração.
 
@@ -273,8 +309,11 @@ limpos.
 **Fase 6 do Cofre**: dividas (pessoas que me devem e valores que eu devo),
 com pagamentos parciais e a regra de que Pix de quitacao NAO e renda.
 
-Decidir tambem, com o Rick: puxar as telas (fase 8) pra antes. Sao cinco fases
-construidas sem nada visivel -- tudo so por API.
+Antes de usar: definir `VAULT_SESSION_SECRET` no `.env` e no Render. Sem ela o
+modulo inteiro responde 404 de proposito, e a tela vai parecer quebrada.
+
+Continua pendente: **validacao visual em navegador** -- nenhuma tela do Cofre
+foi aberta de verdade ainda.
 
 Antes de usar o Cofre e preciso definir `VAULT_SESSION_SECRET` no `.env` e no
 Render — sem ela o modulo inteiro responde 404 de proposito.

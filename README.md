@@ -216,9 +216,10 @@ Detalhes de design, estados, idempotência e como testar à mão:
 ## Cofre Financeiro (área pessoal do dono da conta)
 
 Área privada em `/cofre` para finanças pessoais, separada do financeiro da
-MilWeb. **Fases 1 a 5 de 10 concluídas**: segurança, núcleo financeiro,
-importação de extrato, classificação automática e assinaturas com alertas.
-Dívidas e a ponte com o Centro de Custos entram nas fases seguintes.
+MilWeb. **Fases 1 a 5 de 10 concluídas, mais as telas**: segurança, núcleo
+financeiro, importação de extrato, classificação automática, assinaturas com
+alertas e a interface completa em `/cofre`. Dívidas e a ponte com o Centro de
+Custos entram nas fases seguintes.
 
 Segurança:
 
@@ -297,6 +298,17 @@ Assinaturas e alertas:
   sugestão, nunca cadastro automático.
 - Oito alertas, com as folgas que evitam falso positivo: pausada não alerta,
   cobrança faltando tem 3 dias de tolerância, duplicata é um aviso por par.
+
+Telas (10 rotas sob `/cofre`): visão geral, movimentações com revisão,
+importação com pré-visualização, assinaturas, alertas, contas, cartões,
+categorias, fornecedores e regras.
+
+- **A porta mora no layout**, não em cada página — tela nova nasce protegida, e
+  o conteúdo nem chega a ser montado com o Cofre fechado.
+- **Data em UTC** (`formatVaultDate`): o formatador genérico do app converteria
+  para o fuso local e mostraria todo lançamento um dia antes.
+- **Extrato em ISO-8859-1 é decodificado certo** — lido como UTF-8, o acento
+  quebrado entraria no fingerprint e duplicaria tudo na reimportação.
 
 Requer `VAULT_SESSION_SECRET` no `.env` — sem ela o módulo inteiro responde
 404 (fecha, não degrada). Design completo, decisões e roadmap em

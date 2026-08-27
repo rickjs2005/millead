@@ -11,6 +11,18 @@ export const queryKeys = {
   vault: {
     status: () => ["vault", "status"] as const,
     session: () => ["vault", "session"] as const,
+    accounts: (includeInactive: boolean) => ["vault", "accounts", includeInactive] as const,
+    cards: (includeInactive: boolean) => ["vault", "cards", includeInactive] as const,
+    categories: (includeInactive: boolean) => ["vault", "categories", includeInactive] as const,
+    merchants: (includeInactive: boolean) => ["vault", "merchants", includeInactive] as const,
+    transactions: (filters: object) => ["vault", "transactions", filters] as const,
+    statements: (cardId?: string) => ["vault", "statements", cardId ?? null] as const,
+    imports: () => ["vault", "imports"] as const,
+    importProfiles: () => ["vault", "import-profiles"] as const,
+    rules: (includeInactive: boolean) => ["vault", "rules", includeInactive] as const,
+    subscriptions: (status?: string) => ["vault", "subscriptions", status ?? null] as const,
+    alerts: () => ["vault", "alerts"] as const,
+    alertCount: () => ["vault", "alert-count"] as const,
   },
   settings: {
     integrations: () => ["settings", "integrations"] as const,

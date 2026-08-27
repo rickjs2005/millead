@@ -5,10 +5,11 @@ de uma exigência simples e incomum no resto do sistema: nenhum membro da
 equipe pode ver, consultar ou inferir o que está aqui — nem quem tem papel
 Owner ou Admin na organização.
 
-> **Estado atual: Fase 5 de 10.** Segurança, núcleo financeiro, importação,
-> classificação automática e assinaturas com alertas prontos e testados.
-> Dívidas, integração com o financeiro da MilWeb, dashboard e exportação são as
-> fases seguintes — ver [Roadmap](#roadmap).
+> **Estado atual: fases 1 a 5 de 10, mais as telas.** Segurança, núcleo
+> financeiro, importação, classificação, assinaturas com alertas **e a
+> interface** — o Cofre já é usável de ponta a ponta. Dívidas, integração com o
+> financeiro da MilWeb e exportação são as fases seguintes — ver
+> [Roadmap](#roadmap).
 
 ## A decisão que define o módulo: sem RBAC
 
@@ -651,6 +652,69 @@ promete.
 | `PATCH /vault/alerts/:id/read`              | Marcar como lido                                |
 | `PATCH /vault/alerts/:id/snooze`            | Adiar até uma data                              |
 
+## Telas (antecipadas da fase 8)
+
+Dez telas sob `/cofre`, puxadas para antes das fases 6, 7 e 9 — cinco fases de
+API sem nada visível já era tempo demais.
+
+| Rota                                        | O que faz                                              |
+| ------------------------------------------- | ------------------------------------------------------ |
+| `/cofre`                                    | Visão geral: o que exige ação primeiro, números depois |
+| `/cofre/movimentacoes`                      | Lista com filtros, revisão e correção                  |
+| `/cofre/importar`                           | Upload, mapeamento, pré-visualização, confirmação      |
+| `/cofre/assinaturas`                        | Cadastro, pausar, cancelar                             |
+| `/cofre/alertas`                            | Central, com marcar como lido e adiar                  |
+| `/cofre/contas` · `/cofre/cartoes`          | Cadastros e faturas                                    |
+| `/cofre/categorias` · `/cofre/fornecedores` | Catálogo e aliases                                     |
+| `/cofre/regras`                             | Regras de classificação                                |
+
+### A porta mora no layout, não nas páginas
+
+`cofre/layout.tsx` decide se mostra a tela bloqueada ou o conteúdo. Uma página
+nova nasce protegida sem ninguém lembrar de nada, e o conteúdo do Cofre **nunca
+chega a ser montado** enquanto ele está fechado — não é uma tela escondida por
+cima, é uma tela que não existe.
+
+É também no layout que a verificação de alertas roda ao abrir. É o primeiro
+nível de entrega: no plano gratuito o worker dorme, então esta tela é a
+garantia e o push é a segunda camada.
+
+### Duas correções que a UI exigiu
+
+**Data em UTC.** O `formatDate` genérico do app converte para o fuso local. As
+colunas do Cofre são `@db.Date` e chegam como meia-noite UTC, então em UTC-3
+**todo lançamento apareceria um dia antes**. O Cofre tem
+`formatVaultDate`, com `timeZone: "UTC"` fixo — a data não tem hora, não há o
+que converter.
+
+**Codificação do extrato.** Banco brasileiro exporta CSV em ISO-8859-1 com
+frequência incômoda. Lido como UTF-8, todo acento vira `�` — e o estrago não é
+visual: a descrição entra no fingerprint de deduplicação, então
+`MERCADINHO S�O JO�O` e `MERCADINHO SAO JOAO` seriam movimentações diferentes e
+a reimportação duplicaria tudo. `decodeBankFile` tenta UTF-8 estrito e cai para
+Windows-1252 quando o decodificador reclama.
+
+### Decisões de interface
+
+- **A visão geral começa pelo que exige ação** (alertas, movimentações a
+  revisar, faturas abertas) e só depois mostra saldo. Um painel que começa por
+  saldo é bonito e inútil: o saldo você já sabe.
+- **O regime (competência × caixa) fica visível o tempo todo**, não escondido
+  num menu. São dois números diferentes para a mesma pergunta, e uma tela que
+  não diz qual está mostrando engana.
+- **Transferências ficam escondidas por padrão** na lista — elas movem dinheiro
+  entre seus bolsos, não são gasto.
+- **"Criar regra para as próximas" diz na tela que não mexe no passado.** A
+  promessa precisa ser literal na interface, senão a pessoa espera que os
+  lançamentos antigos mudem.
+- **A tela bloqueada não mostra nada financeiro**, nem como esqueleto de
+  carregamento.
+- **Fechar o Cofre limpa o cache** do React Query inteiro (`["vault"]`) —
+  nenhum dado sobrevive ao bloqueio.
+- **A pré-visualização é mutation, não query.** Como query, o React Query
+  guardaria o conteúdo do extrato em cache, que é exatamente o que este módulo
+  evita.
+
 ## Configuração
 
 ```bash
@@ -663,7 +727,7 @@ Gere o segredo com `openssl rand -base64 48`.
 
 ## Testes
 
-391 testes cobrem as cinco fases, todos sem banco e sem HTTP real (exceto os
+407 testes cobrem as cinco fases e as telas, todos sem banco e sem HTTP real (exceto os
 de rota, que sobem Express numa porta efêmera).
 
 **Fase 1 — segurança:**
@@ -730,6 +794,6 @@ de rota, que sobem Express numa porta efêmera).
 | 5   | Assinaturas e alertas                                                  | ✓      |
 | 6   | Dívidas e pagamentos                                                   | ○      |
 | 7   | Ponte com o financeiro da MilWeb (`BusinessExpense`)                   | ○      |
-| 8   | Dashboard e drill-down                                                 | ○      |
+| 8   | Telas (antecipadas) · dashboard e drill-down completos                 | ◐      |
 | 9   | Backup e exportação                                                    | ○      |
 | 10  | Testes finais, documentação e revisão                                  | ○      |

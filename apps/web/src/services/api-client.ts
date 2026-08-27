@@ -36,7 +36,7 @@ async function refreshSession(): Promise<boolean> {
 }
 
 interface RequestOptions {
-  method?: "GET" | "POST" | "PATCH" | "DELETE";
+  method?: "GET" | "POST" | "PATCH" | "PUT" | "DELETE";
   body?: unknown;
   query?: Record<string, string | number | boolean | undefined>;
   /** Pra login/register/logout: não tenta refresh num 401 (credencial errada não é sessão expirada). */
@@ -109,5 +109,8 @@ export const api = {
   post: <T>(path: string, body?: unknown, options?: Pick<RequestOptions, "skipAuth">) =>
     request<T>(path, { method: "POST", body, ...options }),
   patch: <T>(path: string, body?: unknown) => request<T>(path, { method: "PATCH", body }),
+  /** Substituição do recurso inteiro — usado pelo rateio do Cofre, onde
+   *  "trocar o conjunto" é a única operação que faz sentido. */
+  put: <T>(path: string, body?: unknown) => request<T>(path, { method: "PUT", body }),
   delete: <T>(path: string) => request<T>(path, { method: "DELETE" }),
 };
