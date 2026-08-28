@@ -13,7 +13,7 @@ Fase 05 — Autenticação e autorização ✓ (27/08 verificado: `requirePermis
 Fase 06 — Frontend ✓ (todos os módulos consomem `apps/web/src/services`)
 Fase 07 — Integrações ◐ (ZapSign/contratos, IA Claude, Instagram/MilSocial existem; memória registra pendência antiga de bug de e-mail na Autentique/ZapSign — não reverificado)
 Fase 08 — Segurança ◐ (JWT + rate-limit presentes; memória cita achados de segurança "baixos" pendentes em millead-pendencias-seguranca.md — não reverificados)
-Fase 09 — Testes ◐ (27/08: 477 API + 182 web + 56 runner + 21 video-contracts = 736, todos passando. DOIS gaps confirmados: (a) o CI **não roda testes** — ci.yml só faz format/lint/type-check/build; (b) nenhum E2E dos fluxos públicos (/b/:token, /p/:token, /fechamento/:slug))
+Fase 09 — Testes ◐ (28/08 recontado: 1234 API + 203 web + 56 runner + 21 video-contracts = 1514, todos passando. DOIS gaps confirmados: (a) o CI **não roda testes** — ci.yml só faz format/lint/type-check/build; (b) nenhum E2E dos fluxos públicos (/b/:token, /p/:token, /fechamento/:slug))
 Fase 10 — Performance ○ (não verificado nesta sessão)
 Fase 11 — Observabilidade ◐ (27/08 reverificado: health checks + pino existem; **zero** error tracking — nenhum Sentry/equivalente em nenhum package.json. Erro em produção só aparece se alguém abrir o log do Render)
 Fase 12 — Infraestrutura ✓ (Render blueprint p/ API, Vercel p/ web, Supabase, Upstash, CI em .github/workflows/ci.yml)
@@ -486,32 +486,31 @@ incluindo a identidade fechando contra a API real (365 + 150 + 75 = 590).
 
 ## Próxima ação
 
-**Usar o Cofre com dados reais.** As dez fases estao prontas e validadas; o
-que falta e o Rick importar os extratos dele. O caminho:
-`/cofre` -> Contas -> Importar (OFX do banco) -> revisar as classificacoes.
+**Reimportar os 6 extratos do Nubank** (jan–jun/2026, 80 movimentações). O
+Cofre está no ar em produção com as dez fases mais a importação refeita:
+`/cofre` -> Importar -> soltar o OFX. Não precisa mais escolher conta antes —
+o arquivo é lido primeiro, e as pessoas e fornecedores citados nas linhas são
+cadastrados sozinhos (CPF vira Pessoa, CNPJ vira Fornecedor).
 
-Duas coisas continuam pendentes de decisao dele:
+Aviso de contexto: as 80 movimentações anteriores foram apagadas em 27/08 por
+um script de validação meu que deletou além do que criou. Contas, cartões e o
+histórico de importações sobreviveram. **Regra adotada**: script de validação
+filtra por conta criada pelo próprio teste e termina conferindo que o que já
+existia continua lá.
 
-1. **Validacao visual em navegador** -- a extensao do Chrome nao conecta.
-   As 14 telas respondem 200 e todos os fluxos foram exercitados pelo BFF, mas
-   ninguem olhou os pixels.
-2. **Apagar o Cofre** nao existe. O comentario do schema diz "ver a exportacao
-   antes de apagar", mas a exclusao em si nao foi construida -- e destrutiva e
-   irreversivel, e merece decisao propria.
+Duas coisas continuam pendentes de decisão do Rick:
 
-Se for usar em producao (millead.milweb.com.br), falta: `VAULT_SESSION_SECRET`
-no Render, e merge + deploy da branch.
+1. **Validação visual em navegador** — a extensão do Chrome não conecta. As 14
+   telas respondem 200 e todos os fluxos foram exercitados pelo BFF, mas
+   ninguém olhou os pixels.
+2. **Apagar o Cofre** não existe. O comentário do schema diz "ver a exportação
+   antes de apagar", mas a exclusão em si não foi construída — é destrutiva e
+   irreversível, e merece decisão própria.
 
-Antes de usar: definir `VAULT_SESSION_SECRET` no `.env` (ja feito localmente)
-e no Render. Sem ela o modulo inteiro responde 404 de proposito.
-
-Continua pendente: **validacao visual em navegador** -- a extensao do Chrome
-nao esta conectada, entao nenhuma tela do Cofre foi olhada de verdade ainda.
-As 12 rotas respondem 200 e o fluxo foi exercitado pelo BFF, mas ninguem viu
-os pixels.
-
-Antes de usar o Cofre e preciso definir `VAULT_SESSION_SECRET` no `.env` e no
-Render — sem ela o modulo inteiro responde 404 de proposito.
+Uma dúvida em aberto: o CSV de janeiro mostrou "Entradas R$ 0,00" com 20
+linhas. Pode ser que o CSV do Nubank use colunas separadas de crédito e débito
+(o leitor já suporta as duas), ou janeiro não teve entrada mesmo. Só o arquivo
+responde.
 
 ### Pendencias anteriores (verificadas em 27/08)
 

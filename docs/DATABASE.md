@@ -171,6 +171,18 @@ Importacao (fase 3):
 - A idempotencia da importacao vem do `createMany({ skipDuplicates: true })`
   sobre o unique `(vault_id, fingerprint)` -- e o banco, nao a checagem da
   pre-visualizacao, que impede a linha repetida de entrar.
+- **A importacao escreve em `personal_contacts` e `personal_merchants`.** O
+  extrato traz o nome e o documento da contraparte, e CPF/CNPJ dizem qual das
+  duas tabelas recebe. **Nao ha unique de nome em nenhuma das duas, de
+  proposito**: nome nao e identidade, homonimo e legitimo, e uma constraint
+  transformaria isso em erro 500 no meio de uma importacao. A unicidade e
+  garantida no servico, comparando o nome normalizado -- a mesma normalizacao
+  do fingerprint.
+- **Desfazer apaga as duas pontas no servico, nao no banco.** A FK continua
+  `SetNull` (apagar o lote sozinho nao pode levar historico junto); quem
+  apaga movimentacoes e lote na mesma transacao e o `undoImport`, depois de
+  conferir que nenhuma linha baixa divida ou virou despesa da MilWeb -- essas
+  sao `Restrict` e o Postgres recusaria com um 500.
 
 Classificacao (fase 4):
 

@@ -261,11 +261,27 @@ divisões e faturas):
 
 Importação de OFX/CSV:
 
+- **O arquivo primeiro, a conta depois.** Você solta o extrato e o sistema lê
+  banco, conta, período e o que cada linha é; só pergunta o que não conseguir
+  determinar sozinho. `CCACCTFROM` no OFX já diz que é cartão de crédito.
+- **Origem errada nunca é escolhida sozinha.** O casamento tem quatro níveis e
+  só o `exata` (4 dígitos batendo com uma única origem) seleciona sem
+  perguntar — extrato na conta errada mistura dinheiro de um jeito que a
+  deduplicação não pega e só aparece num saldo que não fecha.
+- **Pessoas e fornecedores são cadastrados sozinhos.** O extrato já escreve o
+  nome e o documento: **CPF é pessoa, CNPJ é empresa** — declaração do próprio
+  sistema bancário, não palpite sobre a cara do nome. Sem documento, nada é
+  criado. Um cadastro por nome, não por linha.
 - **O arquivo bancário não é guardado** — nem em disco, nem em storage, nem
-  entre a pré-visualização e a confirmação. Fica só o registro do lote: hash,
-  nome higienizado, período e contagens.
-- **Pré-visualização não grava nada.** Você vê o que entraria, quantas linhas
-  são duplicatas e quais foram recusadas, antes de confirmar.
+  entre a análise e a confirmação. Fica só o registro do lote: hash, nome
+  higienizado, período e contagens.
+- **A prévia não grava nada.** Você vê o que entraria, quem será cadastrado,
+  quantas linhas são duplicatas e quais foram recusadas, antes de confirmar.
+- **Desfazer apaga as duas pontas** (movimentações e lote) — e recusa se
+  alguma linha baixa dívida ou já virou despesa da MilWeb.
+- **CSV é detectado, não exigido**: separador, codificação e decimal por
+  evidência; a ordem da data só é decidida com um dia > 12 no arquivo, senão
+  assume `DD/MM` e marca a confiança como baixa.
 - **Parsers próprios**, sem dependência nova: OFX 1.x (SGML, tags que não
   fecham) e 2.x (XML), e CSV com aspas, CRLF e BOM.
 - **Reimportar não duplica**: o unique de fingerprint com `skipDuplicates` faz
@@ -299,9 +315,9 @@ Assinaturas e alertas:
 - Oito alertas, com as folgas que evitam falso positivo: pausada não alerta,
   cobrança faltando tem 3 dias de tolerância, duplicata é um aviso por par.
 
-Telas (10 rotas sob `/cofre`): visão geral, movimentações com revisão,
-importação com pré-visualização, assinaturas, alertas, contas, cartões,
-categorias, fornecedores e regras.
+Telas (14 rotas sob `/cofre`): visão geral, movimentações com revisão,
+importar, assinaturas, alertas, dívidas, MilWeb, contas, cartões, categorias,
+fornecedores, pessoas, regras e backup.
 
 - **A porta mora no layout**, não em cada página — tela nova nasce protegida, e
   o conteúdo nem chega a ser montado com o Cofre fechado.

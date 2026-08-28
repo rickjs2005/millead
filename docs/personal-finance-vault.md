@@ -306,6 +306,10 @@ qual coluna de data é usada, inclusive na ordenação.
 
 ## Importação de OFX e CSV (fase 3)
 
+> O fluxo desta seção foi refeito depois das dez fases: hoje o arquivo vem
+> primeiro e a origem é detectada dele. Os princípios abaixo continuam valendo
+> inteiros; o que mudou está em [A importação refeita](#a-importação-refeita-depois-das-dez-fases).
+
 Dois passos — **pré-visualizar** e **confirmar** — e um princípio que decide o
 resto do desenho.
 
@@ -425,9 +429,11 @@ pelo dia de fechamento, com uma consulta por mês de referência e não por linh
 
 | Rota                                       | O que faz                                                    |
 | ------------------------------------------ | ------------------------------------------------------------ |
+| `POST /vault/imports/analyze`              | Lê o arquivo, detecta origem e contrapartes. **Não grava.**  |
 | `POST /vault/imports/preview`              | Lê, interpreta e devolve o que entraria. **Não grava nada.** |
 | `POST /vault/imports`                      | Confirma as linhas escolhidas e registra o lote              |
 | `GET /vault/imports`                       | Histórico de importações                                     |
+| `DELETE /vault/imports/:id`                | Desfaz: apaga as movimentações **e** o lote                  |
 | `GET/POST /vault/imports/profiles`         | Modelos de mapeamento                                        |
 | `PATCH/DELETE /vault/imports/profiles/:id` | Editar e remover modelo                                      |
 
@@ -1182,9 +1188,162 @@ na trilha da organização.
 | ---------- | ----------------------------------------------------- |
 | Tabelas    | 19 (17 do Cofre, 2 da ponte)                          |
 | Migrations | 8 — 7 aditivas e 1 correcao de FK                     |
-| Rotas      | 80 sob `/api/v1/vault`, 6 em `/api/v1/costs/expenses` |
+| Rotas      | 76 sob `/api/v1/vault`, 6 em `/api/v1/costs/expenses` |
 | Telas      | 14 sob `/cofre`                                       |
-| Testes     | 572 (1038 na API inteira)                             |
+| Testes     | 581 na API + 16 no web (1234 na API inteira)          |
+
+## A importação refeita (depois das dez fases)
+
+As dez fases fecharam com a importação funcionando e **errada de desenho**: ela
+pedia a conta antes do arquivo. Você abria a tela e a primeira pergunta era
+"conta ou cartão?" — sobre um extrato que o sistema ainda não tinha lido.
+
+A inversão é a seção inteira: **o arquivo primeiro, e o sistema pergunta só o
+que não conseguir determinar sozinho.**
+
+### O que o OFX diz sem ninguém perguntar
+
+Um OFX carrega a identidade da origem em tags que ninguém lia: `BANKID`
+(código COMPE), `ORG`/`FID` (o nome do banco), `ACCTID`, `ACCTTYPE`, `CURDEF`,
+`DTSTART`/`DTEND`. E carrega uma distinção decisiva: **`CCACCTFROM` em vez de
+`BANKACCTFROM` significa cartão de crédito** — o próprio arquivo respondendo a
+pergunta que a tela fazia para você.
+
+Quando falta `ORG`, o código COMPE resolve por uma tabela pequena e explícita
+(260 = Nubank, 341 = Itaú, 001 = Banco do Brasil…). É tabela, não adivinhação:
+um código ausente devolve `null` em vez de um palpite.
+
+### Casar com a conta certa, ou não casar
+
+Ler a identidade não basta — ela precisa apontar para uma conta **sua**. O
+casamento tem quatro níveis, e o nome de cada um é o que a tela mostra:
+
+| Nível      | Quando                                   | O que acontece        |
+| ---------- | ---------------------------------------- | --------------------- |
+| `exata`    | os 4 dígitos batem com **uma só** origem | seleciona sozinho     |
+| `provavel` | o banco bate, os dígitos não             | sugere, você confirma |
+| `ambigua`  | mais de uma origem bate                  | pergunta qual         |
+| `nenhuma`  | nada bate, ou o arquivo não diz          | pergunta do zero      |
+
+**Só o nível `exata` seleciona sozinho.** Associar um extrato à conta errada
+mistura o dinheiro de duas contas de um jeito que a deduplicação não pega e que
+só aparece semanas depois, num saldo que não fecha. Diante de duas candidatas,
+perguntar custa um clique; errar custa a confiança no total.
+
+Uma escolha sua **ganha do casamento automático**, e ganha por construção: o
+tipo vem de qual campo você preencheu (conta ou cartão), não de inferência
+sobre o id. Foi o bug de "eu já selecionei e ele continua perguntando" — o
+código sobrescrevia o id e deixava o tipo nulo.
+
+### CSV: descobrir o formato em vez de exigir o formato
+
+CSV de banco não tem padrão. O detector escolhe separador, codificação, ordem
+de data e separador decimal por **evidência**, não por preferência:
+
+- **Ordem da data** só vira `DD/MM` ou `MM/DD` quando existe um dia > 12 no
+  arquivo. Sem essa prova, assume `DD/MM` (o Brasil) e marca a confiança como
+  **baixa** — o número aparece na tela como suspeito, em vez de passar como fato.
+- **Separador decimal** vem da posição do último ponto ou vírgula, o que
+  distingue `1.234,56` de `1,234.56`.
+- **Colunas** são achadas pelo cabeçalho, com retorno por conteúdo quando o
+  cabeçalho não ajuda.
+
+Quando o CSV traz débito e crédito em colunas separadas, as duas são lidas —
+uma coluna só de "valor" não é premissa.
+
+### Cadastro automático de pessoas e fornecedores
+
+O extrato do Nubank já escreve quem está do outro lado:
+
+```
+Transferência enviada pelo Pix - Samili Linda Morais Perigolo - •••.216.826-•• - NU PAGAMENTOS - IP (0260) Agência: 1 Conta: 186131267-6
+Transferência enviada pelo Pix - ANA GAMING BRASIL - 55.933.850/0001-34 - EFÍ S.A. - IP (0364)
+Pagamento de boleto efetuado - REALIZE CREDITO, FINANCIAMENTO E INVESTI
+```
+
+Duas coisas estão ali de graça e decidem o desenho:
+
+1. **O nome é o segundo segmento, não o último.** A primeira versão pegava o
+   último e trazia `IP (0260) Agência: 1 Conta: 186131267-6` como se fosse o
+   nome de alguém.
+2. **O documento diz o tipo.** CPF é pessoa (vai para **Pessoas**, pode virar
+   dívida); CNPJ é empresa (vira **Fornecedor**, pode virar assinatura). Não é
+   heurística sobre a cara do nome — é a declaração do próprio sistema
+   bancário. Boleto conta como empresa: não existe boleto de pessoa física
+   emitido direto.
+
+O CPF vem mascarado (`•••.216.826-••`) e é lido pelo **formato**, nunca pelo
+número — que não é guardado em lugar nenhum.
+
+**Sem documento, nada é criado.** `PIX RECEBIDO JOAO SILVA` devolve tipo nulo:
+o nome ainda aparece na prévia, mas cadastrar seria adivinhar, e o custo do erro
+cai numa lista que você teria que limpar depois. É a mesma regra do casamento de
+origem — na dúvida, não decide sozinho.
+
+**Um cadastro por nome, não por linha.** A comparação usa a mesma normalização
+da deduplicação (sem acento, sem caixa, sem pontuação), porque seis extratos do
+mesmo semestre citam a mesma pessoa dezenas de vezes e o banco escreve o nome
+diferente em cada arquivo. Sem isso, "Pessoas" viraria a lista de linhas do
+extrato.
+
+Não há unique no banco para isso, de propósito: **nome não é identidade.** Duas
+pessoas podem se chamar igual e você pode querer as duas cadastradas. A
+unicidade aqui é conveniência da importação, não regra do domínio — uma
+constraint transformaria um homônimo legítimo em erro 500 no meio de uma
+importação.
+
+**Falhar no cadastro não desfaz a importação.** As movimentações são o que foi
+pedido; o cadastro é a conveniência em cima delas. Trocar o essencial pelo
+acessório seria a decisão errada, e há teste que fixa isso: com `ensurePerson`
+quebrado, as linhas entram e o fornecedor que não falhou é cadastrado
+normalmente.
+
+O fornecedor nasce com o nome normalizado como **alias**, que é por onde a
+classificação (fase 4, nível 3) vai reencontrá-lo nas próximas importações.
+
+Isso é dito em voz alta nos dois momentos: a prévia marca cada linha com
+`pessoa: <nome>` ou `fornecedor: <nome>` **antes** de confirmar, e o aviso final
+diz "2 pessoas e 1 fornecedor cadastrados automaticamente". Cadastro silencioso
+tem o mesmo problema do trabalho manual, só que mais difícil de perceber.
+
+O cadastro é feito por uma porta estreita (`PartyRegistry`, com
+`ensurePerson`/`ensureMerchant`) pelo mesmo motivo das outras: receber os
+repositórios inteiros de catálogo e de dívidas deixaria a importação capaz de
+apagar dívida, sem nada no tipo denunciando isso.
+
+### Desfazer uma importação
+
+`DELETE /vault/imports/:id` apaga as movimentações **e** o registro do lote,
+juntos. Separados, os dois estados mentem: um lote dizendo "80 importadas" com
+zero movimentações no Cofre, ou movimentações sem procedência.
+
+Duas recusas, com a mensagem somando os motivos:
+
+- alguma movimentação **baixa uma dívida** (a FK é `Restrict`; sem a checagem, o
+  Postgres recusaria e o erro subiria como 500);
+- alguma **já virou despesa da MilWeb** — desfazer aqui arrastaria junto o que
+  outro módulo depende.
+
+O histórico passou a mostrar `linkedTransactions`: quantas **ainda existem**.
+`importedRows` é fato do dia da importação e não muda; sem o número de agora, a
+tela declara importado o que já não está lá.
+
+### Correções que a execução com dados reais encontrou
+
+- **Dinheiro com vírgula.** A interface é em português e recusava `8,06`,
+  exigindo `8.06`. Erro de desenho, não do usuário: `normalizeMoneyInput` passou
+  a aceitar `8,06`, `1.234,56`, `1,234.56` e `R$ 1.234,56`, em cinco DTOs.
+- **Mensagem de campo no toast.** Um Zod com cinco campos devolvia "Dados
+  inválidos" e você adivinhava qual.
+- **HTML entrando como extrato.** Uma sessão expirada devolvia a página de
+  login, que era lida como arquivo. `assertNotMarkup` e `assertLegivel` recusam
+  antes de interpretar.
+- **404 do módulo inteiro.** `/vault/unlock` fica fora do `requireVault`, então
+  sem `VAULT_SESSION_SECRET` ela dava 500 em vez de 404 — o comentário do código
+  afirmava que era inalcançável, e estava errado. A guarda subiu para o router.
+- **Planilha com `Decimal`.** A exportação CSV dava 500 enquanto o JSON
+  funcionava: `Decimal` não tem `.replace()`, e o `JSON.stringify` escondia isso
+  pelo `toJSON()`.
 
 ## Configuração
 
@@ -1198,8 +1357,8 @@ Gere o segredo com `openssl rand -base64 48`.
 
 ## Testes
 
-572 testes cobrem as dez fases e as telas, todos sem banco e sem HTTP real (exceto os
-de rota, que sobem Express numa porta efêmera).
+581 testes cobrem as dez fases, as telas e a importação refeita — todos sem banco e
+sem HTTP real (exceto os de rota, que sobem Express numa porta efêmera).
 
 **Fase 1 — segurança:**
 
@@ -1286,17 +1445,32 @@ de rota, que sobem Express numa porta efêmera).
 | ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `vault-summary.test.ts` | **A conta fecha ao centavo** (saidas = pessoal + empresa + reembolsavel), com centavos impares; transferencia e baixa de divida ficam fora sem sumir; estornada nao conta; categoria soma so a parte pessoal; fevereiro bissexto. |
 
+**Importação refeita (depois da fase 10):**
+
+| Arquivo                           | O que prova                                                                                                                                       |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `import-identity.test.ts`         | Identidade lida do OFX SGML e XML; `CCACCTFROM` é cartão; COMPE só resolve o banco quando `ORG` falta.                                            |
+| `import-autodetect.test.ts`       | Separador, codificação e decimal por evidência; **ordem de data só decide com um dia > 12**, senão cai em `DD/MM` com confiança baixa.            |
+| `import-origin-match.test.ts`     | Os quatro níveis; **só `exata` seleciona sozinho**; duas contas com os mesmos 4 dígitos viram `ambigua`.                                          |
+| `import-counterparty.test.ts`     | **CPF é pessoa, CNPJ é empresa**; o nome é o segundo segmento e não leva agência/conta junto; sem documento, tipo nulo.                           |
+| `party-registry-service.test.ts`  | Idempotência real: caixa, acento, espaço duplo e pontuação são a mesma pessoa; Pessoas e Fornecedores não colidem; o alias nasce normalizado.     |
+| `merchant-display.test.ts`        | Nome legível do lixo do extrato; `SIGLAS` explícito (`LTDA` não vira `Ltda` por tamanho de palavra).                                              |
+| `category-keywords.test.ts`       | Categoria só entre as 14 padrão do Cofre; a ordem da tabela é parte do contrato.                                                                  |
+| `transaction-kind.test.ts`        | O `TRNTYPE` do banco ganha do texto; fatura, estorno e transferência própria são neutros e **não contam duas vezes**.                             |
+| `personal-import-service.test.ts` | O fluxo inteiro: escolha da origem vence o automático; desfazer recusa dívida e despesa da MilWeb; **falha no cadastro não desfaz a importação**. |
+
 ## Roadmap
 
-| #   | Fase                                                                   | Estado |
-| --- | ---------------------------------------------------------------------- | ------ |
-| 1   | Cofre, sessão elevada, reautenticação                                  | ✓      |
-| 2   | Contas, cartões, categorias, fornecedores, transações, splits, faturas | ✓      |
-| 3   | Importação OFX/CSV e deduplicação                                      | ✓      |
-| 4   | Classificação e regras determinísticas                                 | ✓      |
-| 5   | Assinaturas e alertas                                                  | ✓      |
-| 6   | Dívidas e pagamentos                                                   | ✓      |
-| 7   | Ponte com o financeiro da MilWeb (`BusinessExpense`)                   | ✓      |
-| 8   | Telas · painel do mês e drill-down                                     | ✓      |
-| 9   | Backup e exportação                                                    | ✓      |
-| 10  | Testes finais, documentação e revisão                                  | ✓      |
+| #   | Fase                                                                      | Estado |
+| --- | ------------------------------------------------------------------------- | ------ |
+| 1   | Cofre, sessão elevada, reautenticação                                     | ✓      |
+| 2   | Contas, cartões, categorias, fornecedores, transações, splits, faturas    | ✓      |
+| 3   | Importação OFX/CSV e deduplicação                                         | ✓      |
+| 4   | Classificação e regras determinísticas                                    | ✓      |
+| 5   | Assinaturas e alertas                                                     | ✓      |
+| 6   | Dívidas e pagamentos                                                      | ✓      |
+| 7   | Ponte com o financeiro da MilWeb (`BusinessExpense`)                      | ✓      |
+| 8   | Telas · painel do mês e drill-down                                        | ✓      |
+| 9   | Backup e exportação                                                       | ✓      |
+| 10  | Testes finais, documentação e revisão                                     | ✓      |
+| —   | Importação refeita: arquivo primeiro, cadastro automático de contrapartes | ✓      |
