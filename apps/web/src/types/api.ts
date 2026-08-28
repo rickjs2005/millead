@@ -1527,6 +1527,9 @@ export interface VaultImportBatch {
   linkedTransactions: number;
 }
 
+/** O lote logo depois de confirmado: traz o que foi cadastrado sozinho. */
+export type VaultConfirmedImport = VaultImportBatch & { parties: VaultImportParties };
+
 export interface VaultColumnMap {
   date: string | number;
   description: string | number;
@@ -1840,6 +1843,22 @@ export interface VaultAnalyzedRow extends VaultImportPreviewRow {
   installmentNumber: number | null;
   installmentTotal: number | null;
   confidence: ImportConfidence;
+  /** Preenchido só quando o extrato traz CPF ou CNPJ — sem documento não há
+   *  como saber se é gente ou empresa, e nada é cadastrado. */
+  counterparty: VaultCounterparty | null;
+}
+
+export interface VaultCounterparty {
+  name: string;
+  kind: "person" | "company";
+  evidence: "cpf" | "cnpj" | "boleto" | null;
+}
+
+/** O que a importação cadastrou sozinha, devolvido junto com o lote. */
+export interface VaultImportParties {
+  pessoas: number;
+  fornecedores: number;
+  nomes: string[];
 }
 
 export interface VaultImportTotals {

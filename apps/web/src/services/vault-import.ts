@@ -1,6 +1,7 @@
 import { api } from "./api-client";
 import type {
   VaultImportAnalysis,
+  VaultConfirmedImport,
   VaultImportBatch,
   VaultImportFormat,
   VaultImportPreview,
@@ -59,7 +60,7 @@ export const vaultImportService = {
   preview: (payload: PreviewPayload) =>
     api.post<VaultImportPreview>("/api/v1/vault/imports/preview", payload),
   confirm: (payload: ConfirmPayload) =>
-    api.post<VaultImportBatch>("/api/v1/vault/imports", payload),
+    api.post<VaultConfirmedImport>("/api/v1/vault/imports", payload),
   /** Desfaz: apaga as movimentações da importação E o registro dela. */
   undo: (id: string) => api.delete<{ removidas: number }>(`/api/v1/vault/imports/${id}`),
 

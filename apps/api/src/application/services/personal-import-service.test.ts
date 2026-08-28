@@ -227,14 +227,52 @@ function makeFakes(
     },
   };
 
+  // Cadastro de contrapartes: duas listas em memoria com a mesma regra de
+  // idempotencia do servico real -- e ela que os testes abaixo verificam.
+  const pessoas: Array<{ id: string; name: string }> = [];
+  const fornecedores: Array<{ id: string; name: string }> = [];
+  const chave = (n: string) =>
+    n
+      .toUpperCase()
+      .normalize("NFD")
+      .replace(/[^A-Z0-9]/g, "");
+  const parties = {
+    ensurePerson: async (_v: string, name: string) => {
+      const achado = pessoas.find((x) => chave(x.name) === chave(name));
+      if (achado) return { id: achado.id, created: false };
+      const novo = { id: `p-${pessoas.length + 1}`, name };
+      pessoas.push(novo);
+      return { id: novo.id, created: true };
+    },
+    ensureMerchant: async (_v: string, name: string) => {
+      const achado = fornecedores.find((x) => chave(x.name) === chave(name));
+      if (achado) return { id: achado.id, created: false };
+      const novo = { id: `f-${fornecedores.length + 1}`, name };
+      fornecedores.push(novo);
+      return { id: novo.id, created: true };
+    },
+  };
+
   const service = new PersonalImportService(
     importRepo,
     transactionRepo,
     accounts,
     statementRepo,
     classifier,
+    parties,
   );
-  return { service, transactions, statements, batches, classifierCalls, account, card };
+  return {
+    service,
+    transactions,
+    statements,
+    batches,
+    classifierCalls,
+    account,
+    card,
+    pessoas,
+    fornecedores,
+    parties,
+  };
 }
 
 let f: ReturnType<typeof makeFakes>;
@@ -1029,5 +1067,119 @@ describe("escolher a origem na tela", () => {
     });
     expect(manual.match.kind).toBe("card");
     expect(manual.match.selectedId).toBe("card-1");
+  });
+});
+
+describe("cadastrar as contrapartes sozinho", () => {
+  const OFX = `<OFX><BANKACCTFROM><ACCTID>1111</ACCTID></BANKACCTFROM>
+<STMTTRN><DTPOSTED>20260805<TRNAMT>-350.00<FITID>c1<MEMO>Transferência enviada pelo Pix - Samili Linda Morais Perigolo - •••.216.826-•• - NU PAGAMENTOS - IP (0260) Agência: 1 Conta: 186131267-6</MEMO></STMTTRN>
+<STMTTRN><DTPOSTED>20260806<TRNAMT>-89.90<FITID>c2<MEMO>Transferência enviada pelo Pix - ACADEMIA TOTAL FITNESS - 40.851.509/0002-43 - NU PAGAMENTOS - IP (0260)</MEMO></STMTTRN>
+<STMTTRN><DTPOSTED>20260807<TRNAMT>-42.00<FITID>c3<MEMO>Compra no débito - MERCADO BOM PRECO</MEMO></STMTTRN>
+</OFX>`;
+
+  async function importar(f: ReturnType<typeof makeFakes>, ofx = OFX, nome = "c.ofx") {
+    const r = await f.service.analyze(VAULT, { fileName: nome, content: ofx });
+    return f.service.confirm(VAULT, {
+      accountId: "acc-1",
+      cardId: null,
+      fileName: r.fileName,
+      fileHash: r.fileHash,
+      format: r.format,
+      rows: r.rows.map((row) => ({
+        line: row.line,
+        date: row.date!.toISOString().slice(0, 10),
+        description: row.description,
+        amount: row.amount!,
+        direction: row.direction!,
+        externalId: row.externalId,
+      })),
+      ignored: [],
+    });
+  }
+
+  it("o CPF vira uma pessoa em Pessoas", async () => {
+    // É exatamente o pedido: o nome já estava escrito na linha do extrato, e
+    // digitá-lo de novo à mão era trabalho que o sistema podia fazer.
+    const f = makeFakes({ last4: "1111" });
+    await importar(f);
+
+    expect(f.pessoas.map((p) => p.name)).toEqual(["Samili Linda Morais Perigolo"]);
+  });
+
+  it("o CNPJ vira um fornecedor, não uma pessoa", async () => {
+    const f = makeFakes({ last4: "1111" });
+    await importar(f);
+
+    expect(f.fornecedores.map((m) => m.name)).toEqual(["Academia Total Fitness"]);
+    expect(f.pessoas.some((p) => /academia/i.test(p.name))).toBe(false);
+  });
+
+  it("a linha da empresa já nasce apontando para o fornecedor", async () => {
+    // Sem isto o fornecedor existiria no catálogo sem nenhuma movimentação
+    // ligada a ele -- cadastrado e inútil.
+    const f = makeFakes({ last4: "1111" });
+    await importar(f);
+
+    const academia = f.transactions.find((t) => /ACADEMIA/i.test(t.originalDescription));
+    expect(academia?.merchantId).toBe(f.fornecedores[0]!.id);
+  });
+
+  it("compra no débito não cadastra ninguém", async () => {
+    // "MERCADO BOM PRECO" não tem verbo de contraparte nem documento. Criar um
+    // fornecedor aqui seria adivinhação.
+    const f = makeFakes({ last4: "1111" });
+    await importar(f);
+
+    expect(f.fornecedores).toHaveLength(1);
+    expect(f.pessoas).toHaveLength(1);
+  });
+
+  it("a resposta diz o que foi cadastrado agora", async () => {
+    const f = makeFakes({ last4: "1111" });
+    const lote = await importar(f);
+
+    expect(lote.parties).toMatchObject({ pessoas: 1, fornecedores: 1 });
+    expect(lote.parties.nomes).toContain("Samili Linda Morais Perigolo");
+  });
+
+  it("a mesma pessoa em seis extratos é cadastrada UMA vez", async () => {
+    // O caso real: seis arquivos do mesmo semestre, a mesma pessoa em todos.
+    // Sem isto, Pessoas viraria a lista de linhas do extrato.
+    const f = makeFakes({ last4: "1111" });
+    await importar(f);
+
+    const outroMes = OFX.replace(/2026080/g, "2026090").replace(/<FITID>c/g, "<FITID>d");
+    const segundo = await importar(f, outroMes, "c2.ofx");
+
+    expect(f.pessoas).toHaveLength(1);
+    // E o segundo lote não mente dizendo que cadastrou de novo.
+    expect(segundo.parties).toMatchObject({ pessoas: 0, fornecedores: 0, nomes: [] });
+  });
+
+  it("a segunda importação reaproveita o fornecedor já existente", async () => {
+    const f = makeFakes({ last4: "1111" });
+    await importar(f);
+    const outroMes = OFX.replace(/2026080/g, "2026090").replace(/<FITID>c/g, "<FITID>d");
+    await importar(f, outroMes, "c2.ofx");
+
+    const ligadas = f.transactions.filter((t) => t.merchantId === f.fornecedores[0]!.id);
+    expect(ligadas).toHaveLength(2);
+  });
+
+  it("falha no cadastro não desfaz a importação", async () => {
+    // A importação é o que a pessoa pediu; o cadastro é a conveniência em cima
+    // dela. Perder as movimentações por causa do acessório seria a troca errada.
+    const f = makeFakes({ last4: "1111" });
+    f.parties.ensurePerson = async () => {
+      throw new Error("banco fora do ar");
+    };
+
+    const lote = await importar(f);
+
+    expect(lote.importedRows).toBe(3);
+    expect(f.transactions).toHaveLength(3);
+    expect(lote.parties.pessoas).toBe(0);
+    // O fornecedor, que não falhou, entrou normalmente.
+    expect(lote.parties.fornecedores).toBe(1);
   });
 });

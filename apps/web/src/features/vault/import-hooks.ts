@@ -8,7 +8,7 @@ import {
   type ConfirmPayload,
   type PreviewPayload,
 } from "@/services/vault-import";
-import type { VaultImportFormat, VaultImportSettings } from "@/types/api";
+import type { VaultImportFormat, VaultImportParties, VaultImportSettings } from "@/types/api";
 
 function apiMessage(error: unknown, fallback: string): string {
   return error instanceof ApiError ? error.message : fallback;
@@ -54,14 +54,40 @@ export function useConfirmImport() {
       // ter mudado junto.
       await queryClient.invalidateQueries({ queryKey: ["vault", "alerts"] });
 
+      // Pessoas e Fornecedores também mudaram: a importação cadastra as
+      // contrapartes que o extrato identifica por CPF/CNPJ.
+      await queryClient.invalidateQueries({ queryKey: ["vault", "contacts"] });
+      await queryClient.invalidateQueries({ queryKey: ["vault", "merchants"] });
+
       toast.success(
         batch.importedRows === 0
           ? "Nada novo — todas as linhas já estavam no Cofre."
           : `${batch.importedRows} ${batch.importedRows === 1 ? "movimentação importada" : "movimentações importadas"}.`,
+        // O cadastro automático é dito em voz alta. Silencioso, ele teria o
+        // mesmo problema do trabalho manual — só mais difícil de perceber.
+        { description: descreverCadastro(batch.parties) },
       );
     },
     onError: (error) => toast.error(apiMessage(error, "Não foi possível concluir a importação.")),
   });
+}
+
+/**
+ * "2 pessoas e 1 fornecedor cadastrados" — ou nada, quando nada foi criado.
+ *
+ * Devolve `undefined` em vez de "0 cadastrados": uma importação que só
+ * reencontrou quem já existia não tem novidade para anunciar.
+ */
+function descreverCadastro(p: VaultImportParties | undefined): string | undefined {
+  if (!p) return undefined;
+  const partes: string[] = [];
+  if (p.pessoas > 0) partes.push(`${p.pessoas} ${p.pessoas === 1 ? "pessoa" : "pessoas"}`);
+  if (p.fornecedores > 0) {
+    partes.push(`${p.fornecedores} ${p.fornecedores === 1 ? "fornecedor" : "fornecedores"}`);
+  }
+  if (partes.length === 0) return undefined;
+  const total = p.pessoas + p.fornecedores;
+  return `${partes.join(" e ")} ${total === 1 ? "cadastrado" : "cadastrados"} automaticamente.`;
 }
 
 export function useImportHistory(limit = 20) {

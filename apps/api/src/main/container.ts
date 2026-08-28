@@ -21,6 +21,7 @@ import { PersonalBridgeService } from "../application/services/personal-bridge-s
 import { PersonalDebtService } from "../application/services/personal-debt-service.js";
 import { PersonalSubscriptionService } from "../application/services/personal-subscription-service.js";
 import { PersonalImportService } from "../application/services/personal-import-service.js";
+import { PartyRegistryService } from "../application/services/party-registry-service.js";
 import { PersonalTransactionService } from "../application/services/personal-transaction-service.js";
 import { PersonalVaultService } from "../application/services/personal-vault-service.js";
 import { ReceivableService } from "../application/services/receivable-service.js";
@@ -293,12 +294,14 @@ export function buildContainer(): Container {
     // NESTA organização. Não há FK entre os dois mundos que faça isso.
     businessExpenseService,
   );
+  const partyRegistry = new PartyRegistryService(personalCatalogRepository, personalDebtRepository);
   const personalImportService = new PersonalImportService(
     personalImportRepository,
     personalTransactionRepository,
     personalAccountRepository,
     personalStatementRepository,
     personalClassificationService,
+    partyRegistry,
   );
   const personalVaultService = new PersonalVaultService(
     personalVaultRepository,

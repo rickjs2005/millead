@@ -496,6 +496,15 @@ function TabelaPrevia({ rows }: { rows: VaultAnalyzedRow[] }) {
                         parcela {row.installmentNumber}/{row.installmentTotal}
                       </Badge>
                     )}
+                    {/* Quem vai ser cadastrado. Aparece ANTES de confirmar
+                        porque a confirmação cria o registro — descobrir depois,
+                        na lista de Pessoas, é tarde para discordar. */}
+                    {row.counterparty && (
+                      <Badge variant="outline" className="mt-0.5 text-[10px] font-normal">
+                        {row.counterparty.kind === "person" ? "pessoa" : "fornecedor"}:{" "}
+                        {row.counterparty.name}
+                      </Badge>
+                    )}
                   </TableCell>
                   <TableCell className="text-sm">
                     <span className={row.neutral ? "text-muted-foreground" : ""}>

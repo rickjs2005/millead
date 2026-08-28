@@ -44,6 +44,8 @@ import { guessKind, type TransactionKind } from "./transaction-kind.js";
 import { resolveStatementPeriod } from "./statement-period.js";
 import { buildFingerprint } from "./transaction-fingerprint.js";
 import { normalizeDescription } from "./transaction-text.js";
+import { parseCounterparty, type Counterparty } from "./import-counterparty.js";
+import type { PartyRegistry } from "../../domain/services/party-registry.js";
 import { parseUtcDate } from "./vault-date.js";
 import { formatMoney } from "./vault-money.js";
 
@@ -144,6 +146,14 @@ export interface AnalyzedRow extends PreviewRow {
   installmentTotal: number | null;
   /** `alta` preenche sozinho; `media` preenche e destaca; `baixa` pede revisão. */
   confidence: Confidence;
+  /**
+   * A contraparte lida da linha, quando o extrato traz CPF ou CNPJ.
+   *
+   * Aparece na prévia porque a confirmação vai CRIAR este cadastro. Você tem
+   * que poder ver quem vai entrar no seu Cofre antes de dizer sim -- descobrir
+   * depois, na lista de Pessoas, é tarde demais para discordar.
+   */
+  counterparty: Counterparty | null;
 }
 
 export interface AnalyzeInput {
@@ -195,6 +205,21 @@ export interface AnalyzeResult {
   rows: AnalyzedRow[];
 }
 
+/**
+ * O que a importação cadastrou sozinha. A tela mostra isto porque cadastro
+ * silencioso é o mesmo problema que trabalho manual, só que mais difícil de
+ * perceber: você precisa saber o que entrou no seu Cofre sem você pedir.
+ */
+export interface PartySummary {
+  pessoas: number;
+  fornecedores: number;
+  /** Os nomes criados agora -- os que já existiam não reaparecem. */
+  nomes: string[];
+}
+
+/** O lote, mais o que foi cadastrado sozinho junto com ele. */
+export type ConfirmImportResult = PersonalImportBatch & { parties: PartySummary };
+
 export class PersonalImportService {
   constructor(
     private readonly imports: PersonalImportRepository,
@@ -202,6 +227,7 @@ export class PersonalImportService {
     private readonly accounts: PersonalAccountRepository,
     private readonly statements: PersonalStatementRepository,
     private readonly classifier: TransactionClassifier,
+    private readonly parties: PartyRegistry,
   ) {}
 
   // ----- Análise: o arquivo primeiro, a conta depois -----
@@ -336,6 +362,7 @@ export class PersonalImportService {
       const merchant = describeMerchant(row.description);
       const categoria = guessCategory(row.description);
       const tipo = guessKind(row.description, null);
+      const contraparte = parseCounterparty(row.description);
 
       return {
         ...row,
@@ -351,6 +378,8 @@ export class PersonalImportService {
         installmentNumber: merchant.installment?.number ?? null,
         installmentTotal: merchant.installment?.total ?? null,
         confidence: rowConfidence(categoria?.confidence, tipo.confidence),
+        // Só a que tem documento: a prévia promete o que a confirmação cumpre.
+        counterparty: contraparte?.kind ? contraparte : null,
       };
     });
   }
@@ -560,7 +589,7 @@ export class PersonalImportService {
 
   // ----- Confirmação -----
 
-  async confirm(vaultId: string, input: ConfirmImportInput): Promise<PersonalImportBatch> {
+  async confirm(vaultId: string, input: ConfirmImportInput): Promise<ConfirmImportResult> {
     const origin = await this.resolveOrigin(vaultId, input);
 
     // Tudo é recalculado aqui. O cliente escolheu QUAIS linhas entram; ele não
@@ -628,6 +657,14 @@ export class PersonalImportService {
       errors: input.ignored,
     });
 
+    // As contrapartes entram ANTES das movimentações porque a linha guarda o
+    // id do fornecedor. Cadastrar depois deixaria as movimentações desta
+    // importação sem fornecedor -- justamente as que motivaram o cadastro.
+    const contrapartes = await this.registrarContrapartes(
+      vaultId,
+      novas.map((n) => n.row.description),
+    );
+
     const toCreate: CreateTransactionInput[] = novas.map((candidate, index) => ({
       accountId: input.accountId,
       cardId: input.cardId,
@@ -637,7 +674,7 @@ export class PersonalImportService {
       settlementDate: input.accountId ? candidate.date : null,
       originalDescription: candidate.row.description,
       normalizedDescription: normalizeDescription(candidate.row.description),
-      merchantId: null,
+      merchantId: contrapartes.merchantByRow[index] ?? null,
       categoryId: null,
       direction: candidate.row.direction,
       amount: candidate.row.amount,
@@ -687,7 +724,69 @@ export class PersonalImportService {
       status: resolveStatus(inserted, totalRows),
     });
 
-    return updated ?? batch;
+    return { ...(updated ?? batch), parties: contrapartes.summary };
+  }
+
+  /**
+   * Cadastra as pessoas e os fornecedores que aparecem nas linhas.
+   *
+   * O extrato do Nubank traz "Pix - Samili Linda Morais Perigolo -
+   * •••.216.826-••". O nome e o documento estão ali; o que faltava era alguém
+   * lê-los. Sem isto, você importava 80 movimentações e depois digitava, uma a
+   * uma, as pessoas que já estavam escritas nelas.
+   *
+   * Duas regras de contenção:
+   *
+   * 1. **Sem documento, nada é criado.** `parseCounterparty` devolve
+   *    `kind: null` e a linha passa direto. Adivinhar encheria Pessoas de
+   *    nome de mercado.
+   * 2. **Um cadastro por nome, não por linha.** As chaves são reduzidas antes
+   *    de tocar o banco: seis meses de extrato citam a mesma pessoa dezenas de
+   *    vezes, e o mapa transforma isso em uma verificação só.
+   *
+   * Falhar aqui não desfaz a importação: as movimentações são o que você pediu
+   * para importar, e o cadastro é a conveniência em cima delas. Uma falha de
+   * banco no cadastro que apagasse a importação inteira seria trocar o
+   * essencial pelo acessório.
+   */
+  private async registrarContrapartes(
+    vaultId: string,
+    descriptions: string[],
+  ): Promise<{ merchantByRow: Array<string | null>; summary: PartySummary }> {
+    const porLinha = descriptions.map((d) => parseCounterparty(d));
+
+    // Nomes únicos primeiro -- uma resolução por nome, não por linha.
+    const aResolver = new Map<string, { name: string; kind: "person" | "company" }>();
+    for (const c of porLinha) {
+      if (!c?.kind) continue;
+      aResolver.set(`${c.kind}:${c.name.toUpperCase()}`, { name: c.name, kind: c.kind });
+    }
+
+    const resolvidos = new Map<string, string>();
+    const summary: PartySummary = { pessoas: 0, fornecedores: 0, nomes: [] };
+
+    for (const [chave, alvo] of aResolver) {
+      try {
+        const r =
+          alvo.kind === "person"
+            ? await this.parties.ensurePerson(vaultId, alvo.name)
+            : await this.parties.ensureMerchant(vaultId, alvo.name);
+        resolvidos.set(chave, r.id);
+        if (r.created) {
+          if (alvo.kind === "person") summary.pessoas += 1;
+          else summary.fornecedores += 1;
+          summary.nomes.push(alvo.name);
+        }
+      } catch {
+        // Ver o comentário do método: a importação vale mais que o cadastro.
+      }
+    }
+
+    const merchantByRow = porLinha.map((c) =>
+      c?.kind === "company" ? (resolvidos.get(`company:${c.name.toUpperCase()}`) ?? null) : null,
+    );
+
+    return { merchantByRow, summary };
   }
 
   /** Fatura de cada data, com uma consulta por mês de referência (não por linha). */
