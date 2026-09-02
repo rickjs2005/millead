@@ -73,7 +73,7 @@ export class AiNotConfiguredError extends AppError {
 
   constructor() {
     super(
-      "Os recursos de IA não estão configurados. Defina ANTHROPIC_API_KEY no .env e reinicie a API.",
+      "Os recursos de IA não estão configurados. Defina NVIDIA_API_KEY (gratuita) ou ANTHROPIC_API_KEY no .env e reinicie a API.",
     );
   }
 }

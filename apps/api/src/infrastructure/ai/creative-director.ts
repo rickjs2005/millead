@@ -1,4 +1,4 @@
-import Anthropic from "@anthropic-ai/sdk";
+import type { ChatModel } from "../../domain/services/chat-model.js";
 import type {
   CreativeBrief,
   CreativeDirection,
@@ -111,7 +111,7 @@ const SYSTEM = [
   "- O wireframe cobre as seções pedidas, na ordem pedida, e cada seção derruba uma objeção real.",
 ].join("\n");
 
-function renderBrief(b: CreativeBrief): string {
+export function renderBrief(b: CreativeBrief): string {
   const lines = [
     `Negócio: ${b.businessName || "(não informado)"}`,
     b.segment && `Segmento: ${b.segment}`,
@@ -161,49 +161,31 @@ function renderBrief(b: CreativeBrief): string {
   ].join("\n");
 }
 
-export class ClaudeCreativeDirector implements CreativeDirector {
-  private readonly client: Anthropic;
-
-  constructor(
-    apiKey: string,
-    private readonly model: string,
-  ) {
-    // Direção criativa é uma geração longa (thinking + JSON grande) -- timeout folgado.
-    this.client = new Anthropic({ apiKey, timeout: 10 * 60 * 1000 });
-  }
+/** Direção criativa sobre um ChatModel qualquer: geração longa, JSON grande, esforço alto. */
+export class ChatCreativeDirector implements CreativeDirector {
+  constructor(private readonly chat: ChatModel) {}
 
   async direct(brief: CreativeBrief): Promise<CreativeDirection> {
-    // Streaming obrigatório: max_tokens alto sem stream estoura o timeout HTTP.
-    const stream = this.client.messages.stream({
-      model: this.model,
-      max_tokens: 32000,
-      output_config: {
-        effort: "high",
-        format: { type: "json_schema", schema: DIRECTION_SCHEMA },
-      },
+    const result = await this.chat.complete({
+      maxTokens: 32000,
+      effort: "high",
+      schema: { name: "direcao_criativa", definition: DIRECTION_SCHEMA },
       system: SYSTEM,
-      messages: [{ role: "user", content: renderBrief(brief) }],
-    } as Anthropic.MessageStreamParams);
+      user: renderBrief(brief),
+    });
 
-    const response = await stream.finalMessage();
-
-    if (response.stop_reason === "refusal") {
+    if (result.stopReason === "refusal") {
       throw new Error("A IA recusou gerar a direção criativa para este briefing.");
     }
-    if (response.stop_reason === "max_tokens") {
+    if (result.stopReason === "max_tokens") {
       throw new Error(
         "A direção criativa ficou grande demais e foi cortada -- reduza o número de seções ou de cenas.",
       );
     }
 
-    const text = response.content
-      .filter((b): b is Anthropic.TextBlock => b.type === "text")
-      .map((b) => b.text)
-      .join("");
-
     try {
       // O structured output garante o formato; o parse só materializa o objeto.
-      return JSON.parse(text) as CreativeDirection;
+      return JSON.parse(result.text) as CreativeDirection;
     } catch {
       throw new Error("A IA não devolveu uma direção criativa válida.");
     }

@@ -44,4 +44,4 @@ services:
       - key: OWNER_EMAIL
         sync: false # sem ela, /api/v1/admin/social responde 404 pra todo mundo
       # Opcionais (IA, contratos, e-mail, WhatsApp) -- adicionar quando for usar:
-      # ANTHROPIC_API_KEY, SIGNATURE_PROVIDER, ZAPSIGN_*, CONTRACTOR_*, SMTP_*, WHATSAPP_*
+      # NVIDIA_API_KEY (IA gratis, Nemotron) ou ANTHROPIC_API_KEY, SIGNATURE_PROVIDER, ZAPSIGN_*, CONTRACTOR_*, SMTP_*, WHATSAPP_*
