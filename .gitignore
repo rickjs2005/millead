@@ -39,3 +39,6 @@ coverage/
 
 .vercel
 .env*
+
+# estado interno de fases (nomes de clientes, incidentes) — fica so local
+.claude/
