@@ -49,9 +49,10 @@ import { env } from "../config/env.js";
 import { BcryptPasswordHasher } from "../infrastructure/auth/bcrypt-password-hasher.js";
 import { JwtAccessTokenService } from "../infrastructure/auth/jwt-access-token-service.js";
 import { JwtVaultSessionService } from "../infrastructure/auth/jwt-vault-session-service.js";
-import { ClaudeCreativeDirector } from "../infrastructure/ai/claude-creative-director.js";
-import { ClaudeLeadAi } from "../infrastructure/ai/claude-lead-ai.js";
-import { ClaudeSocialAnalyst } from "../infrastructure/ai/claude-social-analyst.js";
+import { buildChatModel } from "../infrastructure/ai/chat-model-factory.js";
+import { ChatCreativeDirector } from "../infrastructure/ai/creative-director.js";
+import { ChatLeadAi } from "../infrastructure/ai/lead-ai.js";
+import { ChatSocialAnalyst } from "../infrastructure/ai/social-analyst.js";
 import { GraphApiInstagramClient } from "../infrastructure/instagram/graph-api-client.js";
 import { WebPushSender } from "../infrastructure/push/web-push-sender.js";
 import { VercelBlobStorage } from "../infrastructure/blob/vercel-blob-storage.js";
@@ -358,12 +359,11 @@ export function buildContainer(): Container {
     activityLogger,
   );
   // IA é opcional: sem chave, o service existe mas recusa com 503 amigável.
-  const leadAi = env.ANTHROPIC_API_KEY
-    ? new ClaudeLeadAi(env.ANTHROPIC_API_KEY, env.AI_MODEL)
-    : null;
-  const creativeDirector = env.ANTHROPIC_API_KEY
-    ? new ClaudeCreativeDirector(env.ANTHROPIC_API_KEY, env.AI_MODEL)
-    : null;
+  // Um ChatModel só (NVIDIA/Nemotron ou Anthropic, decidido pelo env) serve
+  // os três recursos -- os prompts vivem nos adaptadores, não no provedor.
+  const chatModel = buildChatModel(env);
+  const leadAi = chatModel ? new ChatLeadAi(chatModel) : null;
+  const creativeDirector = chatModel ? new ChatCreativeDirector(chatModel) : null;
   // A automação pós-fechamento é montada pela fábrica compartilhada com o
   // worker (main/post-sale-factory.ts) -- um grafo só, dois processos.
   const postSaleOnboardingService = buildPostSaleOnboardingService();
@@ -445,10 +445,9 @@ export function buildContainer(): Container {
     messageRepository,
     activityLogger,
     creativeDirector,
+    chatModel?.label ?? null,
   );
-  const socialAnalyst = env.ANTHROPIC_API_KEY
-    ? new ClaudeSocialAnalyst(env.ANTHROPIC_API_KEY, env.AI_MODEL)
-    : null;
+  const socialAnalyst = chatModel ? new ChatSocialAnalyst(chatModel) : null;
   const socialService = new SocialService(
     socialRepository,
     new GraphApiInstagramClient(),

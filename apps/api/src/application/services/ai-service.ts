@@ -17,7 +17,7 @@ import type { ActivityLogger } from "./activity-logger.js";
 
 export class AiService {
   constructor(
-    /** null quando ANTHROPIC_API_KEY não está configurada. */
+    /** null quando nenhuma chave de IA está configurada. */
     private readonly leadAi: LeadAi | null,
     private readonly leads: LeadRepository,
     private readonly companies: CompanyRepository,
@@ -27,12 +27,14 @@ export class AiService {
     private readonly templates: MessageTemplateRepository,
     private readonly messages: MessageRepository,
     private readonly activityLogger: ActivityLogger,
-    /** null quando ANTHROPIC_API_KEY não está configurada. */
+    /** null quando nenhuma chave de IA está configurada. */
     private readonly creativeDirector: CreativeDirector | null = null,
+    /** rótulo provedor:modelo em uso (ex.: "nvidia:nvidia/nemotron-3.5-lightning-30b-a3b"). */
+    private readonly providerLabel: string | null = null,
   ) {}
 
   status() {
-    return { enabled: this.leadAi !== null };
+    return { enabled: this.leadAi !== null, provider: this.providerLabel };
   }
 
   private requireAi(): LeadAi {

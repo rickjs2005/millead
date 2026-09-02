@@ -483,6 +483,8 @@ export interface MessageTemplate {
 
 export interface AiStatus {
   enabled: boolean;
+  /** provedor:modelo em uso (ex.: "nvidia:nvidia/nemotron-3.5-lightning-30b-a3b"); null sem IA */
+  provider?: string | null;
 }
 
 export interface LeadScoreResponse {

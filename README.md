@@ -9,7 +9,7 @@ marca o lead como ganho, prepara os recebimentos, cria o briefing e o projeto
 e abre as próximas tarefas — ver
 [Automação pós-fechamento](#automação-pós-fechamento). O frontend cobre todos
 os módulos e consome a API via `apps/web/src/services`. Os recursos de IA
-exigem `ANTHROPIC_API_KEY` no `.env`. Ver
+exigem `NVIDIA_API_KEY` (gratuita, Nemotron) ou `ANTHROPIC_API_KEY` no `.env`. Ver
 [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) e
 [docs/DATABASE.md](./docs/DATABASE.md) para os detalhes técnicos.
 
@@ -121,10 +121,12 @@ pnpm --filter @millead/api dev:worker
       rodando** (`pnpm --filter @millead/api dev:worker`).
 - [x] **Fase 7 — IA**: score de oportunidade (0-100 com justificativa na
       timeline), rascunhos de mensagens personalizadas (WhatsApp/e-mail/SMS,
-      com modelos opcionais) e relatório executivo do lead -- tudo via API
-      da Anthropic (Claude, `@anthropic-ai/sdk`), usando lead + empresa +
-      auditoria da Fase 6 como contexto. **Requer `ANTHROPIC_API_KEY` no
-      `.env`** (paga por uso; sem ela os recursos ficam desabilitados com
+      com modelos opcionais) e relatório executivo do lead -- tudo sobre a
+      porta `ChatModel` (`domain/services/chat-model.ts`), com dois provedores:
+      a API gratuita da NVIDIA (Nemotron 3.5 Lightning, formato OpenAI, padrão)
+      e a Anthropic (Claude, `@anthropic-ai/sdk`), usando lead + empresa +
+      auditoria da Fase 6 como contexto. **Requer `NVIDIA_API_KEY` ou
+      `ANTHROPIC_API_KEY` no `.env`** (sem chave os recursos ficam desabilitados com
       aviso na UI). Não há envio automático de mensagens -- a IA gera o
       rascunho, você revisa, copia e envia; "marcar como enviada" registra
       na timeline. Envio real (Twilio/e-mail) fica pra fase futura.

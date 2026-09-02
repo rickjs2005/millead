@@ -40,10 +40,18 @@ const envSchema = z.object({
    */
   REGISTRATION_OPEN: boolEnv(true),
   // ===== IA (Fase 7) =====
-  // Opcional de propósito: sem a chave, o app sobe normalmente e os
+  // Opcional de propósito: sem chave nenhuma, o app sobe normalmente e os
   // endpoints de IA respondem 503 com instrução de configuração.
+  // Dois provedores: a API gratuita da NVIDIA (Nemotron, formato OpenAI) e a
+  // Anthropic (Claude). Sem AI_PROVIDER, a chave presente decide -- e a
+  // NVIDIA ganha o desempate por ser gratuita (ver chat-model-factory.ts).
+  AI_PROVIDER: z.enum(["anthropic", "nvidia"]).optional(),
   ANTHROPIC_API_KEY: z.string().min(1).optional(),
   AI_MODEL: z.string().default("claude-opus-5"),
+  NVIDIA_API_KEY: z.string().min(1).optional(),
+  NVIDIA_MODEL: z.string().default("nvidia/nemotron-3.5-lightning-30b-a3b"),
+  // Qualquer servidor no formato OpenAI serve aqui (OpenRouter, vLLM local…).
+  NVIDIA_BASE_URL: z.string().url().default("https://integrate.api.nvidia.com/v1"),
 
   // ===== MilSocial (ferramenta interna do dono) =====
   // Opcionais: sem eles as rotas /admin/social respondem 503.

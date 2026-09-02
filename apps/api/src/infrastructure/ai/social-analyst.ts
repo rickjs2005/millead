@@ -1,10 +1,20 @@
-import Anthropic from "@anthropic-ai/sdk";
+import type { ChatModel } from "../../domain/services/chat-model.js";
 import type {
   PostSummaryForAnalysis,
   SocialAnalysis,
   SocialAnalyst,
 } from "../../domain/services/social-analyst.js";
 import type { SocialPostFormat } from "../../domain/entities/social.js";
+
+const FORMATS: SocialPostFormat[] = [
+  "REDESIGN",
+  "BEFORE_AFTER",
+  "TIMELAPSE",
+  "REVIEW",
+  "ANIMATION",
+  "CODE_SETUP",
+  "OTHER",
+];
 
 /** Labels pt-BR das metricas nao-nulas, na ordem em que aparecem no bloco por post. */
 function renderMetrics(post: PostSummaryForAnalysis): string[] {
@@ -44,7 +54,7 @@ function renderPost(post: PostSummaryForAnalysis, index: number): string {
 }
 
 /** Serializa a lista de posts num bloco legível pro modelo (pt-BR, sem JSON cru). */
-function renderPosts(posts: PostSummaryForAnalysis[]): string {
+export function renderPosts(posts: PostSummaryForAnalysis[]): string {
   return posts.map((post, index) => renderPost(post, index)).join("\n\n");
 }
 
@@ -53,7 +63,7 @@ const CLASSIFY_SCHEMA = {
   properties: {
     format: {
       type: "string",
-      enum: ["REDESIGN", "BEFORE_AFTER", "TIMELAPSE", "REVIEW", "ANIMATION", "CODE_SETUP", "OTHER"],
+      enum: FORMATS,
       description: "Formato de conteudo do post.",
     },
   },
@@ -80,29 +90,18 @@ const ANALYZE_SCHEMA = {
 } as const;
 
 /**
- * Implementação da porta SocialAnalyst sobre a API da Anthropic. A MilWeb é
+ * Implementação da porta SocialAnalyst sobre um ChatModel qualquer. A MilWeb é
  * uma agência que vende sites premium pra pequenos negócios -- os prompts
  * avaliam os posts do Instagram sob essa ótica.
  */
-export class ClaudeSocialAnalyst implements SocialAnalyst {
-  private readonly client: Anthropic;
-
-  constructor(
-    apiKey: string,
-    private readonly model: string,
-  ) {
-    this.client = new Anthropic({ apiKey });
-  }
+export class ChatSocialAnalyst implements SocialAnalyst {
+  constructor(private readonly chat: ChatModel) {}
 
   async classifyFormat(caption: string | null, mediaType: string): Promise<SocialPostFormat> {
-    const response = await this.client.messages.create({
-      model: this.model,
-      max_tokens: 500,
-      thinking: { type: "adaptive" },
-      output_config: {
-        effort: "low",
-        format: { type: "json_schema", schema: CLASSIFY_SCHEMA },
-      },
+    const result = await this.chat.complete({
+      maxTokens: 500,
+      effort: "low",
+      schema: { name: "classificar_post", definition: CLASSIFY_SCHEMA },
       system:
         "Você classifica posts do Instagram da MilWeb (agência que vende sites premium\n" +
         "para pequenos negócios no Brasil) num formato de conteúdo. Formatos:\n" +
@@ -111,31 +110,24 @@ export class ClaudeSocialAnalyst implements SocialAnalyst {
         "ou análise crítica de um site; ANIMATION = demonstração de animação, parallax\n" +
         "ou efeito de scroll; CODE_SETUP = código, stack, setup, bastidor técnico;\n" +
         "OTHER = qualquer outra coisa. Responda apenas o JSON.",
-      messages: [
-        {
-          role: "user",
-          content: `Legenda do post (tipo de mídia: ${mediaType}):\n\n${caption ?? "(sem legenda)"}`,
-        },
-      ],
+      user: `Legenda do post (tipo de mídia: ${mediaType}):\n\n${caption ?? "(sem legenda)"}`,
     });
 
-    if (response.stop_reason === "refusal") {
+    if (result.stopReason === "refusal") {
       throw new Error("A IA recusou a classificação.");
     }
-    const text = response.content.find((b) => b.type === "text")?.text ?? "";
-    const parsed = JSON.parse(text) as { format: SocialPostFormat };
-    return parsed.format;
+    const parsed = JSON.parse(result.text) as { format: unknown };
+    // Modelo aberto pode devolver algo fora do enum; OTHER é o balde seguro.
+    return FORMATS.includes(parsed.format as SocialPostFormat)
+      ? (parsed.format as SocialPostFormat)
+      : "OTHER";
   }
 
   async analyze(posts: PostSummaryForAnalysis[]): Promise<SocialAnalysis> {
-    const response = await this.client.messages.create({
-      model: this.model,
-      max_tokens: 3000,
-      thinking: { type: "adaptive" },
-      output_config: {
-        effort: "medium",
-        format: { type: "json_schema", schema: ANALYZE_SCHEMA },
-      },
+    const result = await this.chat.complete({
+      maxTokens: 3000,
+      effort: "medium",
+      schema: { name: "analisar_posts", definition: ANALYZE_SCHEMA },
       system:
         "Você é estrategista de conteúdo da MilWeb (agência de sites premium para\n" +
         "pequenos negócios no Brasil; público-alvo dos posts = donos de empresas\n" +
@@ -145,19 +137,19 @@ export class ClaudeSocialAnalyst implements SocialAnalyst {
         "posts que maximizem contatos comerciais. Baseie-se só nos dados fornecidos;\n" +
         "se a amostra de um formato for pequena (menos de 3 posts), diga isso em vez\n" +
         "de concluir com confiança.",
-      messages: [
-        {
-          role: "user",
-          content: `Analise os posts abaixo:\n\n${renderPosts(posts)}`,
-        },
-      ],
+      user: `Analise os posts abaixo:\n\n${renderPosts(posts)}`,
     });
 
-    if (response.stop_reason === "refusal") {
+    if (result.stopReason === "refusal") {
       throw new Error("A IA recusou a geração do relatório.");
     }
-    const text = response.content.find((b) => b.type === "text")?.text ?? "";
-    const parsed = JSON.parse(text) as SocialAnalysis;
-    return { report: parsed.report, suggestions: parsed.suggestions };
+    const parsed = JSON.parse(result.text) as { report: unknown; suggestions: unknown };
+    if (typeof parsed.report !== "string" || !Array.isArray(parsed.suggestions)) {
+      throw new Error("A IA não devolveu uma análise válida.");
+    }
+    return {
+      report: parsed.report,
+      suggestions: parsed.suggestions.filter((s): s is string => typeof s === "string"),
+    };
   }
 }

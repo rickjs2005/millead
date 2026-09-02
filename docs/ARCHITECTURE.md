@@ -206,10 +206,15 @@ Dois conceitos com nomes parecidos, domínios diferentes:
 ## IA (Fase 7)
 
 - Porta de domínio `domain/services/lead-ai.ts` (`LeadAi`: score, rascunho
-  de mensagem, relatório) implementada por
-  `infrastructure/ai/claude-lead-ai.ts` usando o SDK oficial da Anthropic
-  (`@anthropic-ai/sdk`, modelo em `AI_MODEL`, padrão `claude-opus-4-8`,
-  thinking adaptativo; o score usa structured output com JSON schema).
+  de mensagem, relatório) implementada por `infrastructure/ai/lead-ai.ts`
+  sobre a porta `ChatModel` (`domain/services/chat-model.ts`: system + pedido
+  → texto ou JSON por schema). Provedores em `infrastructure/ai/`:
+  `openai-compatible-chat-model.ts` (API gratuita da NVIDIA com o Nemotron
+  3.5 Lightning, `NVIDIA_API_KEY`/`NVIDIA_MODEL`/`NVIDIA_BASE_URL`; JSON via
+  tool calling forçado, streaming SSE, sem SDK) e `anthropic-chat-model.ts`
+  (`@anthropic-ai/sdk`, `AI_MODEL`, thinking adaptativo, structured output).
+  `chat-model-factory.ts` escolhe pelo env (`AI_PROVIDER` ou a chave presente;
+  NVIDIA ganha o desempate por ser gratuita).
 - O contexto vem de `AiService.buildContext` (lead + empresa + auditoria
   mais recente da Fase 6 + atividades) -- sempre filtrado por
   `organizationId`.
@@ -239,9 +244,10 @@ Dois conceitos com nomes parecidos, domínios diferentes:
   instruções pra IA de destino; com direção, viram conteúdo. Nenhum artefato
   depende de rede -- a tela funciona inteira sem backend de IA.
 - **Porta** `domain/services/creative-director.ts`, implementada por
-  `infrastructure/ai/claude-creative-director.ts`: Claude Opus 5 com adaptive
-  thinking, `effort: high`, streaming (`max_tokens` alto estoura timeout sem
-  stream) e **structured outputs** (`output_config.format` + json_schema), o
+  `infrastructure/ai/creative-director.ts` sobre o mesmo `ChatModel` (Nemotron
+  ou Claude): `effort: high`, 32k tokens em streaming (`max_tokens` alto
+  estoura timeout sem stream) e JSON por schema (tool calling forçado na
+  NVIDIA; `output_config.format` + json_schema na Anthropic), o
   que torna JSON inválido impossível por construção. Trata
   `stop_reason: "refusal"` antes de ler o conteúdo.
 - **Endpoint** `POST /api/v1/ai/creative-direction` vive sob `ai-routes` e

@@ -1,4 +1,4 @@
-import Anthropic from "@anthropic-ai/sdk";
+import type { ChatModel } from "../../domain/services/chat-model.js";
 import type {
   LeadAi,
   LeadAiContext,
@@ -13,7 +13,7 @@ const CHANNEL_LABELS: Record<string, string> = {
 };
 
 /** Serializa o contexto num bloco legível pro modelo (pt-BR, sem JSON cru). */
-function renderContext(ctx: LeadAiContext): string {
+export function renderContext(ctx: LeadAiContext): string {
   const lines: string[] = [];
   lines.push(`## Lead: ${ctx.lead.title}`);
   lines.push(
@@ -95,29 +95,19 @@ const SCORE_SCHEMA = {
 } as const;
 
 /**
- * Implementação da porta LeadAi sobre a API da Anthropic. A MilWead é uma
- * agência que vende sites/presença digital pra pequenos negócios -- os
- * prompts avaliam a oportunidade sob essa ótica.
+ * Implementação da porta LeadAi sobre um ChatModel qualquer (Claude ou
+ * Nemotron -- os prompts são os mesmos). A MilWeb é uma agência que vende
+ * sites/presença digital pra pequenos negócios -- os prompts avaliam a
+ * oportunidade sob essa ótica.
  */
-export class ClaudeLeadAi implements LeadAi {
-  private readonly client: Anthropic;
-
-  constructor(
-    apiKey: string,
-    private readonly model: string,
-  ) {
-    this.client = new Anthropic({ apiKey });
-  }
+export class ChatLeadAi implements LeadAi {
+  constructor(private readonly chat: ChatModel) {}
 
   async scoreLead(context: LeadAiContext): Promise<LeadScoreResult> {
-    const response = await this.client.messages.create({
-      model: this.model,
-      max_tokens: 2000,
-      thinking: { type: "adaptive" },
-      output_config: {
-        effort: "low",
-        format: { type: "json_schema", schema: SCORE_SCHEMA },
-      },
+    const result = await this.chat.complete({
+      maxTokens: 2000,
+      effort: "low",
+      schema: { name: "avaliar_lead", definition: SCORE_SCHEMA },
       system:
         `Você avalia oportunidades de venda para a agência "${context.organizationName}", ` +
         "que vende criação de sites, presença digital e marketing para pequenos e médios negócios no Brasil. " +
@@ -125,21 +115,19 @@ export class ClaudeLeadAi implements LeadAi {
         "(site ruim ou inexistente, notas baixas de auditoria, segmento que depende de clientes locais). " +
         "Dê notas baixas quando há pouco sinal de oportunidade (site já excelente, lead frio, sem contatos, sem informações). " +
         "Seja criterioso: 50 é a média; reserve 80+ pra oportunidades realmente fortes.",
-      messages: [
-        {
-          role: "user",
-          content: `Avalie a oportunidade deste lead:\n\n${renderContext(context)}`,
-        },
-      ],
+      user: `Avalie a oportunidade deste lead:\n\n${renderContext(context)}`,
     });
 
-    if (response.stop_reason === "refusal") {
+    if (result.stopReason === "refusal") {
       throw new Error("A IA recusou a solicitação de score.");
     }
-    const text = response.content.find((b) => b.type === "text")?.text ?? "";
-    const parsed = JSON.parse(text) as LeadScoreResult;
+    const parsed = JSON.parse(result.text) as { score: unknown; rationale: unknown };
+    const score = Number(parsed.score);
+    if (!Number.isFinite(score) || typeof parsed.rationale !== "string") {
+      throw new Error("A IA não devolveu um score válido.");
+    }
     return {
-      score: Math.max(0, Math.min(100, Math.round(parsed.score))),
+      score: Math.max(0, Math.min(100, Math.round(score))),
       rationale: parsed.rationale,
     };
   }
@@ -162,11 +150,9 @@ export class ClaudeLeadAi implements LeadAi {
       parts.push("", `Instruções adicionais do vendedor: ${input.instructions}`);
     }
 
-    const response = await this.client.messages.create({
-      model: this.model,
-      max_tokens: 1500,
-      thinking: { type: "adaptive" },
-      output_config: { effort: "low" },
+    const result = await this.chat.complete({
+      maxTokens: 1500,
+      effort: "low",
       system:
         `Você escreve mensagens de prospecção em nome da agência "${context.organizationName}" ` +
         "(criação de sites e presença digital para pequenos negócios no Brasil). " +
@@ -175,21 +161,19 @@ export class ClaudeLeadAi implements LeadAi {
         "no máximo 2 parágrafos curtos pra WhatsApp/SMS e 3 pra e-mail; termine com uma pergunta simples que convide resposta; " +
         "não invente fatos que não estão no contexto; não use placeholders como [NOME] -- se faltar o nome, escreva sem ele. " +
         "Responda SOMENTE com o texto da mensagem, sem preâmbulo nem explicações.",
-      messages: [{ role: "user", content: parts.join("\n") }],
+      user: parts.join("\n"),
     });
 
-    if (response.stop_reason === "refusal") {
+    if (result.stopReason === "refusal") {
       throw new Error("A IA recusou a geração da mensagem.");
     }
-    return (response.content.find((b) => b.type === "text")?.text ?? "").trim();
+    return result.text.trim();
   }
 
   async reportLead(context: LeadAiContext): Promise<string> {
-    const response = await this.client.messages.create({
-      model: this.model,
-      max_tokens: 2500,
-      thinking: { type: "adaptive" },
-      output_config: { effort: "medium" },
+    const result = await this.chat.complete({
+      maxTokens: 2500,
+      effort: "medium",
       system:
         `Você é analista comercial da agência "${context.organizationName}" ` +
         "(sites e presença digital para pequenos negócios no Brasil). " +
@@ -199,14 +183,12 @@ export class ClaudeLeadAi implements LeadAi {
         "**Oportunidade** (o que a agência pode vender e por quê), " +
         "**Próximo passo** (uma ação concreta e imediata pro vendedor). " +
         "Baseie-se apenas nos dados fornecidos; aponte lacunas em vez de inventar.",
-      messages: [
-        { role: "user", content: `Monte o relatório deste lead:\n\n${renderContext(context)}` },
-      ],
+      user: `Monte o relatório deste lead:\n\n${renderContext(context)}`,
     });
 
-    if (response.stop_reason === "refusal") {
+    if (result.stopReason === "refusal") {
       throw new Error("A IA recusou a geração do relatório.");
     }
-    return (response.content.find((b) => b.type === "text")?.text ?? "").trim();
+    return result.text.trim();
   }
 }
