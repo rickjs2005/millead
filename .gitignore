@@ -37,8 +37,13 @@ coverage/
 # Docker volumes (local dev data)
 .docker-data/
 
-.vercel
-.env*
+.vercel/
 
-# estado interno de fases (nomes de clientes, incidentes) — fica so local
+# All local env files; keep only a sanitized template
+.env*
+!.env.example
+
+# Local AI state and private project plans
 .claude/
+docs/superpowers/
+docs/personal-finance-vault.md
