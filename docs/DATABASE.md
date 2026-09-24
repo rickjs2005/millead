@@ -63,8 +63,7 @@ completo de eventos de entrega reportados pelo provedor (webhook).
 `AutomationArtifact`
 
 Contrato assinado dispara lead ganho + recebimentos + briefing + projeto +
-tarefas. Design completo em
-[a spec](./superpowers/specs/2026-08-26-post-sale-automation-design.md).
+tarefas.
 
 - **Três tabelas de execução, não uma.** Cada uma responde a uma pergunta
   diferente e carrega uma trava de unicidade diferente — e é a trava, não a
@@ -121,7 +120,7 @@ papel na empresa.
 Pela mesma razao o modulo **nao usa RBAC**: `ADMIN_PERMISSIONS` e
 `ALL_PERMISSIONS` menos billing, entao uma chave `vault:*` nova entraria
 sozinha no papel Admin de toda organizacao. A autorizacao e posse + sessao
-elevada. Detalhes em [personal-finance-vault.md](./personal-finance-vault.md).
+elevada.
 
 Campos que carregam decisao:
 

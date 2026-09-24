@@ -258,8 +258,7 @@ Dois conceitos com nomes parecidos, domínios diferentes:
 - Permissões: `leads:read`, a mesma do menu (artefato de venda; permissão
   própria exigiria re-seed do catálogo RBAC).
 - Testes: vitest em `apps/web` cobre os builders puros e o prefill de
-  briefing -- ver a seção Testes da
-  [spec](./superpowers/specs/2026-07-25-ai-creative-director-design.md).
+  briefing.
 
 ## Contratos (Fase 9 -- migrado do milweb-contratos)
 
@@ -288,9 +287,8 @@ Dois conceitos com nomes parecidos, domínios diferentes:
 ## Automação pós-fechamento
 
 Primeira etapa da costura dos módulos num fluxo único: contrato `ASSINADO` ->
-lead ganho -> recebimentos -> briefing -> projeto -> tarefas. Design completo
-em [a spec](./superpowers/specs/2026-08-26-post-sale-automation-design.md);
-o que importa pra arquitetura:
+lead ganho -> recebimentos -> briefing -> projeto -> tarefas. O que importa
+pra arquitetura:
 
 - **Orquestrador**: `application/services/post-sale-onboarding-service.ts`.
   É um Service (não N use-cases) pelo mesmo critério do `LeadService.moveStage`

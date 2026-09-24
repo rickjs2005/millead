@@ -146,7 +146,7 @@ pnpm --filter @millead/api dev:worker
       paleta, moodboard e cenas para aquele negócio específico (~40-90s,
       `POST /api/v1/ai/creative-direction`, sem persistência). UI em
       `/landing-pages`. Prefill opcional a partir de empresa ou de briefing
-      concluído. Ver [a spec](./docs/superpowers/specs/2026-07-25-ai-creative-director-design.md).
+      concluído.
 - [x] **Fase 9 — Contratos (migrado do milweb-contratos)**: fluxo completo
       de fechamento -> PDF jurídico (15 cláusulas, `pdf-lib`) -> assinatura
       eletrônica -> acompanhamento. Formulário público em
@@ -211,9 +211,6 @@ No **painel**, o card "Pós-fechamento pendente" lista as automações que
 pararam no meio (de toda a organização, não uma por contrato) com botão de
 reprocessar, e o card "Prazos de projeto" mostra os projetos perto de vencer
 ou já atrasados — o prazo vem do contrato assinado.
-
-Detalhes de design, estados, idempotência e como testar à mão:
-[a spec](./docs/superpowers/specs/2026-08-26-post-sale-automation-design.md).
 
 ## Cofre Financeiro (área pessoal do dono da conta)
 
@@ -329,8 +326,7 @@ fornecedores, pessoas, regras e backup.
   quebrado entraria no fingerprint e duplicaria tudo na reimportação.
 
 Requer `VAULT_SESSION_SECRET` no `.env` — sem ela o módulo inteiro responde
-404 (fecha, não degrada). Design completo, decisões e roadmap em
-[docs/personal-finance-vault.md](./docs/personal-finance-vault.md).
+404 (fecha, não degrada).
 
 ## Gestão de equipe
 
